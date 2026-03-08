@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Luxury Restaurant Partner Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f4af25",
+                        "background-light": "#f8f7f5",
+                        "background-dark": "#0a0a0a",
+                        "surface-dark": "rgba(255, 255, 255, 0.03)",
+                        "surface-dark-hover": "rgba(255, 255, 255, 0.08)",
+                        "border-dark": "rgba(255, 255, 255, 0.1)",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px" },
+                    backgroundImage: {
+                        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(20, 20, 20, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+        }
+        .neon-text-primary {
+            text-shadow: 0 0 10px rgba(244, 175, 37, 0.5), 0 0 20px rgba(244, 175, 37, 0.3);
+        }
+        .neon-text-green {
+            text-shadow: 0 0 10px rgba(16, 185, 129, 0.5), 0 0 20px rgba(16, 185, 129, 0.3);
+        }
+        .ambient-glow {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(100px);
+            z-index: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display min-h-screen relative overflow-x-hidden selection:bg-primary/30">
+<!-- Ambient Background Glows -->
+<div class="ambient-glow bg-primary/10 w-[600px] h-[600px] top-[-200px] left-[-200px]"></div>
+<div class="ambient-glow bg-red-900/20 w-[800px] h-[800px] bottom-[-300px] right-[-200px]"></div>
+<div class="relative z-10 flex h-screen w-full">
+<!-- Left Sidebar -->
+<aside class="w-64 flex-shrink-0 flex flex-col h-full glass-panel border-r border-border-dark z-20">
+<div class="p-6 flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-yellow-600 p-[2px] shadow-[0_0_15px_rgba(244,175,37,0.3)]">
+<img alt="Restaurant Logo" class="w-full h-full rounded-full object-cover border-2 border-background-dark" data-alt="Luxury restaurant abstract gold logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBaHbOakIxGzfO4no3A3jgB2pmBu-sWxel42XEWL4dzJIqgWYnvOXXZlS1y-xkRjyDFQWYyas81Xm04vYbVMC1hNNTMzN1Zyvw4ZE4OpIrgHX81O8C2FnD9ad2fQOrB0sHODULv0zyk-Cqw6nns5GZ6uRDhWa89I6YdsXCwqIEzTMmyP2Vw-p_JgyIPoYhTYHFPH6BH905Nj88watj1fSrn5Km_CdzpEeeI4Jjzp-L5TJYd5H5zVuMdQYWunIj89WFBf0ALvoEZRaaK"/>
+</div>
+<div class="flex flex-col">
+<h1 class="text-white text-lg font-bold leading-tight tracking-wide">Luxe Partner</h1>
+<p class="text-primary text-xs font-medium uppercase tracking-widest opacity-80">Admin Portal</p>
+</div>
+</div>
+<nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto custom-scrollbar">
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl bg-primary/15 border border-primary/30 text-primary shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(244,175,37,0.15)] transition-all" href="#">
+<span class="material-symbols-outlined text-[24px]">space_dashboard</span>
+<span class="text-sm font-semibold tracking-wide">Overview</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-400 hover:bg-surface-dark-hover hover:text-white transition-all group" href="#">
+<span class="material-symbols-outlined text-[24px] group-hover:text-primary transition-colors">notifications_active</span>
+<span class="text-sm font-medium tracking-wide">Live Orders</span>
+<span class="ml-auto w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-400 hover:bg-surface-dark-hover hover:text-white transition-all group" href="#">
+<span class="material-symbols-outlined text-[24px] group-hover:text-primary transition-colors">restaurant_menu</span>
+<span class="text-sm font-medium tracking-wide">Menu Manager</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-400 hover:bg-surface-dark-hover hover:text-white transition-all group" href="#">
+<span class="material-symbols-outlined text-[24px] group-hover:text-primary transition-colors">analytics</span>
+<span class="text-sm font-medium tracking-wide">Analytics</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-400 hover:bg-surface-dark-hover hover:text-white transition-all group" href="#">
+<span class="material-symbols-outlined text-[24px] group-hover:text-primary transition-colors">group</span>
+<span class="text-sm font-medium tracking-wide">Staff</span>
+</a>
+</nav>
+<div class="p-4 mt-auto">
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-400 hover:bg-surface-dark-hover hover:text-white transition-all group" href="#">
+<span class="material-symbols-outlined text-[24px] group-hover:text-primary transition-colors">settings</span>
+<span class="text-sm font-medium tracking-wide">Settings</span>
+</a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col h-full overflow-hidden relative">
+<!-- Header -->
+<header class="flex-shrink-0 flex justify-between items-end px-8 pt-8 pb-4 z-10">
+<div class="flex flex-col gap-1">
+<h2 class="text-white text-4xl font-bold tracking-tight neon-text-primary">Welcome, Chef</h2>
+<p class="text-slate-400 text-sm font-medium tracking-wide flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+                        18:45 PM <span class="mx-2 text-border-dark">|</span> Live Dashboard
+                    </p>
+</div>
+<!-- Time Filter -->
+<div class="glass-panel p-1 rounded-xl flex items-center gap-1">
+<label class="cursor-pointer relative">
+<input class="peer sr-only" name="time_filter" type="radio"/>
+<div class="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 transition-all peer-checked:bg-surface-dark-hover peer-checked:text-white peer-checked:shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">3 Hours</div>
+</label>
+<label class="cursor-pointer relative">
+<input checked="" class="peer sr-only" name="time_filter" type="radio"/>
+<div class="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 transition-all peer-checked:bg-surface-dark-hover peer-checked:text-white peer-checked:shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">24 Hours</div>
+</label>
+<label class="cursor-pointer relative">
+<input class="peer sr-only" name="time_filter" type="radio"/>
+<div class="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 transition-all peer-checked:bg-surface-dark-hover peer-checked:text-white peer-checked:shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">7 Days</div>
+</label>
+</div>
+</header>
+<!-- Scrollable Content -->
+<div class="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar relative z-10">
+<!-- KPI Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+<!-- Revenue Card -->
+<div class="glass-panel rounded-2xl p-6 relative overflow-hidden group">
+<div class="absolute -right-10 -top-10 w-32 h-32 bg-primary/10 rounded-full blur-2xl group-hover:bg-primary/20 transition-all"></div>
+<div class="flex justify-between items-start mb-4 relative z-10">
+<p class="text-slate-400 text-sm font-medium tracking-wide uppercase">Total Revenue</p>
+<span class="material-symbols-outlined text-primary/50 text-[24px]">account_balance_wallet</span>
+</div>
+<div class="flex items-end justify-between relative z-10">
+<h3 class="text-white text-3xl font-bold tracking-tight">$14,250</h3>
+<div class="flex items-center gap-1 text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md border border-emerald-400/20">
+<span class="material-symbols-outlined text-[14px]">trending_up</span>
+<span class="text-xs font-bold neon-text-green">+12%</span>
+</div>
+</div>
+</div>
+<!-- Orders Card -->
+<div class="glass-panel rounded-2xl p-6 relative overflow-hidden group">
+<div class="absolute -right-10 -top-10 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all"></div>
+<div class="flex justify-between items-start mb-4 relative z-10">
+<p class="text-slate-400 text-sm font-medium tracking-wide uppercase">Total Orders</p>
+<span class="material-symbols-outlined text-blue-500/50 text-[24px]">receipt_long</span>
+</div>
+<div class="flex items-end justify-between relative z-10">
+<h3 class="text-white text-3xl font-bold tracking-tight">128</h3>
+<div class="flex items-center gap-1 text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md border border-emerald-400/20">
+<span class="material-symbols-outlined text-[14px]">trending_up</span>
+<span class="text-xs font-bold neon-text-green">+5%</span>
+</div>
+</div>
+</div>
+<!-- Active Orders Card -->
+<div class="glass-panel rounded-2xl p-6 relative overflow-hidden group border-primary/30 shadow-[0_0_15px_rgba(244,175,37,0.1)]">
+<div class="absolute -right-10 -top-10 w-32 h-32 bg-red-500/10 rounded-full blur-2xl group-hover:bg-red-500/20 transition-all"></div>
+<div class="flex justify-between items-start mb-4 relative z-10">
+<p class="text-slate-400 text-sm font-medium tracking-wide uppercase">Active Orders</p>
+<div class="flex items-center gap-1 bg-red-500/20 border border-red-500/30 px-2 py-0.5 rounded-full">
+<span class="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_5px_rgba(239,68,68,1)] animate-pulse"></span>
+<span class="text-red-400 text-[10px] font-bold uppercase tracking-wider">Live</span>
+</div>
+</div>
+<div class="flex items-end justify-between relative z-10">
+<h3 class="text-white text-3xl font-bold tracking-tight">12</h3>
+<div class="flex items-center gap-1 text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md border border-emerald-400/20">
+<span class="material-symbols-outlined text-[14px]">trending_up</span>
+<span class="text-xs font-bold neon-text-green">+2%</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Charts Section -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<!-- Line Chart Panel -->
+<div class="glass-panel rounded-2xl p-6 flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div>
+<h4 class="text-white text-lg font-semibold tracking-wide">Revenue Trend</h4>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-2xl font-bold text-white">$14,250</span>
+<span class="text-emerald-400 text-sm font-medium">+12%</span>
+</div>
+</div>
+<button class="p-2 rounded-lg bg-surface-dark-hover text-slate-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[20px]">more_horiz</span>
+</button>
+</div>
+<div class="relative h-48 w-full mt-4 flex items-end">
+<!-- Abstract Line Chart Graphic using SVG -->
+<svg class="w-full h-full overflow-visible" preserveaspectratio="none" viewbox="0 0 100 50">
+<defs>
+<lineargradient id="lineGrad" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="rgba(244,175,37,0.5)"></stop>
+<stop offset="100%" stop-color="rgba(244,175,37,0)"></stop>
+</lineargradient>
+<filter id="glow">
+<fegaussianblur result="coloredBlur" stddeviation="1.5"></fegaussianblur>
+<femerge>
+<femergenode in="coloredBlur"></femergenode>
+<femergenode in="SourceGraphic"></femergenode>
+</femerge>
+</filter>
+</defs>
+<path d="M0,50 L0,30 Q10,25 20,35 T40,20 T60,10 T80,15 T100,5 L100,50 Z" fill="url(#lineGrad)"></path>
+<path d="M0,30 Q10,25 20,35 T40,20 T60,10 T80,15 T100,5" fill="none" filter="url(#glow)" stroke="#f4af25" stroke-width="0.8"></path>
+<!-- Points -->
+<circle cx="20" cy="35" fill="#fff" filter="url(#glow)" r="1.5"></circle>
+<circle cx="40" cy="20" fill="#fff" filter="url(#glow)" r="1.5"></circle>
+<circle cx="60" cy="10" fill="#fff" filter="url(#glow)" r="1.5"></circle>
+<circle cx="80" cy="15" fill="#fff" filter="url(#glow)" r="1.5"></circle>
+<circle cx="100" cy="5" fill="#fff" filter="url(#glow)" r="1.5"></circle>
+</svg>
+</div>
+<div class="flex justify-between text-slate-500 text-xs font-medium pt-2 border-t border-border-dark mt-2">
+<span>14:00</span>
+<span>18:00</span>
+<span>22:00</span>
+<span>02:00</span>
+<span>06:00</span>
+<span>10:00</span>
+</div>
+</div>
+<!-- Bar Chart Panel -->
+<div class="glass-panel rounded-2xl p-6 flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div>
+<h4 class="text-white text-lg font-semibold tracking-wide">Order Volume</h4>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-2xl font-bold text-white">128</span>
+<span class="text-emerald-400 text-sm font-medium">+5%</span>
+</div>
+</div>
+<button class="p-2 rounded-lg bg-surface-dark-hover text-slate-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[20px]">more_horiz</span>
+</button>
+</div>
+<div class="relative h-48 w-full mt-4 flex items-end justify-between px-2 gap-2">
+<!-- Abstract 3D-ish Bars -->
+<div class="w-full bg-surface-dark rounded-t-sm h-[30%] relative group">
+<div class="absolute inset-0 bg-gradient-to-t from-transparent to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="absolute top-0 left-0 w-full h-[2px] bg-primary/40 shadow-[0_0_5px_rgba(244,175,37,0.5)]"></div>
+</div>
+<div class="w-full bg-surface-dark rounded-t-sm h-[20%] relative group">
+<div class="absolute inset-0 bg-gradient-to-t from-transparent to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="absolute top-0 left-0 w-full h-[2px] bg-primary/40 shadow-[0_0_5px_rgba(244,175,37,0.5)]"></div>
+</div>
+<div class="w-full bg-primary/20 rounded-t-sm h-[100%] relative group border border-primary/30 border-b-0">
+<div class="absolute inset-0 bg-gradient-to-t from-transparent to-primary/40"></div>
+<div class="absolute top-0 left-0 w-full h-[2px] bg-primary shadow-[0_0_8px_rgba(244,175,37,0.8)]"></div>
+</div>
+<div class="w-full bg-surface-dark rounded-t-sm h-[50%] relative group">
+<div class="absolute inset-0 bg-gradient-to-t from-transparent to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="absolute top-0 left-0 w-full h-[2px] bg-primary/40 shadow-[0_0_5px_rgba(244,175,37,0.5)]"></div>
+</div>
+<div class="w-full bg-surface-dark rounded-t-sm h-[70%] relative group">
+<div class="absolute inset-0 bg-gradient-to-t from-transparent to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="absolute top-0 left-0 w-full h-[2px] bg-primary/40 shadow-[0_0_5px_rgba(244,175,37,0.5)]"></div>
+</div>
+<div class="w-full bg-surface-dark rounded-t-sm h-[10%] relative group">
+<div class="absolute inset-0 bg-gradient-to-t from-transparent to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="absolute top-0 left-0 w-full h-[2px] bg-primary/40 shadow-[0_0_5px_rgba(244,175,37,0.5)]"></div>
+</div>
+</div>
+<div class="flex justify-between text-slate-500 text-xs font-medium pt-2 border-t border-border-dark mt-2">
+<span>14:00</span>
+<span>18:00</span>
+<span>22:00</span>
+<span>02:00</span>
+<span>06:00</span>
+<span>10:00</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Right Floating Action Bar -->
+<aside class="w-16 flex-shrink-0 flex flex-col items-center py-8 z-20 border-l border-border-dark glass-panel ml-[-1px]">
+<div class="flex flex-col gap-6">
+<button class="w-10 h-10 rounded-full bg-surface-dark hover:bg-surface-dark-hover border border-border-dark flex items-center justify-center text-slate-400 hover:text-white transition-all shadow-lg hover:shadow-[0_0_15px_rgba(255,255,255,0.1)]">
+<span class="material-symbols-outlined text-[20px]">search</span>
+</button>
+<button class="w-10 h-10 rounded-full bg-primary/20 hover:bg-primary/30 border border-primary/50 flex items-center justify-center text-primary transition-all shadow-[0_0_10px_rgba(244,175,37,0.2)] hover:shadow-[0_0_20px_rgba(244,175,37,0.4)]">
+<span class="material-symbols-outlined text-[20px]">add</span>
+</button>
+<div class="w-8 h-[1px] bg-border-dark my-2"></div>
+<button class="w-10 h-10 rounded-full bg-surface-dark hover:bg-surface-dark-hover border border-border-dark flex items-center justify-center text-slate-400 hover:text-white transition-all relative">
+<span class="material-symbols-outlined text-[20px]">chat</span>
+<span class="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background-dark"></span>
+</button>
+<button class="w-10 h-10 rounded-full bg-surface-dark hover:bg-surface-dark-hover border border-border-dark flex items-center justify-center text-slate-400 hover:text-white transition-all">
+<span class="material-symbols-outlined text-[20px]">help_outline</span>
+</button>
+</div>
+<div class="mt-auto">
+<button class="w-10 h-10 rounded-full bg-surface-dark hover:bg-surface-dark-hover border border-border-dark flex items-center justify-center text-slate-400 hover:text-white transition-all">
+<span class="material-symbols-outlined text-[20px]">logout</span>
+</button>
+</div>
+</aside>
+</div>
+</body></html>

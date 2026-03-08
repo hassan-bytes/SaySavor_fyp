@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#d41132",
+                        "background-light": "#f8f6f6",
+                        "background-dark": "#221013",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .glass-card {
+            background: rgba(212, 17, 50, 0.05);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .glass-panel {
+            background: rgba(34, 16, 19, 0.8);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(212, 17, 50, 0.2);
+        }
+        .rim-light {
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.2), 0 10px 20px rgba(0,0,0,0.4);
+        }
+        .neon-glow:hover {
+            box-shadow: 0 0 15px rgba(212, 17, 50, 0.6);
+        }
+        .three-d-tile {
+            transform: perspective(1000px) rotateX(2deg);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .three-d-tile:hover {
+            transform: perspective(1000px) rotateX(0deg) translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6), 0 0 20px rgba(212, 17, 50, 0.2);
+        }
+        .bg-glow-red {
+            background: radial-gradient(circle, rgba(212, 17, 50, 0.15) 0%, rgba(34, 16, 19, 0) 70%);
+        }
+        .bg-glow-gold {
+            background: radial-gradient(circle, rgba(218, 165, 32, 0.05) 0%, rgba(34, 16, 19, 0) 70%);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen overflow-x-hidden">
+<!-- Background Ambient Glows -->
+<div class="fixed top-[-10%] left-[-10%] w-[50%] h-[50%] bg-glow-red pointer-events-none"></div>
+<div class="fixed bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-glow-gold pointer-events-none"></div>
+<div class="flex h-screen overflow-hidden">
+<!-- Sidebar -->
+<aside class="w-72 glass-panel hidden lg:flex flex-col z-20">
+<div class="p-8 flex items-center gap-3">
+<div class="size-10 bg-primary rounded-lg flex items-center justify-center rim-light">
+<span class="material-symbols-outlined text-white">restaurant_menu</span>
+</div>
+<div>
+<h2 class="text-xl font-bold tracking-tight text-slate-100">Crimson</h2>
+<p class="text-xs text-primary font-semibold tracking-widest uppercase">Premium Kitchen</p>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-2 mt-4">
+<a class="flex items-center gap-4 px-4 py-3 text-slate-400 hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 bg-primary/10 text-primary rounded-xl border border-primary/20" href="#">
+<span class="material-symbols-outlined">menu_book</span>
+<span class="font-medium">Menu Management</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 text-slate-400 hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="font-medium">Live Orders</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 text-slate-400 hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined">monitoring</span>
+<span class="font-medium">Analytics</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 text-slate-400 hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined">badge</span>
+<span class="font-medium">Staff Portal</span>
+</a>
+</nav>
+<div class="p-6">
+<div class="glass-card rounded-xl p-4 border-primary/10">
+<p class="text-xs text-slate-400 mb-2">Storage Usage</p>
+<div class="w-full bg-slate-800 rounded-full h-1.5 mb-2">
+<div class="bg-primary h-1.5 rounded-full" style="width: 75%"></div>
+</div>
+<p class="text-xs text-slate-100">Premium Plan: 75% Full</p>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col overflow-y-auto relative z-10">
+<!-- Top Nav -->
+<header class="h-20 flex items-center justify-between px-8 border-b border-primary/10 backdrop-blur-md sticky top-0 z-30">
+<div class="flex items-center gap-6 flex-1">
+<div class="relative max-w-md w-full">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+<input class="w-full bg-primary/5 border-primary/10 rounded-xl py-2.5 pl-12 pr-4 text-sm focus:ring-primary focus:border-primary text-slate-100 placeholder:text-slate-500" placeholder="Search for dishes, categories..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="size-10 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-center text-slate-300 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="size-10 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-center text-slate-300 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="h-10 w-[1px] bg-primary/20 mx-2"></div>
+<div class="flex items-center gap-3">
+<div class="text-right hidden sm:block">
+<p class="text-sm font-bold text-slate-100 leading-none">Chef Alexander</p>
+<p class="text-[10px] text-primary uppercase font-bold tracking-tighter">Executive</p>
+</div>
+<div class="size-10 rounded-full border-2 border-primary overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Professional chef portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDvm-jyrJtljQhE6AuiYDtosJnnlPNmsCd2Jd8dnI6gd6SH2uJFyVjTPQmgBDLP_QFa4VZ0ShQ4ARNvjoHvX9hB0-Jg7M2mZA5lXgnQJr9nVNoxUA2klTW73i2bCDxqAhDLUSqG31kZVhNncP4GsPdS_nmAv3YLAtL-Lgu2K7ZY77hYObenzYgUddJP1Vwv03Kg4aYtSqBaI_R3WYXYxkviQ7hmBs00AEPDSiQT6S03ozwZPZQgHm30yAAizRH4xZf9XI1yvQWACgs"/>
+</div>
+</div>
+</div>
+</header>
+<div class="p-8 max-w-7xl mx-auto w-full">
+<!-- Stats Row -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+<div class="glass-card rounded-xl p-6 border-l-4 border-l-primary flex items-center justify-between rim-light">
+<div>
+<p class="text-slate-400 text-sm font-medium">Total Dishes</p>
+<h3 class="text-3xl font-bold text-slate-100 mt-1">124</h3>
+<p class="text-emerald-400 text-xs mt-2 flex items-center gap-1 font-bold">
+<span class="material-symbols-outlined text-[14px]">trending_up</span> +12.5%
+                            </p>
+</div>
+<div class="size-14 bg-primary/10 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-3xl">restaurant</span>
+</div>
+</div>
+<div class="glass-card rounded-xl p-6 border-l-4 border-l-amber-500 flex items-center justify-between rim-light">
+<div>
+<p class="text-slate-400 text-sm font-medium">Active Now</p>
+<h3 class="text-3xl font-bold text-slate-100 mt-1">82</h3>
+<p class="text-emerald-400 text-xs mt-2 flex items-center gap-1 font-bold">
+<span class="material-symbols-outlined text-[14px]">trending_up</span> +5.2%
+                            </p>
+</div>
+<div class="size-14 bg-amber-500/10 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-amber-500 text-3xl">bolt</span>
+</div>
+</div>
+<div class="glass-card rounded-xl p-6 border-l-4 border-l-emerald-500 flex items-center justify-between rim-light">
+<div>
+<p class="text-slate-400 text-sm font-medium">Top Category</p>
+<h3 class="text-3xl font-bold text-slate-100 mt-1">Desi</h3>
+<p class="text-emerald-400 text-xs mt-2 flex items-center gap-1 font-bold">
+<span class="material-symbols-outlined text-[14px]">trending_up</span> +18.7%
+                            </p>
+</div>
+<div class="size-14 bg-emerald-500/10 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-emerald-500 text-3xl">award_star</span>
+</div>
+</div>
+</div>
+<!-- Section Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+<div>
+<h1 class="text-4xl font-black text-slate-100 tracking-tight">Desi Selection</h1>
+<p class="text-slate-400 mt-2">Manage your premium grilled specialties and traditional delicacies</p>
+</div>
+<div class="flex items-center gap-3">
+<button class="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 rim-light neon-glow transition-all">
+<span class="material-symbols-outlined">add_circle</span>
+                            Add New Dish
+                        </button>
+</div>
+</div>
+<!-- Categories -->
+<div class="flex items-center gap-3 mb-10 overflow-x-auto pb-4 no-scrollbar">
+<button class="px-6 py-2 rounded-full bg-primary text-white font-bold text-sm whitespace-nowrap rim-light shadow-lg shadow-primary/20">All Categories</button>
+<button class="px-6 py-2 rounded-full bg-primary/10 border border-primary/20 text-slate-200 hover:text-primary font-bold text-sm whitespace-nowrap transition-all">Desi</button>
+<button class="px-6 py-2 rounded-full bg-primary/10 border border-primary/20 text-slate-200 hover:text-primary font-bold text-sm whitespace-nowrap transition-all">Continental</button>
+<button class="px-6 py-2 rounded-full bg-primary/10 border border-primary/20 text-slate-200 hover:text-primary font-bold text-sm whitespace-nowrap transition-all">Appetizers</button>
+<button class="px-6 py-2 rounded-full bg-primary/10 border border-primary/20 text-slate-200 hover:text-primary font-bold text-sm whitespace-nowrap transition-all">Desserts</button>
+</div>
+<!-- Dishes Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+<!-- Dish Card 1 -->
+<div class="glass-card three-d-tile rounded-xl overflow-hidden rim-light group relative">
+<div class="h-64 relative overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="Tandoori Masala Lamb Chops with garnish" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNIZnH4RHoRC4wGDAyCIY0EqMUm7OXosxBF2eJxh5NoNyPiiznJ7d9M1zDXb6aR6ajdxgnxIamGhgWN839b3ZiKKfgUslb5NApVwdI2vHU69wjGHgYoBur1yermy4gqGM_8ILpv6T9pJmmSyxcQx1n39LK_8FYAtm8i9sEVKykG0i1Fanj7Nvg2BAyMQfvfhCiyCdy_xyW_omOhfBGwDzMgkG5G1xFN5IFyb0NTbh0frdvhRxwj56kTTP8rnl7zVoRwL3Dv-XcKII"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background-dark via-transparent to-transparent opacity-80"></div>
+<div class="absolute top-4 right-4 bg-primary/90 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest backdrop-blur-md">Premium</div>
+</div>
+<div class="p-6 relative">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h4 class="text-xl font-extrabold text-slate-100 group-hover:text-primary transition-colors">Tandoori Masala Lamb Chops</h4>
+<p class="text-slate-400 text-sm mt-1">Marinated for 24 hours in aromatic spices</p>
+</div>
+<span class="text-2xl font-black text-primary leading-none">$28</span>
+</div>
+<div class="flex items-center gap-4 pt-4 border-t border-primary/10">
+<div class="flex items-center gap-2 flex-1">
+<span class="text-xs font-bold text-slate-400 uppercase tracking-tighter">Status:</span>
+<div class="flex items-center gap-2">
+<div class="w-8 h-4 bg-primary/20 rounded-full relative p-0.5 cursor-pointer">
+<div class="absolute right-0.5 top-0.5 size-3 bg-primary rounded-full neon-glow shadow-primary"></div>
+</div>
+<span class="text-[10px] font-bold text-primary uppercase">Active</span>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="size-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all">
+<span class="material-symbols-outlined text-[18px]">edit_note</span>
+</button>
+<button class="size-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Dish Card 2 -->
+<div class="glass-card three-d-tile rounded-xl overflow-hidden rim-light group relative">
+<div class="h-64 relative overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="Succulent Seekh Kebab on a platter" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCpY7zJ_tk8D8zAEIKL0tS3t2Fb3pIaMlSnPtEd0UIYDNHZyYdavf3VawbEJumrJbSBUyY3AhirD-dlF8ptEOLby8BXSSEfwW7ilCu1pjv2XLJbn37ru1yDKd9IlVtSFi5b1X78gXXkHQLebptjT8JUCr8v0ln28KAppSO0SZf-4sGlRUrMxE4JZl-uxLjOadaeiZTmxh3Fn2DkfLfFb6DJ3WVPZnXfPZqjY-vQxbjdYEJCx6cmJ7Up5WCZ7IsapltjviyT0uRrmsU"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background-dark via-transparent to-transparent opacity-80"></div>
+<div class="absolute top-4 right-4 bg-emerald-500/90 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest backdrop-blur-md">Best Seller</div>
+</div>
+<div class="p-6 relative">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h4 class="text-xl font-extrabold text-slate-100 group-hover:text-primary transition-colors">Seekh Kebab</h4>
+<p class="text-slate-400 text-sm mt-1">Minced mutton skewers grilled to perfection</p>
+</div>
+<span class="text-2xl font-black text-primary leading-none">$18</span>
+</div>
+<div class="flex items-center gap-4 pt-4 border-t border-primary/10">
+<div class="flex items-center gap-2 flex-1">
+<span class="text-xs font-bold text-slate-400 uppercase tracking-tighter">Status:</span>
+<div class="flex items-center gap-2">
+<div class="w-8 h-4 bg-primary/20 rounded-full relative p-0.5 cursor-pointer">
+<div class="absolute right-0.5 top-0.5 size-3 bg-primary rounded-full neon-glow shadow-primary"></div>
+</div>
+<span class="text-[10px] font-bold text-primary uppercase">Active</span>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="size-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all">
+<span class="material-symbols-outlined text-[18px]">edit_note</span>
+</button>
+<button class="size-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Dish Card 3 -->
+<div class="glass-card three-d-tile rounded-xl overflow-hidden rim-light group relative">
+<div class="h-64 relative overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="Spicy Chicken Tikka skewers" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAHrM9zci3C8O4JN1L1hX4dM4hTJImDoKNTCHrQRuBGNzpNkG2pZjfQHnyExSiSK38olEiRLrGxfLNrxd56j3Y1ZioSWMNmh4xAjGEdIoTFqlD_x3aIz4WrYwZnURX1fNl0oKy9iL9RKq2yMynrx6XZHZRnFC4tcdW2xRORHPLFbpVpBqABs-FFhYwWbIAsUXJIby53DsewajHxA609_59xpBMe_z-8-FWPS8funLKlHRwlIaF3LNakau2TynLogkmn-DHLtgnfiD4"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background-dark via-transparent to-transparent opacity-80"></div>
+</div>
+<div class="p-6 relative">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h4 class="text-xl font-extrabold text-slate-100 group-hover:text-primary transition-colors">Chicken Tikka</h4>
+<p class="text-slate-400 text-sm mt-1">Boneless morsels charred in clay oven</p>
+</div>
+<span class="text-2xl font-black text-primary leading-none">$16</span>
+</div>
+<div class="flex items-center gap-4 pt-4 border-t border-primary/10">
+<div class="flex items-center gap-2 flex-1">
+<span class="text-xs font-bold text-slate-400 uppercase tracking-tighter">Status:</span>
+<div class="flex items-center gap-2">
+<div class="w-8 h-4 bg-primary/20 rounded-full relative p-0.5 cursor-pointer">
+<div class="absolute right-0.5 top-0.5 size-3 bg-primary rounded-full neon-glow shadow-primary"></div>
+</div>
+<span class="text-[10px] font-bold text-primary uppercase">Active</span>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="size-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all">
+<span class="material-symbols-outlined text-[18px]">edit_note</span>
+</button>
+<button class="size-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Dish Card 4 (Draft State) -->
+<div class="glass-card three-d-tile rounded-xl overflow-hidden rim-light group relative opacity-70 border-dashed border-primary/20">
+<div class="h-64 relative overflow-hidden flex items-center justify-center bg-primary/5">
+<span class="material-symbols-outlined text-6xl text-primary/20">image</span>
+<div class="absolute top-4 left-4 bg-slate-800 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest backdrop-blur-md">Draft</div>
+</div>
+<div class="p-6 relative">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h4 class="text-xl font-extrabold text-slate-300">Shahi Paneer Tikka</h4>
+<p class="text-slate-500 text-sm mt-1">Stuffed cottage cheese with royal glaze</p>
+</div>
+<span class="text-2xl font-black text-slate-500 leading-none">$14</span>
+</div>
+<div class="flex items-center gap-4 pt-4 border-t border-primary/10">
+<div class="flex items-center gap-2 flex-1">
+<span class="text-xs font-bold text-slate-500 uppercase tracking-tighter">Status:</span>
+<div class="flex items-center gap-2">
+<div class="w-8 h-4 bg-slate-800 rounded-full relative p-0.5 cursor-pointer">
+<div class="absolute left-0.5 top-0.5 size-3 bg-slate-600 rounded-full"></div>
+</div>
+<span class="text-[10px] font-bold text-slate-500 uppercase">Inactive</span>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="size-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all">
+<span class="material-symbols-outlined text-[18px]">edit_note</span>
+</button>
+<button class="size-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary transition-all">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Add Card Placeholder -->
+<div class="border-2 border-dashed border-primary/30 rounded-xl flex flex-col items-center justify-center p-12 text-center group cursor-pointer hover:border-primary hover:bg-primary/5 transition-all">
+<div class="size-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl text-primary">add</span>
+</div>
+<h4 class="text-lg font-bold text-slate-300">New Desi Specialty</h4>
+<p class="text-slate-500 text-sm mt-1 max-w-[180px]">Add a fresh item to your traditional menu section</p>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

@@ -1,0 +1,10 @@
+column_name,data_type,default_value,is_nullable,is_primary_key,constraints,description
+id,uuid,,NO,YES,"REFERENCES auth.users(id) ON DELETE CASCADE",User ID from Supabase Auth
+email,text,,NO,NO,UNIQUE,User email address
+role,text,'partner',NO,NO,,User role (partner/admin/customer)
+owner_name,text,,YES,NO,,Restaurant owner name
+restaurant_name,text,,YES,NO,,Restaurant business name
+phone,text,,YES,NO,,Phone number with country code
+setup_complete,boolean,false,NO,NO,,Flag to track if restaurant setup is complete
+created_at,timestamptz,NOW(),NO,NO,,Timestamp when profile was created
+updated_at,timestamptz,NOW(),NO,NO,,Timestamp when profile was last updated
