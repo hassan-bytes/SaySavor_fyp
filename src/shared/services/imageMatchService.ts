@@ -5,6 +5,7 @@
 //          fuzzyMatch aur visualMappingUtils ke saath kaam karta hai.
 // ============================================================
 import { supabase } from '@/shared/lib/supabaseClient';
+import { predictVisuals } from '@/shared/services/visualMappingUtils';
 
 const BUCKET_NAME = 'preset-dishes';
 

@@ -872,8 +872,8 @@ export default function CustomerMenu() {
             {/* Selection Modal (Bottom Sheet for Mobile, Modal for Desktop) */}
             {
                 selectedItem && (
-                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-[2px] p-0 sm:p-4 animate-in fade-in duration-200">
-                        <div className="bg-white w-full sm:max-w-md max-h-[95vh] sm:max-h-[90vh] sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-4 duration-300 relative border border-slate-200/50">
+                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-[2px] p-0 sm:p-4 animate-in fade-in duration-200" data-lenis-prevent>
+                        <div className="bg-white w-full sm:max-w-md max-h-[92vh] sm:max-h-[85vh] sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-4 duration-300 relative border border-slate-200/50">
                             {/* Close button */}
                             <button
                                 onClick={handleCloseModal}
@@ -905,7 +905,7 @@ export default function CustomerMenu() {
                             </div>
 
                             {/* Scrollable Options Area */}
-                            <div className="flex-1 overflow-y-auto p-5">
+                            <div className="flex-1 overflow-y-auto p-5 overscroll-contain" data-lenis-prevent>
 
                                 {/* Variants Selection */}
                                 {selectedItem.variants && selectedItem.variants.length > 0 && (
@@ -1127,13 +1127,13 @@ export default function CustomerMenu() {
             {/* Cart Review Modal */}
             <AnimatePresence>
                 {isCartOpen && (
-                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4" data-lenis-prevent>
                         <motion.div
                             initial={{ y: "100%" }}
                             animate={{ y: 0 }}
                             exit={{ y: "100%" }}
                             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="bg-slate-50 w-full max-w-2xl sm:rounded-3xl rounded-t-3xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh] border-t border-slate-200 sm:border border-slate-200/50"
+                            className="bg-slate-50 w-full max-w-2xl sm:rounded-3xl rounded-t-3xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[88vh] border-t border-slate-200 sm:border border-slate-200/50 shadow-2xl"
                         >
                             <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-white shrink-0 shadow-sm z-10">
                                 <div>
@@ -1153,7 +1153,7 @@ export default function CustomerMenu() {
                                 </button>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            <div className="flex-1 overflow-y-auto p-4 space-y-4 overscroll-contain" data-lenis-prevent>
                                 {cart.length === 0 ? (
                                     <div className="text-center py-16">
                                         <div className="w-20 h-20 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-sm">

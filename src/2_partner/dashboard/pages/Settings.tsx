@@ -89,7 +89,7 @@ export default function Settings() {
     const [address, setAddress] = useState('');
     const [openTime, setOpenTime] = useState('');
     const [closeTime, setCloseTime] = useState('');
-    const [currency, setCurrency] = useState<CurrencyInfo>({ code: 'PKR', symbol: 'Rs.', position: 'before', decimals: 0 });
+    const [currency, setCurrency] = useState<CurrencyInfo>(COUNTRY_CURRENCIES.PK);
 
     // Security States
     const [email, setEmail] = useState('');
@@ -140,7 +140,7 @@ export default function Settings() {
                         const found = uniqueCurrencyOptions.find(c => c.code === restaurant.currency);
                         if (found) {
                             const countryEntry = Object.entries(COUNTRY_CURRENCIES).find(([_, info]) => info.code === restaurant.currency);
-                            setCurrency(countryEntry ? countryEntry[1] : { code: found.code, symbol: found.symbol, position: 'before', decimals: 0 });
+                            setCurrency(countryEntry ? countryEntry[1] : COUNTRY_CURRENCIES.PK);
                         }
                     } else if (restaurant.phone) {
                         const derived = getCurrencyFromPhone(restaurant.phone);
@@ -431,15 +431,15 @@ export default function Settings() {
                                 <div>
                                     <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block">Neural Currency</Label>
                                     <div className="relative">
-                                        <select 
-                                            value={currency.code} 
+                                        <select
+                                            value={currency.code}
                                             onChange={(e) => {
                                                 const selected = uniqueCurrencyOptions.find(c => c.code === e.target.value);
                                                 if (selected) {
                                                     const countryEntry = Object.entries(COUNTRY_CURRENCIES).find(([_, info]) => info.code === selected.code);
-                                                    setCurrency(countryEntry ? countryEntry[1] : { code: selected.code, symbol: selected.symbol, position: 'before', decimals: 0 });
+                                                    setCurrency(countryEntry ? countryEntry[1] : COUNTRY_CURRENCIES.PK);
                                                 }
-                                            }} 
+                                            }}
                                             className="w-full h-16 input-glass rounded-2xl px-8 font-black text-lg appearance-none cursor-pointer"
                                         >
                                             {uniqueCurrencyOptions.map(opt => (

@@ -1,0 +1,15 @@
+{
+    "compilerOptions": {
+        "lib": [
+            "deno.window",
+            "deno.unstable"
+        ]
+    },
+    "lint": {
+        "rules": {
+            "tags": [
+                "recommended"
+            ]
+        }
+    }
+}

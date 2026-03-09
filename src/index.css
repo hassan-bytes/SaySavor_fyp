@@ -5,7 +5,7 @@
 
 @layer base {
   :root {
-    /* Obsidian Dark Theme with Cinematic Crimson/Gold */
+    /* Cinematic Dark Refinement - Obsidian Base with Radiant Crimson */
     --background: 12 50% 4%;
     --foreground: 30 50% 96%;
 
@@ -16,7 +16,6 @@
     --popover-foreground: 30 50% 96%;
 
     --primary: 348 83% 47%;
-    /* Deep Cinematic Crimson */
     --primary-foreground: 0 0% 100%;
 
     --secondary: 12 30% 12%;
@@ -29,11 +28,11 @@
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
-    --destructive-foreground: 30 50% 96%;
+    --destructive-foreground: 0 0% 100%;
 
     --border: 12 30% 15%;
     --input: 12 30% 15%;
-    --ring: 355 78% 56%;
+    --ring: 348 83% 47%;
 
     --radius: 0.75rem;
 
@@ -43,14 +42,22 @@
     --gold-dark: 45 80% 35%;
     --gold-glow: 45 100% 50%;
 
-    /* Glass effect */
+    /* Glass effect (Cinematic Dark) */
     --glass: 12 40% 8%;
-    --glass-border: 12 40% 16%;
+    --glass-border: 12 40% 18%;
 
     /* Obsidian depths */
     --obsidian: 12 50% 4%;
     --obsidian-light: 12 40% 8%;
     --obsidian-dark: 12 60% 2%;
+  }
+
+  .dark {
+    /* Explicit dark mode matches refined :root */
+    --background: 12 50% 4%;
+    --foreground: 30 50% 96%;
+    --glass: 12 40% 8%;
+    --glass-border: 12 40% 18%;
   }
 }
 
@@ -60,19 +67,19 @@
 
 @layer base {
   :root {
-    /* Stitch Exact Palette variables without overriding global defaults */
-    --background-light: #f8f7f5;
+    /* Dashboard 3D Cinematic Refinement (Darked but Lighted) */
+    --background-light: #fdfcfb;
     --background-dark: #0a0a0a;
-    --surface-dark: rgba(255, 255, 255, 0.03);
-    --surface-dark-hover: rgba(255, 255, 255, 0.08);
-    --border-dark: rgba(255, 255, 255, 0.1);
+    --surface-dark: rgba(12, 12, 12, 0.4);
+    --surface-dark-hover: rgba(20, 20, 20, 0.6);
+    --border-dark: rgba(255, 255, 255, 0.08);
 
-    --dash-bg: var(--background-light);
-    --dash-surface: rgba(255, 255, 255, 0.8);
-    --dash-surface-hover: rgba(255, 255, 255, 0.95);
-    --dash-border: rgba(0, 0, 0, 0.05);
-    --dash-text-glow: rgba(244, 175, 37, 0.4);
-    --dash-shadow: rgba(0, 0, 0, 0.05);
+    --dash-bg: #060606;
+    --dash-surface: var(--surface-dark);
+    --dash-surface-hover: var(--surface-dark-hover);
+    --dash-border: var(--border-dark);
+    --dash-text-glow: rgba(244, 175, 37, 0.6);
+    --dash-shadow: rgba(0, 0, 0, 0.6);
   }
 
   .partner-dashboard {
@@ -84,7 +91,7 @@
     --dash-bg: var(--background-dark);
     --dash-surface: rgba(20, 20, 20, 0.6);
     --dash-surface-hover: rgba(40, 40, 40, 0.8);
-    --dash-border: var(--border-dark);
+    --dash-border: rgba(255, 255, 255, 0.1);
     --dash-text-glow: rgba(244, 175, 37, 0.6);
     --dash-shadow: rgba(0, 0, 0, 0.5);
 
@@ -117,13 +124,15 @@
   }
 
   .bg-crimson-orb {
-    background: radial-gradient(circle, hsla(348, 83%, 47%, 0.25) 0%, transparent 70%);
-    filter: blur(40px);
+    /* Enhanced Radiance for Cinematic Dark */
+    background: radial-gradient(circle, hsla(348, 83%, 47%, 0.35) 0%, transparent 75%);
+    filter: blur(50px);
+    mix-blend-mode: screen;
   }
 
   .bg-crimson-glow {
-    background: linear-gradient(135deg, hsla(348, 83%, 47%, 0.1) 0%, transparent 100%);
-    border: 1px solid hsla(348, 83%, 47%, 0.2);
+    background: linear-gradient(135deg, hsla(348, 83%, 47%, 0.15) 0%, transparent 100%);
+    border: 1px solid hsla(348, 83%, 47%, 0.25);
   }
 
   .no-scroll {

@@ -493,8 +493,8 @@ const MenuManager = () => {
                     const r = rest as any;
                     setRestId(r.id);
                     // Resolve currency from stored value or fallback to phone-derived
-                    const currencyInfo = r.currency 
-                        ? resolveCurrency(r.currency) 
+                    const currencyInfo = r.currency
+                        ? resolveCurrency(r.currency)
                         : resolveCurrency(r.phone);
                     setRestaurantInfo({
                         name: r.name || '',
@@ -1474,8 +1474,9 @@ const MenuManager = () => {
             return;
         }
 
+        let exportToast: any;
         try {
-            const exportToast = toast.loading("Preparing Premium A4 Pages...");
+            exportToast = toast.loading("Preparing Premium A4 Pages...");
 
             // Helper: Slugify (Bulletproof Sync)
             const slugify = (text: string) => {
@@ -1814,10 +1815,10 @@ const MenuManager = () => {
 
     return (
         <div className="min-h-screen relative overflow-hidden flex flex-col text-slate-900 dark:text-slate-200 p-6 md:p-8">
-            {/* Ambient Background Glows - Matches Overview exactly */}
-            <div className="fixed top-[-10%] left-[-10%] w-[50%] h-[50%] ambient-glow-red pointer-events-none z-0 hidden dark:block"></div>
-            <div className="fixed bottom-[-10%] right-[-10%] w-[60%] h-[60%] ambient-glow-gold pointer-events-none z-0 hidden dark:block"></div>
-            <div className="fixed top-[20%] right-[10%] w-[40%] h-[40%] ambient-glow-red opacity-50 pointer-events-none z-0 hidden dark:block"></div>
+            {/* Ambient Background Glows - Cinematic Dark Refinement */}
+            <div className="fixed top-[-10%] left-[-10%] w-[50%] h-[50%] bg-crimson-orb pointer-events-none z-0 opacity-60"></div>
+            <div className="fixed bottom-[-10%] right-[-10%] w-[60%] h-[60%] ambient-glow-gold pointer-events-none z-0 opacity-40"></div>
+            <div className="fixed top-[20%] right-[10%] w-[40%] h-[40%] bg-crimson-orb opacity-30 pointer-events-none z-0"></div>
 
             <div className="max-w-7xl mx-auto space-y-6 relative z-10">
 

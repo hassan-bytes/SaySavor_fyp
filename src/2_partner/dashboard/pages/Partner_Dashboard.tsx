@@ -54,7 +54,7 @@ const Partner_Dashboard = () => {
     // Theme mapping to avoid Tailwind dynamic compilation issues
     const themeParams = {
         indigo: { bg: 'bg-indigo-600', text: 'text-indigo-600', mainBg: 'bg-indigo-500', mainText: 'text-indigo-500', shadow: 'shadow-indigo-500/20', lightBg: 'bg-indigo-500/20', gradient: 'from-indigo-100 to-indigo-50', gradientDeep: 'from-indigo-600 to-indigo-800', activeText: 'text-white', badgeBg: 'bg-white', badgeText: 'text-indigo-600' },
-        red: { bg: 'bg-red-500', text: 'text-red-500', mainBg: 'bg-red-500', mainText: 'text-red-500', shadow: 'shadow-red-500/20', lightBg: 'bg-red-500/20', gradient: 'from-red-100 to-red-50', gradientDeep: 'from-red-600 to-red-800', activeText: 'text-white', badgeBg: 'bg-white', badgeText: 'text-red-600' },
+        red: { bg: 'bg-crimson', text: 'text-crimson', mainBg: 'bg-crimson', mainText: 'text-crimson', shadow: 'shadow-crimson/20', lightBg: 'bg-crimson/20', gradient: 'from-crimson/10 to-crimson/5', gradientDeep: 'from-crimson to-red-800', activeText: 'text-white', badgeBg: 'bg-white', badgeText: 'text-crimson' },
         emerald: { bg: 'bg-emerald-500', text: 'text-emerald-500', mainBg: 'bg-emerald-500', mainText: 'text-emerald-500', shadow: 'shadow-emerald-500/20', lightBg: 'bg-emerald-500/20', gradient: 'from-emerald-100 to-emerald-50', gradientDeep: 'from-emerald-600 to-emerald-800', activeText: 'text-white', badgeBg: 'bg-white', badgeText: 'text-emerald-600' },
         amber: { bg: 'bg-amber-500', text: 'text-amber-500', mainBg: 'bg-amber-500', mainText: 'text-amber-500', shadow: 'shadow-amber-500/20', lightBg: 'bg-amber-500/20', gradient: 'from-amber-100 to-amber-50', gradientDeep: 'from-amber-600 to-amber-800', activeText: 'text-slate-900', badgeBg: 'bg-slate-900', badgeText: 'text-amber-500' },
         slate: { bg: 'bg-slate-800', text: 'text-slate-800', mainBg: 'bg-slate-800', mainText: 'text-slate-800', shadow: 'shadow-slate-800/20', lightBg: 'bg-slate-800/20', gradient: 'from-slate-200 to-slate-100', gradientDeep: 'from-slate-700 to-slate-900', activeText: 'text-white', badgeBg: 'bg-white', badgeText: 'text-slate-900' },
@@ -370,7 +370,7 @@ const Partner_Dashboard = () => {
             <aside
                 className={`
                     fixed top-0 ${isRtl ? 'right-0 border-l' : 'left-0 border-r'} 
-                    h-screen w-64 flex-shrink-0 flex flex-col z-40 glass-panel border-[var(--border-dark)] transition-all duration-300
+                    h-screen w-64 flex-shrink-0 flex flex-col z-40 glass-panel border-[var(--dash-border)] transition-all duration-300
                     ${isOpen ? 'translate-x-0' : (isRtl ? 'translate-x-full lg:translate-x-0' : '-translate-x-full lg:translate-x-0')}
                 `}
             >

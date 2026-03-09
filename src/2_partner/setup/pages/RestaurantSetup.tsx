@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/shared/lib/supabaseClient';
 import html2canvas from 'html2canvas';
 import { v4 as uuidv4 } from 'uuid';
-import { formatPrice, getCurrencyFromPhone, CurrencyInfo, DEFAULT_CURRENCY } from '@/shared/lib/currencyUtils';
+import { formatPrice, getCurrencyFromPhone, CurrencyInfo, DEFAULT_CURRENCY, getCurrencySymbol } from '@/shared/lib/currencyUtils';
 
 import { MENU_PRESETS } from '@/shared/data/menuPresets';
 
