@@ -23,6 +23,15 @@ export default function CheckoutModal({ isOpen, onClose, order, onPaymentComplet
     const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD'>('CASH');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    React.useEffect(() => {
+        if (isOpen) {
+            document.body.classList.add('no-scroll');
+        } else {
+            document.body.classList.remove('no-scroll');
+        }
+        return () => document.body.classList.remove('no-scroll');
+    }, [isOpen]);
+
     if (!isOpen || !order) return null;
 
     // Calculations
@@ -65,8 +74,8 @@ export default function CheckoutModal({ isOpen, onClose, order, onPaymentComplet
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-zinc-900/80 backdrop-blur-md overflow-y-auto custom-scrollbar">
+            <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col my-auto border border-white/20">
 
                 {/* Header */}
                 <div className="flex items-center justify-between p-5 bg-zinc-900 text-white shrink-0">

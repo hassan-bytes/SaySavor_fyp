@@ -15,7 +15,8 @@
     --popover: 12 40% 6%;
     --popover-foreground: 30 50% 96%;
 
-    --primary: 355 78% 56%;
+    --primary: 348 83% 47%;
+    /* Deep Cinematic Crimson */
     --primary-foreground: 0 0% 100%;
 
     --secondary: 12 30% 12%;
@@ -97,6 +98,40 @@
     @apply border-border;
   }
 
+  @keyframes liquid {
+    0% {
+      border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+    }
+
+    50% {
+      border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
+    }
+
+    100% {
+      border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+    }
+  }
+
+  .animate-liquid {
+    animation: liquid 15s ease-in-out infinite;
+  }
+
+  .bg-crimson-orb {
+    background: radial-gradient(circle, hsla(348, 83%, 47%, 0.25) 0%, transparent 70%);
+    filter: blur(40px);
+  }
+
+  .bg-crimson-glow {
+    background: linear-gradient(135deg, hsla(348, 83%, 47%, 0.1) 0%, transparent 100%);
+    border: 1px solid hsla(348, 83%, 47%, 0.2);
+  }
+
+  .no-scroll {
+    overflow: hidden !important;
+    padding-right: 15px;
+    /* Prevent layout shift if scrollbar disappears */
+  }
+
   html {
     scroll-behavior: smooth;
   }
@@ -174,6 +209,25 @@
 
   .ambient-glow-gold {
     background: radial-gradient(circle, rgba(212, 175, 55, 0.08) 0%, rgba(212, 175, 55, 0) 70%);
+  }
+
+  /* Premium Dashboard Buttons */
+  .btn-premium-accept {
+    @apply bg-gradient-to-br from-emerald-500 to-green-600 text-white border border-emerald-400/30 hover:scale-105 active:scale-95 transition-all duration-300;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+  }
+
+  .btn-premium-accept:hover {
+    box-shadow: 0 6px 25px rgba(16, 185, 129, 0.5);
+  }
+
+  .btn-premium-reject {
+    @apply bg-gradient-to-br from-red-600 to-[#991b1b] text-white border border-red-500/30 hover:scale-105 active:scale-95 transition-all duration-300;
+    box-shadow: 0 4px 15px rgba(153, 27, 27, 0.3);
+  }
+
+  .btn-premium-reject:hover {
+    box-shadow: 0 6px 25px rgba(153, 27, 27, 0.5);
   }
 
   .status-glow-pending {
@@ -538,7 +592,36 @@
 }
 
 .glow-crimson-box-intense {
-  box-shadow: 0 0 20px rgba(220, 20, 60, 0.5), 0 4px 12px rgba(100, 10, 10, 0.4);
+  box-shadow: 0 0 20px rgba(184, 20, 45, 0.5), 0 4px 12px rgba(80, 5, 15, 0.6);
+}
+
+/* Premium Button Classes */
+.btn-premium-accept {
+  @apply bg-gradient-to-br from-emerald-500 to-green-600 text-white font-bold hover:-translate-y-0.5 active:scale-95 transition-all;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+}
+
+.btn-premium-accept:hover {
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+}
+
+.btn-premium-reject {
+  @apply bg-gradient-to-br from-red-600 to-red-800 text-white font-bold hover:-translate-y-0.5 active:scale-95 transition-all;
+  box-shadow: 0 4px 15px rgba(184, 20, 45, 0.3);
+}
+
+.btn-premium-reject:hover {
+  box-shadow: 0 6px 20px rgba(184, 20, 45, 0.4);
+}
+
+@layer base {
+  :root {
+    --crimson: 348 83% 47%;
+  }
+}
+
+.bg-crimson-gradient {
+  background: linear-gradient(135deg, hsl(348 83% 47%) 0%, hsl(348 83% 30%) 100%);
 }
 
 .lens-flare-bg {

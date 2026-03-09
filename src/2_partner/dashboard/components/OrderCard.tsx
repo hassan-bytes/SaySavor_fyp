@@ -8,7 +8,7 @@
 // ORDER CARD COMPONENT
 // ============================================
 
-import { Clock, User, Package, CheckCircle, XCircle, ChefHat, Receipt, Trash2, Edit2 } from 'lucide-react';
+import { Clock, User, Package, CheckCircle, XCircle, ChefHat, Receipt, Trash2, Edit2, CreditCard, Banknote } from 'lucide-react';
 
 export interface OrderItem {
     id?: string;
@@ -31,6 +31,8 @@ export interface Order {
     total_amount: number;
     discount_amount?: number;
     status: 'pending' | 'accepted' | 'cooking' | 'ready' | 'delivered' | 'cancelled';
+    payment_status?: string;
+    payment_method?: string;
     created_at: string;
     time_ago?: string;
 }
@@ -143,6 +145,23 @@ export const OrderCard = ({
                             <span>{order.delivery_address}</span>
                         </div>
                     )}
+
+                    {/* Payment Method & Status Badges */}
+                    <div className="flex items-center gap-2 mt-2">
+                        <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${order.payment_method === 'ONLINE' ? 'bg-indigo-500/10 text-indigo-400' : 'bg-amber-500/10 text-amber-500'
+                            }`}>
+                            {order.payment_method === 'ONLINE' ? (
+                                <><CreditCard className="w-3 h-3" /> Online</>
+                            ) : (
+                                <><Banknote className="w-3 h-3" /> Cash</>
+                            )}
+                        </div>
+                        {order.payment_status === 'PAID' && (
+                            <div className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3" /> Paid
+                            </div>
+                        )}
+                    </div>
                 </div>
                 <div className="text-right flex flex-col items-end gap-1 pr-8">
                     <div className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full border border-solid inline-block mb-1 bg-[#18080a]/50 ${config.glowClass}`}>
@@ -215,10 +234,16 @@ export const OrderCard = ({
                 <div className="flex gap-2">
                     {order.status === 'pending' && (
                         <>
-                            <button onClick={(e) => { e.stopPropagation(); onReject?.(order.id); }} className="px-4 py-2 rounded-lg text-sm font-bold text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onReject?.(order.id); }}
+                                className="px-5 py-2.5 rounded-xl text-sm font-bold btn-premium-reject"
+                            >
                                 Reject
                             </button>
-                            <button onClick={(e) => { e.stopPropagation(); onAccept?.(order.id); }} className="px-6 py-2 bg-[var(--primary)] hover:bg-[var(--primary)]/90 text-white rounded-lg text-sm font-bold shadow-[0_0_15px_rgba(212,17,50,0.3)] transition-all">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onAccept?.(order.id); }}
+                                className="px-7 py-2.5 rounded-xl text-sm font-bold btn-premium-accept"
+                            >
                                 Accept
                             </button>
                         </>

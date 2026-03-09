@@ -27,7 +27,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { Tilt } from 'react-tilt';
 import { toast } from 'sonner';
 import { soundManager } from '@/shared/services/soundManager';
-import { useLanguage } from '@/shared/contexts/LanguageContext';
+import { useLanguage, Language } from '@/shared/contexts/LanguageContext';
 import { useCurrency } from '@/shared/hooks/useCurrency';
 
 interface Profile {
@@ -73,7 +73,7 @@ const Partner_Dashboard = () => {
         const initLang = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (user?.user_metadata?.dashboardLang) {
-                setLanguage(user.user_metadata.dashboardLang as Language);
+                setLanguage(user.user_metadata.dashboardLang as any);
             }
         };
         initLang();
@@ -211,7 +211,7 @@ const Partner_Dashboard = () => {
                         setTimeout(() => soundManager.playNewOrder(), 1500);
 
                         toast('ADDITIONAL ITEMS ORDERED! 🍽️', {
-                            style: { background: '#f59e0b', color: '#fff', fontSize: '1.2rem', padding: '16px' },
+                            style: { background: '#f59e0b', color: '#fff', fontSize: '1.2rem', padding: '16px', boxShadow: '0 10px 30px rgba(245, 158, 11, 0.4)' },
                             duration: 5000
                         });
                     }
@@ -541,12 +541,13 @@ const ActivityItem = ({ title, time, type, theme }: { title: string, time: strin
 };
 
 export const DashboardOverview = () => {
-    // Read the global context passed by Partner_Dashboard Outlet wrapper
-    const { greeting: ctxGreeting, profile, theme } = useOutletContext<any>() || {};
+    const { greeting: ctxGreeting, formattedTime: ctxTime, profile, theme } = useOutletContext<any>() || {};
 
     const [isOnline, setIsOnline] = useState(true);
     const [stats, setStats] = useState({
         revenue: 0,
+        cash_revenue: 0,
+        online_revenue: 0,
         totalOrders: 0,
         activeOrders: 0,
         views: 0,
@@ -554,23 +555,19 @@ export const DashboardOverview = () => {
     });
     const [activities, setActivities] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [isDemoMode, setIsDemoMode] = useState(false); // New Demo Mode State
-    const [isAdmin, setIsAdmin] = useState(false); // Admin State
+    const [isDemoMode, setIsDemoMode] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
 
-    // We need to fetch profile/greeting info again here or pass it via context/props if structured differently.
-    // For now, let's re-use the context from Outlet if possible, but DashboardOverview is a component used inside Outlet.
-    // To keep it simple and self-contained, I will add the time/greeting logic here as well for the specific header part.
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [greeting, setGreeting] = useState('');
+    const [greeting, setGreeting] = useState('Good Day');
     const [userName, setUserName] = useState('Partner');
+    const { formatPrice } = useCurrency();
 
     useEffect(() => {
-        // Timer for Clock
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(timer);
     }, []);
 
-    // Greeting Logic
     useEffect(() => {
         const hour = currentTime.getHours();
         if (hour < 12) setGreeting('Good Morning');
@@ -580,115 +577,69 @@ export const DashboardOverview = () => {
 
     const formattedTime = currentTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 
-    // Moved fetchDashboardData to component scope for toggle access
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
-            // 1. Get User/Restaurant ID
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            if (user.user_metadata?.full_name) {
-                setUserName(user.user_metadata.full_name);
-            }
-
-            // Admin Logic
+            if (user.user_metadata?.full_name) setUserName(user.user_metadata.full_name);
             if (user.email === 'hassansajid098@gmail.com') setIsAdmin(true);
 
             const { data: restaurant } = await supabase
                 .from('restaurants')
                 .select('id, is_open')
                 .eq('owner_id', user.id)
-                .single();
+                .maybeSingle();
 
             if (restaurant) {
                 setIsOnline((restaurant as any).is_open || false);
+                const restaurantId = (restaurant as any).id;
 
-                let fetchedRevenue = 0;
-                let fetchedTotalOrders = 0;
-                let fetchedActiveOrders = 0;
-
-                // 2. Try RPC first (The "Accountant")
-                const { data: rpcData, error: rpcError } = await (supabase as any)
-                    .rpc('get_dashboard_stats', { p_restaurant_id: (restaurant as any).id });
-
-                if (rpcError) {
-                    console.error("RPC Error Details:", rpcError);
-                }
-
-                if (!rpcError && rpcData) {
-                    fetchedRevenue = (rpcData as any).revenue;
-                    fetchedTotalOrders = (rpcData as any).total_orders;
-                    fetchedActiveOrders = (rpcData as any).active_orders;
-                } else {
-                    // Fallback: Manual Calculation
-                    const today = new Date().toISOString().split('T')[0];
-
-                    const { data: todayOrders } = await supabase
-                        .from('orders')
-                        .select('total_amount, status')
-                        .eq('restaurant_id', (restaurant as any).id)
-                        .gte('created_at', today);
-
-                    const validOrders = (todayOrders as any[])?.filter(o => o.status !== 'cancelled') || [];
-                    fetchedRevenue = validOrders.reduce((sum, order) =>
-                        order.status === 'delivered' ? sum + order.total_amount : sum, 0);
-                    fetchedTotalOrders = validOrders.length;
-
-                    const { count: activeCount } = await supabase
-                        .from('orders')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('restaurant_id', (restaurant as any).id)
-                        .in('status', ['pending', 'cooking']);
-                    fetchedActiveOrders = activeCount || 0;
-                }
-
-                // --- SMART DEMO MODE LOGIC ---
-                // Only activate if explicitly toggled (for admin) or if logic reimplemented
-                // We use the state 'isDemoMode' which is toggled by the UI
                 if (isDemoMode) {
                     setStats({
-                        revenue: 45200, // Demo Revenue
-                        totalOrders: 12, // Demo Orders
-                        activeOrders: 3, // Demo Active
+                        revenue: 45200,
+                        cash_revenue: 32000,
+                        online_revenue: 13200,
+                        totalOrders: 12,
+                        activeOrders: 3,
                         views: 142,
                         avgPrepTime: '18m'
                     });
                     setActivities([
                         { title: "New Order #1024 (2x Zinger)", time: "Just now", type: 'order' },
                         { title: "New Order #1023 (1x Pizza)", time: "15 mins ago", type: 'order' },
-                        { title: "Menu Updated: 'Beef Burger'", time: "1 hour ago", type: 'system' },
-                        { title: "New 5★ Review received", time: "2 hours ago", type: 'review' },
-                        { title: "Order #1022 Delivered", time: "3 hours ago", type: 'system' },
+                        { title: "Menu Updated: 'Beef Burger'", time: "1 hour ago", type: 'system' }
                     ]);
                 } else {
-                    // Real Data Exists
-                    setStats(prev => ({
-                        ...prev,
-                        revenue: fetchedRevenue,
-                        totalOrders: fetchedTotalOrders,
-                        activeOrders: fetchedActiveOrders,
-                        avgPrepTime: '24m' // Hardcoded for now until we have real prep time logic
-                    }));
+                    const { data: rpcData, error: rpcError } = await (supabase as any)
+                        .rpc('get_dashboard_stats', { p_restaurant_id: restaurantId });
 
-                    // Fetch Real Recent Activity
+                    if (!rpcError && rpcData) {
+                        setStats({
+                            revenue: (rpcData as any).revenue || 0,
+                            cash_revenue: (rpcData as any).cash_revenue || 0,
+                            online_revenue: (rpcData as any).online_revenue || 0,
+                            totalOrders: (rpcData as any).total_orders || 0,
+                            activeOrders: (rpcData as any).active_orders || 0,
+                            views: 0,
+                            avgPrepTime: '24m'
+                        });
+                    }
+
                     const { data: recentOrders } = await supabase
                         .from('orders')
                         .select('*')
-                        .eq('restaurant_id', (restaurant as any).id)
+                        .eq('restaurant_id', restaurantId)
                         .order('created_at', { ascending: false })
                         .limit(5);
 
-                    if (recentOrders && (recentOrders as any[]).length > 0) {
-                        const formattedActivity = (recentOrders as any[]).map(order => ({
-                            title: `Order #${order.id.slice(0, 4)} (${order.total_amount})`,
-                            time: new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    if (recentOrders) {
+                        setActivities((recentOrders as any[]).map(o => ({
+                            title: `Order #${o.id.slice(0, 4)} (${formatPrice(o.total_amount)})`,
+                            time: new Date(o.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                             type: 'order'
-                        }));
-                        setActivities(formattedActivity);
-                    } else {
-                        // Reset if no recent data
-                        setActivities([]);
+                        })));
                     }
                 }
             }
@@ -699,63 +650,38 @@ export const DashboardOverview = () => {
         }
     };
 
-    // Fetch Initial Data on Mount and when Demo Mode Changes
     useEffect(() => {
         fetchDashboardData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isDemoMode]); // Re-fetch when demo mode is toggled
+    }, [isDemoMode]);
 
-    useEffect(() => {
-
-        // 4. Realtime Subscription (The "Phone Line")
-        const subscription = supabase
-            .channel('dashboard-orders')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
-                // Play Sound
-                const audio = new Audio('/sounds/notification.mp3');
-                audio.play().catch(e => console.log("Audio play failed", e));
-
-                // If we were in demo mode, switch to real mode on first order
-                setIsDemoMode(false);
-
-                // Update Stats (Simplistic increment for now, ideally re-fetch)
-                setStats(prev => ({
-                    ...prev,
-                    totalOrders: prev.totalOrders + 1,
-                    activeOrders: prev.activeOrders + 1
-                }));
-
-                // Update Feed
-                const newActivity = {
-                    title: `New Order #${payload.new.id.slice(0, 4)}`,
-                    time: 'Just now',
-                    type: 'order'
-                };
-                setActivities(prev => [newActivity, ...prev.slice(0, 4)]);
-            })
-            .subscribe();
-
-        return () => {
-            subscription.unsubscribe();
-        };
-    }, []);
-
-    // Toggle Status Handler
     const toggleStatus = async () => {
         const newStatus = !isOnline;
-        setIsOnline(newStatus); // Optimistic Update
-
+        setIsOnline(newStatus);
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-            await (supabase as any)
-                .from('restaurants')
-                .update({ is_open: newStatus })
-                .eq('owner_id', user.id);
+            await (supabase as any).from('restaurants').update({ is_open: newStatus }).eq('owner_id', user.id);
         }
     };
 
     const statCards = [
-        { title: "Today's Revenue", value: formatPrice(stats.revenue), subtext: `${stats.totalOrders} Orders today`, icon: LayoutDashboard, trend: isDemoMode ? 12 : null },
+        {
+            title: "Today's Revenue",
+            value: formatPrice(stats.revenue),
+            subtext: (
+                <div className="flex flex-col gap-0.5 mt-1">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400">
+                        <span>Cash & COD:</span>
+                        <span className="font-bold text-slate-600">{formatPrice(stats.cash_revenue)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-indigo-400">
+                        <span>Online Paid:</span>
+                        <span className="font-bold text-indigo-600">{formatPrice(stats.online_revenue)}</span>
+                    </div>
+                </div>
+            ),
+            icon: LayoutDashboard,
+            trend: isDemoMode ? 12 : null
+        },
         { title: "Active Orders", value: stats.activeOrders.toString(), subtext: "In Kitchen timeline", icon: UtensilsCrossed, trend: null },
         { title: "Total Views", value: stats.views.toString(), subtext: "Menu visits today", icon: User, trend: isDemoMode ? 5 : 0 },
         { title: "Avg. Prep Time", value: stats.avgPrepTime, subtext: "Last 5 orders", icon: Bot, trend: isDemoMode ? -2 : 0 },
@@ -765,181 +691,112 @@ export const DashboardOverview = () => {
         <div className="space-y-8 animate-in fade-in duration-700 relative min-h-screen pb-20">
             {/* Ambient Background Orbs */}
             <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
-                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-amber-200/20 rounded-full blur-[120px] animate-pulse"></div>
-                <div className="absolute bottom-[10%] right-[-5%] w-[30%] h-[30%] bg-blue-200/20 rounded-full blur-[100px] animate-pulse delay-700"></div>
+                <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-red-900/10 rounded-full blur-[140px] animate-pulse"></div>
+                <div className="absolute top-[30%] right-[20%] w-[35%] h-[35%] bg-crimson-orb rounded-full blur-[100px] animate-liquid"></div>
             </div>
 
             {/* Header Section */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/70 backdrop-blur-lg p-6 rounded-3xl border border-white/50 shadow-lg relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-white/40 to-transparent pointer-events-none"></div>
-
                 <div className="relative z-10 flex flex-col gap-1">
-                    <div className="flex items-center gap-3">
-                        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                            {greeting}, {userName} <span className="inline-block animate-bounce">👋</span>
-                        </h1>
-                    </div>
-
+                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+                        {greeting}, {userName} <span className="inline-block animate-bounce">👋</span>
+                    </h1>
                     <div className="flex items-center gap-4 text-slate-500 font-medium text-sm">
                         <span className="flex items-center gap-1.5 bg-white/50 px-3 py-1 rounded-full border border-slate-200/50 shadow-sm">
                             <Clock size={14} className="text-amber-500" />
                             <span className="text-slate-700 font-bold tracking-wide">{formattedTime}</span>
                         </span>
-                        <span className="hidden sm:inline">|</span>
-                        <span className="hidden sm:inline">Here's what's happening in your restaurant today.</span>
-                        {isDemoMode && (
-                            <span className="px-2 py-0.5 bg-amber-100/80 text-amber-700 text-[10px] font-bold rounded-full border border-amber-200 animate-pulse ml-2">
-                                DEMO MODE
-                            </span>
-                        )}
+                        {isDemoMode && <Badge className="bg-amber-100 text-amber-700 border-amber-200">DEMO MODE</Badge>}
                     </div>
                 </div>
 
-                {/* Status Toggle & Demo Switch */}
                 <div className="flex items-center gap-4">
                     {isAdmin && (
-                        <div className="flex items-center gap-2 bg-purple-900/20 px-3 py-1.5 rounded-full border border-purple-500/30 backdrop-blur-md">
-                            <span className="text-purple-400 text-xs font-bold uppercase tracking-wider">Demo</span>
-                            <div
-                                onClick={() => {
-                                    const newMode = !isDemoMode;
-                                    setIsDemoMode(newMode);
-                                    if (newMode) {
-                                        fetchDashboardData(); // Reload to apply demo data overrides
-                                    } else {
-                                        fetchDashboardData(); // Reload to fetch real data
-                                    }
-                                }}
-                                className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors duration-300 ${isDemoMode ? 'bg-purple-500' : 'bg-zinc-600'}`}
+                        <div className="flex items-center gap-2 bg-purple-900/20 px-3 py-1.5 rounded-full border border-purple-500/30">
+                            <span className="text-purple-400 text-xs font-bold uppercase">Demo</span>
+                            <button
+                                onClick={() => setIsDemoMode(!isDemoMode)}
+                                className={`w-8 h-4 rounded-full relative transition-colors ${isDemoMode ? 'bg-purple-500' : 'bg-zinc-600'}`}
                             >
-                                <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform duration-300 ${isDemoMode ? 'translate-x-4' : 'translate-x-0'}`} />
-                            </div>
+                                <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${isDemoMode ? 'translate-x-4' : 'translate-x-0'}`} />
+                            </button>
                         </div>
                     )}
 
                     <div
                         onClick={toggleStatus}
-                        className={`
-                        relative z-10 cursor-pointer flex items-center gap-4 px-2 py-2 pr-6 rounded-full transition-all duration-500 border-2
-                        ${isOnline
-                                ? 'bg-green-50/80 border-green-200 shadow-[0_0_20px_rgba(34,197,94,0.3)]'
-                                : 'bg-slate-50/80 border-slate-200 shadow-inner'
-                            }
-                        backdrop-blur-md group
-                    `}
+                        className={`relative z-10 cursor-pointer flex items-center gap-4 px-2 py-2 pr-6 rounded-full transition-all duration-500 border-2 ${isOnline ? 'bg-green-50/80 border-green-200 shadow-lg' : 'bg-slate-50/80 border-slate-200'}`}
                     >
-                        <div className={`
-                        w-12 h-12 rounded-full flex items-center justify-center shadow-md transition-all duration-500 transform
-                        ${isOnline ? 'bg-gradient-to-br from-green-400 to-green-600 translate-x-0 rotate-0' : 'bg-gradient-to-br from-slate-300 to-slate-500 translate-x-0 rotate-180'}
-                    `}>
-                            <div className={`w-4 h-4 bg-white/90 rounded-full shadow-inner ${isOnline ? 'animate-pulse' : ''}`} />
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${isOnline ? 'bg-green-500' : 'bg-slate-400'}`}>
+                            <div className={`w-3 h-3 bg-white/90 rounded-full ${isOnline ? 'animate-pulse' : ''}`} />
                         </div>
                         <div className="flex flex-col">
-                            <span className={`text-base font-bold tracking-wide transition-colors ${isOnline ? 'text-green-700' : 'text-slate-500'}`}>
-                                {isOnline ? 'ON AIR' : 'OFFLINE'}
-                            </span>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-slate-500 transition-colors">
-                                {isOnline ? 'Accepting Orders' : 'Store Closed'}
-                            </span>
+                            <span className={`text-sm font-bold ${isOnline ? 'text-green-700' : 'text-slate-500'}`}>{isOnline ? 'ON AIR' : 'OFFLINE'}</span>
+                            <span className="text-[10px] text-slate-400">{isOnline ? 'Accepting Orders' : 'Store Closed'}</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Stats Grid with Tilt */}
+            {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {statCards.map((stat, idx) => (
-                    <StatsCard key={idx} {...stat} />
+                    <StatsCard key={idx} {...stat} theme={theme} />
                 ))}
             </div>
 
-            {/* Main Content Grid */}
+            {/* Main Content */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left Column: Activity & Graphs (2/3 width) */}
                 <div className="lg:col-span-2 space-y-8">
-                    {/* Quick Actions */}
                     <div className="bg-white/80 backdrop-blur-xl p-8 rounded-3xl border border-white/40 shadow-xl">
-                        <div className="flex items-center justify-between mb-8">
-                            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                                <span className="bg-amber-100 p-2 rounded-lg"><Sparkles className="text-amber-500" size={18} /></span>
-                                Quick Actions
-                            </h2>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-                            <Link to="/dashboard/menu" className="p-6 bg-gradient-to-b from-white to-slate-50 hover:to-amber-50 rounded-2xl text-center transition-all duration-300 group border border-slate-200 hover:border-amber-300 shadow-sm hover:shadow-xl transform hover:-translate-y-1">
-                                <div className="w-14 h-14 bg-white rounded-2xl shadow-md flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                                    <UtensilsCrossed className="text-amber-500" size={28} />
-                                </div>
-                                <span className="text-base font-bold text-slate-800 block mb-1">Add Dish</span>
-                                <span className="text-xs text-slate-500 font-medium">Update Menu</span>
+                        <h2 className="text-xl font-bold text-slate-900 mb-8 flex items-center gap-2">
+                            <Sparkles className="text-amber-500" size={18} /> Quick Actions
+                        </h2>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
+                            <Link to="/dashboard/menu" className="p-6 bg-white hover:bg-amber-50 rounded-2xl text-center transition-all border border-slate-200 hover:border-amber-300 shadow-sm hover:shadow-md">
+                                <UtensilsCrossed className="text-amber-500 mx-auto mb-2" size={24} />
+                                <span className="font-bold text-slate-800 block text-sm">Add Dish</span>
                             </Link>
-                            <Link to="/dashboard/qr" className="p-6 bg-gradient-to-b from-white to-slate-50 hover:to-amber-50 rounded-2xl text-center transition-all duration-300 group border border-slate-200 hover:border-amber-300 shadow-sm hover:shadow-xl transform hover:-translate-y-1">
-                                <div className="w-14 h-14 bg-white rounded-2xl shadow-md flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                                    <QrCode className="text-amber-500" size={28} />
-                                </div>
-                                <span className="text-base font-bold text-slate-800 block mb-1">QR Code</span>
-                                <span className="text-xs text-slate-500 font-medium">Print & Share</span>
+                            <Link to="/dashboard/qr" className="p-6 bg-white hover:bg-amber-50 rounded-2xl text-center transition-all border border-slate-200 hover:border-amber-300 shadow-sm hover:shadow-md">
+                                <QrCode className="text-amber-500 mx-auto mb-2" size={24} />
+                                <span className="font-bold text-slate-800 block text-sm">QR Code</span>
                             </Link>
-                            <Link to="/dashboard/settings" className="p-6 bg-gradient-to-b from-white to-slate-50 hover:to-amber-50 rounded-2xl text-center transition-all duration-300 group border border-slate-200 hover:border-amber-300 shadow-sm hover:shadow-xl transform hover:-translate-y-1">
-                                <div className="w-14 h-14 bg-white rounded-2xl shadow-md flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                                    <Settings className="text-amber-500" size={28} />
-                                </div>
-                                <span className="text-base font-bold text-slate-800 block mb-1">Settings</span>
-                                <span className="text-xs text-slate-500 font-medium">Manage Shop</span>
+                            <Link to="/dashboard/settings" className="p-6 bg-white hover:bg-amber-50 rounded-2xl text-center transition-all border border-slate-200 hover:border-amber-300 shadow-sm hover:shadow-md">
+                                <Settings className="text-amber-500 mx-auto mb-2" size={24} />
+                                <span className="font-bold text-slate-800 block text-sm">Settings</span>
                             </Link>
-                            <button className="p-6 bg-gradient-to-b from-white to-slate-50 hover:to-amber-50 rounded-2xl text-center transition-all duration-300 group border border-slate-200 hover:border-amber-300 shadow-sm hover:shadow-xl transform hover:-translate-y-1">
-                                <div className="w-14 h-14 bg-white rounded-2xl shadow-md flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                                    <Bot className="text-amber-500" size={28} />
-                                </div>
-                                <span className="text-base font-bold text-slate-800 block mb-1">Ask AI</span>
-                                <span className="text-xs text-slate-500 font-medium">Get Insights</span>
-                            </button>
                         </div>
                     </div>
 
-                    {/* Revenue Graph Placeholder */}
-                    <div className="bg-white/80 backdrop-blur-xl p-8 rounded-3xl border border-white/40 shadow-xl min-h-[350px] flex items-center justify-center relative overflow-hidden group">
-                        <div className="text-center z-10 relative">
+                    <div className="bg-white/80 backdrop-blur-xl p-8 rounded-3xl border border-white/40 shadow-xl min-h-[300px] flex items-center justify-center relative overflow-hidden">
+                        <div className="text-center z-10">
                             <h3 className="text-xl font-bold text-slate-900 mb-2">Revenue Analytics</h3>
-                            <p className="text-slate-500 text-sm mb-6">Weekly Performance Chart</p>
-                            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-200 border-amber-200 px-4 py-1.5 text-sm">Phase 4 Coming Soon</Badge>
+                            <Badge className="bg-amber-100 text-amber-700">Phase 4 Coming Soon</Badge>
                         </div>
-                        <div className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity bg-[radial-gradient(#f59e0b_1px,transparent_1px)] [background-size:24px_24px]"></div>
-                        <div className="absolute bottom-0 left-0 right-0 h-48 opacity-10 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-700">
-                            <svg viewBox="0 0 100 20" preserveAspectRatio="none" className="w-full h-full text-amber-500 fill-current">
-                                <path d="M0 20 L0 10 Q20 5 40 12 T80 8 T100 15 L100 20 Z" />
-                            </svg>
-                        </div>
+                        <div className="absolute inset-0 opacity-[0.03] bg-[radial-gradient(#f59e0b_1px,transparent_1px)] [background-size:24px_24px]"></div>
                     </div>
                 </div>
 
-                {/* Right Column: Live Feed (1/3 width) */}
-                <div className="space-y-6">
-                    <div className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl border border-white/40 shadow-xl h-full flex flex-col">
-                        <div className="flex items-center justify-between mb-8">
-                            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-3">
-                                <span className="relative flex h-3 w-3">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
-                                </span>
-                                Live Feed
-                            </h2>
-                            <button className="text-xs text-amber-700 font-bold hover:underline bg-amber-50 px-3 py-1 rounded-full">View All</button>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                            {loading ? (
-                                <p className="text-sm text-slate-400 text-center py-10 animate-pulse">Listening for orders...</p>
-                            ) : activities.length > 0 ? (
-                                <div className="space-y-2 relative before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200/50">
-                                    {activities.map((act, i) => (
-                                        <ActivityItem key={i} {...act} />
-                                    ))}
-                                </div>
-                            ) : (
-                                <p className="text-sm text-slate-400 text-center py-10">No recent activity.</p>
-                            )}
-                        </div>
+                <div className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl border border-white/40 shadow-xl flex flex-col h-full">
+                    <h2 className="text-xl font-bold text-slate-900 mb-8 flex items-center gap-3">
+                        <span className="relative flex h-3 w-3">
+                            <span className="animate-ping absolute h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                            <span className="relative h-3 w-3 bg-amber-500 rounded-full"></span>
+                        </span>
+                        Live Feed
+                    </h2>
+                    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                        {loading ? (
+                            <p className="text-sm text-slate-400 text-center animate-pulse">Loading...</p>
+                        ) : activities.length > 0 ? (
+                            <div className="space-y-4">
+                                {activities.map((act, i) => (
+                                    <ActivityItem key={i} {...act} theme={theme} />
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-slate-400 text-center">No recent activity.</p>
+                        )}
                     </div>
                 </div>
             </div>

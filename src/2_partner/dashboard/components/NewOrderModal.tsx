@@ -64,7 +64,15 @@ export default function NewOrderModal({
     const [itemNote, setItemNote] = useState('');
 
     useEffect(() => {
-        if (!isOpen || !restaurantId) return;
+        if (!isOpen) return;
+
+        // Lock Body Scroll
+        document.body.classList.add('no-scroll');
+
+        if (!restaurantId) {
+            document.body.classList.remove('no-scroll');
+            return;
+        }
 
         if (defaultTableNo) setTableNo(defaultTableNo);
         if (defaultOrderType) setOrderType(defaultOrderType);
@@ -127,6 +135,10 @@ export default function NewOrderModal({
         };
 
         fetchCatalog();
+
+        return () => {
+            document.body.classList.remove('no-scroll');
+        };
     }, [isOpen, restaurantId]);
 
     if (!isOpen) return null;
@@ -280,8 +292,8 @@ export default function NewOrderModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex overflow-hidden bg-zinc-900/60 backdrop-blur-sm antialiased text-left p-4 sm:p-6 lg:p-8">
-            <div className="w-full h-full max-w-[1600px] mx-auto flex gap-4 xl:gap-6">
+        <div className="fixed inset-0 z-50 flex overflow-y-auto bg-zinc-900/80 backdrop-blur-md antialiased text-left p-0 md:p-4 lg:p-8 custom-scrollbar">
+            <div className="w-full min-h-full max-w-[1600px] mx-auto flex flex-col lg:flex-row gap-0 md:gap-4 xl:gap-6 bg-slate-100 md:bg-transparent">
 
                 {/* 1. LEFT PANEL: Categories Sidebar (approx 20%) */}
                 <div className="w-64 hidden lg:flex flex-col bg-slate-50 border border-zinc-200 rounded-2xl shadow-xl overflow-hidden shrink-0 min-w-0">

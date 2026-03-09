@@ -18,6 +18,8 @@ import { Badge } from '@/shared/ui/badge';
 import { DynamicFoodImage } from '@/2_partner/setup/pages/RestaurantSetup';
 import DealMosaicImage from '@/2_partner/dashboard/components/DealMosaicImage';
 import { formatPrice, resolveCurrency, CurrencyInfo, DEFAULT_CURRENCY } from '@/shared/lib/currencyUtils';
+import StripeWrapper from '@/shared/components/Stripe/StripeWrapper';
+import { CreditCard, Banknote } from 'lucide-react';
 
 export default function CustomerMenu() {
     const { restaurantId } = useParams<{ restaurantId: string }>();
@@ -48,6 +50,10 @@ export default function CustomerMenu() {
     const [orderNote, setOrderNote] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isRequestingBill, setIsRequestingBill] = useState(false);
+
+    // New Stripe/Payment State
+    const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'ONLINE'>('CASH');
+    const [showStripe, setShowStripe] = useState(false);
 
     // Custom QR Validation State
     const [isValidTable, setIsValidTable] = useState<boolean | null>(null);
@@ -149,6 +155,18 @@ export default function CustomerMenu() {
         checkTableAccess();
     }, [restaurantId, tableNo]);
 
+    // Body scroll lock when modals are open
+    useEffect(() => {
+        if (selectedItem || isCartOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [selectedItem, isCartOpen]);
+
     useEffect(() => {
         const fetchMenuData = async () => {
             console.log("CustomerMenu: fetchMenuData started with restaurantId =", restaurantId, "isValidTable =", isValidTable);
@@ -161,16 +179,21 @@ export default function CustomerMenu() {
                     .from('restaurants')
                     .select('name, logo_url, address, phone, currency')
                     .eq('id', restaurantId)
-                    .single();
+                    .single() as { data: any, error: any };
 
                 console.log("Restaurant Info fetched:", restData, "Error:", restError);
-                if (restError) throw restError;
+                if (restError || !restData) throw restError || new Error("Restaurant not found");
+
                 // Resolve currency from stored code or phone number
-                const currencyInfo = restData?.currency 
-                    ? resolveCurrency(restData.currency) 
-                    : resolveCurrency(restData?.phone);
+                const currencyInfo = restData.currency
+                    ? resolveCurrency(restData.currency)
+                    : resolveCurrency(restData.phone);
+
                 setRestaurantInfo({
-                    ...restData,
+                    name: restData.name,
+                    logo_url: restData.logo_url,
+                    address: restData.address,
+                    phone: restData.phone,
                     currency: currencyInfo
                 });
 
@@ -454,7 +477,7 @@ export default function CustomerMenu() {
         return cart.reduce((total, item) => total + (item.totalPrice * item.quantity), 0);
     };
 
-    const handlePlaceOrder = async () => {
+    const handlePlaceOrder = async (isAlreadyPaid: boolean = false) => {
         if (!restaurantId) return;
         if (cart.length === 0) {
             toast.error("Your cart is empty");
@@ -470,7 +493,14 @@ export default function CustomerMenu() {
         setIsSubmitting(true);
         try {
             const grandTotal = calculateCartTotal();
-            const orderType = tableNo ? 'DINE_IN' : 'DELIVERY'; // Simple fallback for now
+            const orderType = tableNo ? 'DINE_IN' : 'DELIVERY';
+
+            // If Online Payment is selected and not yet processed, show Stripe UI
+            if (paymentMethod === 'ONLINE' && !showStripe && !isAlreadyPaid) {
+                setShowStripe(true);
+                setIsSubmitting(false);
+                return;
+            }
 
             let activeOrderId = null;
 
@@ -507,7 +537,8 @@ export default function CustomerMenu() {
                         order_type: orderType,
                         total_amount: grandTotal,
                         session_status: 'OPEN',
-                        payment_status: 'PENDING'
+                        payment_status: paymentMethod === 'ONLINE' ? 'PAID' : 'PENDING',
+                        payment_method: paymentMethod
                     })
                     .select('id');
 
@@ -841,8 +872,8 @@ export default function CustomerMenu() {
             {/* Selection Modal (Bottom Sheet for Mobile, Modal for Desktop) */}
             {
                 selectedItem && (
-                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200">
-                        <div className="bg-white w-full sm:max-w-md max-h-[90vh] sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-4 duration-300 relative">
+                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-[2px] p-0 sm:p-4 animate-in fade-in duration-200">
+                        <div className="bg-white w-full sm:max-w-md max-h-[95vh] sm:max-h-[90vh] sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-4 duration-300 relative border border-slate-200/50">
                             {/* Close button */}
                             <button
                                 onClick={handleCloseModal}
@@ -944,7 +975,7 @@ export default function CustomerMenu() {
                                                                 <span className={`font-bold ${isSelected ? 'text-amber-700' : 'text-slate-800'}`}>{addon.name}</span>
                                                                 <div className="flex items-center gap-3">
                                                                     {addon.price > 0 && (
-                                                                        <span className={`font-black text-sm ${isSelected ? 'text-amber-600' : 'text-slate-500'}`}>
+                                                                        <span className={`text-sm font-black ${isSelected ? 'text-amber-600' : 'text-slate-500'}`}>
                                                                             + {currencySymbol} {addon.price.toLocaleString()}
                                                                         </span>
                                                                     )}
@@ -983,32 +1014,29 @@ export default function CustomerMenu() {
                             </div>
 
                             {/* Sticky Bottom Actions - NO LONGER ABSOLUTE, NOW A FLEX CHILD */}
-                            <div className="bg-white border-t border-slate-100 p-4 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] shrink-0 sm:rounded-b-3xl">
-                                {/* Quantity Control */}
-                                <div className="flex items-center justify-between mb-4">
-                                    <span className="text-sm font-bold text-slate-700">Quantity</span>
-                                    <div className="flex items-center gap-4 bg-slate-50 p-1.5 rounded-full border border-slate-200">
-                                        <button
-                                            onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                                            className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-slate-700 font-bold shadow-sm hover:bg-slate-100 active:scale-95 transition-transform"
-                                        >-</button>
-                                        <span className="font-black text-slate-900 w-4 text-center">{quantity}</span>
-                                        <button
-                                            onClick={() => setQuantity(quantity + 1)}
-                                            className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-white font-bold shadow-sm hover:bg-slate-800 active:scale-95 transition-transform"
-                                        >+</button>
-                                    </div>
+                            <div className="flex items-center justify-between mb-4">
+                                <span className="text-sm font-bold text-slate-700">Quantity</span>
+                                <div className="flex items-center gap-4 bg-slate-50 p-1.5 rounded-full border border-slate-200">
+                                    <button
+                                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                                        className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-slate-700 font-bold shadow-sm hover:bg-slate-100 active:scale-95 transition-transform"
+                                    >-</button>
+                                    <span className="font-black text-slate-900 w-4 text-center">{quantity}</span>
+                                    <button
+                                        onClick={() => setQuantity(quantity + 1)}
+                                        className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-white font-bold shadow-sm hover:bg-slate-800 active:scale-95 transition-transform"
+                                    >+</button>
                                 </div>
-
-                                {/* Final Add Button */}
-                                <button
-                                    onClick={handleAddToCart}
-                                    className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black text-lg py-4 rounded-2xl shadow-lg shadow-amber-500/30 transition-all active:scale-[0.98] flex items-center justify-between px-6"
-                                >
-                                    <span>Add to Order</span>
-                                    <span>{currencySymbol} {calculateModalTotal().toLocaleString()}</span>
-                                </button>
                             </div>
+
+                            {/* Final Add Button */}
+                            <button
+                                onClick={handleAddToCart}
+                                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black text-lg py-4 rounded-2xl shadow-lg shadow-amber-500/30 transition-all active:scale-[0.98] flex items-center justify-between px-6"
+                            >
+                                <span>Add to Order</span>
+                                <span>{currencySymbol} {calculateModalTotal().toLocaleString()}</span>
+                            </button>
                         </div>
                     </div>
                 )
@@ -1105,14 +1133,16 @@ export default function CustomerMenu() {
                             animate={{ y: 0 }}
                             exit={{ y: "100%" }}
                             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="bg-slate-50 w-full max-w-2xl sm:rounded-3xl rounded-t-3xl overflow-hidden flex flex-col max-h-[90vh]"
+                            className="bg-slate-50 w-full max-w-2xl sm:rounded-3xl rounded-t-3xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh] border-t border-slate-200 sm:border border-slate-200/50"
                         >
                             <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-white shrink-0 shadow-sm z-10">
                                 <div>
                                     <h2 className="text-2xl font-black text-slate-900 tracking-tight">Your Order</h2>
                                     <div className="flex items-center gap-2 mt-0.5">
                                         {tableNo && <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider bg-amber-50 px-2 py-0.5 rounded-full shrink-0">Table {tableNo}</span>}
-                                        <p className="text-slate-500 text-sm font-medium">Review items before sending to kitchen</p>
+                                        <p className="text-slate-500 text-sm font-medium">
+                                            {showStripe ? "Complete secure payment" : "Review items before sending to kitchen"}
+                                        </p>
                                     </div>
                                 </div>
                                 <button
@@ -1138,6 +1168,22 @@ export default function CustomerMenu() {
                                             Browse Menu
                                         </button>
                                     </div>
+                                ) : showStripe ? (
+                                    <StripeWrapper
+                                        amount={calculateCartTotal()}
+                                        restaurantId={restaurantId || ''}
+                                        metadata={{
+                                            customer_name: customerName,
+                                            table_number: tableNo,
+                                            order_note: orderNote
+                                        }}
+                                        onSuccess={() => {
+                                            // HandlePlaceOrder will be called with the success state
+                                            setShowStripe(false);
+                                            handlePlaceOrder(true);
+                                        }}
+                                        onCancel={() => setShowStripe(false)}
+                                    />
                                 ) : (
                                     <div className="space-y-3">
                                         {cart.map((cartItem) => (
@@ -1259,42 +1305,76 @@ export default function CustomerMenu() {
                                         />
                                     </div>
 
-                                    <div className="space-y-2 mb-5">
-                                        <div className="flex justify-between items-center text-slate-500 text-sm font-medium px-1">
-                                            <span>Subtotal</span>
-                                            <span>{currencySymbol} {calculateCartTotal().toLocaleString()}</span>
+                                    {/* Payment Method Selector */}
+                                    {!showStripe && (
+                                        <div className="mb-6">
+                                            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide mb-3">Payment Method</h3>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <button
+                                                    onClick={() => setPaymentMethod('CASH')}
+                                                    className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all ${paymentMethod === 'CASH'
+                                                        ? 'border-amber-500 bg-amber-50 shadow-sm'
+                                                        : 'border-slate-100 hover:border-slate-200 bg-white'
+                                                        }`}
+                                                >
+                                                    <Banknote className={`w-6 h-6 mb-2 ${paymentMethod === 'CASH' ? 'text-amber-500' : 'text-slate-400'}`} />
+                                                    <span className={`text-sm font-bold ${paymentMethod === 'CASH' ? 'text-amber-700' : 'text-slate-600'}`}>Cash</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => setPaymentMethod('ONLINE')}
+                                                    className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all ${paymentMethod === 'ONLINE'
+                                                        ? 'border-indigo-500 bg-indigo-50 shadow-sm'
+                                                        : 'border-slate-100 hover:border-slate-200 bg-white'
+                                                        }`}
+                                                >
+                                                    <CreditCard className={`w-6 h-6 mb-2 ${paymentMethod === 'ONLINE' ? 'text-indigo-500' : 'text-slate-400'}`} />
+                                                    <span className={`text-sm font-bold ${paymentMethod === 'ONLINE' ? 'text-indigo-700' : 'text-slate-600'}`}>Online</span>
+                                                </button>
+                                            </div>
                                         </div>
-                                        {/* You can add taxes/fees here later if needed */}
-                                        <div className="flex justify-between items-center text-xl font-black text-slate-900 border-t border-slate-100 pt-2 px-1">
-                                            <span>Grand Total</span>
-                                            <span>{currencySymbol} {calculateCartTotal().toLocaleString()}</span>
-                                        </div>
-                                    </div>
+                                    )}
 
-                                    <button
-                                        onClick={handlePlaceOrder}
-                                        disabled={isSubmitting}
-                                        className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white font-black text-lg py-4 rounded-2xl shadow-xl shadow-slate-900/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 group"
-                                    >
-                                        {isSubmitting ? (
-                                            <>
-                                                <Loader2 className="w-5 h-5 animate-spin" />
-                                                Sending to Kitchen...
-                                            </>
-                                        ) : (
-                                            <>
-                                                Place Order Now
-                                                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                            </>
-                                        )}
-                                    </button>
+                                    {!showStripe && (
+                                        <>
+                                            <div className="space-y-2 mb-5">
+                                                <div className="flex justify-between items-center text-slate-500 text-sm font-medium px-1">
+                                                    <span>Subtotal</span>
+                                                    <span>{currencySymbol} {calculateCartTotal().toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center text-xl font-black text-slate-900 border-t border-slate-100 pt-2 px-1">
+                                                    <span>Grand Total</span>
+                                                    <span>{currencySymbol} {calculateCartTotal().toLocaleString()}</span>
+                                                </div>
+                                            </div>
+
+                                            <button
+                                                onClick={() => handlePlaceOrder()}
+                                                disabled={isSubmitting}
+                                                className={`w-full ${paymentMethod === 'ONLINE' ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20' : 'bg-slate-900 hover:bg-slate-800 shadow-slate-900/20'} disabled:bg-slate-400 text-white font-black text-lg py-4 rounded-2xl shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 group`}
+                                            >
+                                                {isSubmitting ? (
+                                                    <>
+                                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                                        Sending to Kitchen...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        {paymentMethod === 'ONLINE' ? 'Pay & Order' : 'Place Order Now'}
+                                                        <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                                    </>
+                                                )}
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             )}
                         </motion.div>
                     </div>
                 )}
             </AnimatePresence>
-
         </div>
     );
 }
+
+
+

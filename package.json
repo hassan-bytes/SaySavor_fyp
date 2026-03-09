@@ -43,6 +43,8 @@
     "@react-three/drei": "9.88.0",
     "@react-three/fiber": "8.15.19",
     "@react-three/postprocessing": "^3.0.4",
+    "@stripe/react-stripe-js": "^5.6.1",
+    "@stripe/stripe-js": "^8.9.0",
     "@supabase/supabase-js": "^2.93.1",
     "@types/three": "^0.182.0",
     "class-variance-authority": "^0.7.1",
