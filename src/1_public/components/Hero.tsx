@@ -152,8 +152,8 @@ const CinematicFoodBg = () => {
         </div>
       ))}
 
-      {/* Dark overlay — 75% for readable text */}
-      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10, background: 'linear-gradient(160deg,rgba(15,8,8,0.7) 0%,rgba(10,5,5,0.8) 50%,rgba(5,2,2,0.85) 100%)' }} />
+      {/* Dark overlay — 50% for better image visibility */}
+      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10, background: 'linear-gradient(160deg,rgba(15,8,8,0.45) 0%,rgba(10,5,5,0.55) 50%,rgba(5,2,2,0.6) 100%)' }} />
 
       {/* Cinematic radial vignette */}
       <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 11, background: 'radial-gradient(ellipse at center, transparent 30%, rgba(220,20,60,0.05) 100%)' }} />
