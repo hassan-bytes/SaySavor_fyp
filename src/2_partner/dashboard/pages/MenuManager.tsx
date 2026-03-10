@@ -24,6 +24,9 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from '@/shared/ui/dialog';
 import {
+    Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter
+} from '@/shared/ui/sheet';
+import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/shared/ui/alert-dialog";
@@ -76,28 +79,28 @@ const CategoryOfferDialog = ({ category, cuisine, onApply, isDropdownItem = fals
                     Apply Offer
                 </Button>
             )}
-            <DialogContent className="sm:max-w-[420px] bg-black/90 backdrop-blur-2xl border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.7)] rounded-3xl overflow-hidden p-0 gap-0">
-                <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-amber-500/50 to-transparent"></div>
+            <DialogContent className="sm:max-w-[420px] bg-slate-900 border-slate-800 shadow-[0_30px_90px_rgba(0,0,0,0.6)] rounded-[2.5rem] overflow-hidden p-0 gap-0">
+                <div className="absolute inset-x-0 -top-px h-1.5 bg-gradient-to-r from-transparent via-amber-500/40 to-transparent"></div>
 
-                <div className="bg-gradient-to-br from-amber-500/10 to-black p-6 pb-2">
+                <div className="bg-slate-900/50 p-8 pb-5 border-b border-slate-800">
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-3 text-2xl font-black text-slate-100">
-                            <div className="p-2 bg-amber-500/20 rounded-xl border border-amber-500/30">
-                                <Percent className="w-6 h-6 text-amber-500 drop-shadow-[0_0_10px_rgba(245,158,11,0.5)]" />
+                        <DialogTitle className="flex items-center gap-4 text-2xl font-black text-white">
+                            <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center border border-amber-500/20">
+                                <Percent className="w-6 h-6 text-amber-500 drop-shadow-[0_0_10px_rgba(245,158,11,0.3)]" />
                             </div>
                             <div>
-                                Offer for <span className="text-amber-400">{category}</span>
+                                Offer for <span className="text-amber-500">{category}</span>
                             </div>
                         </DialogTitle>
-                        <DialogDescription className="text-slate-400 font-medium text-sm mt-3 leading-relaxed">
-                            This will update the price and add a discount tag to ALL items in the <span className="text-amber-500/80 font-bold">{cuisine} → {category}</span> section.
+                        <DialogDescription className="text-slate-400 font-bold text-sm mt-4 leading-relaxed ml-16">
+                            This will update the price and add a discount tag to ALL items in the <span className="text-slate-200">{cuisine} → {category}</span> section.
                         </DialogDescription>
                     </DialogHeader>
                 </div>
 
-                <div className="space-y-5 px-6 py-6">
-                    <div className="space-y-2">
-                        <Label htmlFor="cat-offer-discount" className="text-slate-300 font-bold">Discount Percentage (%)</Label>
+                <div className="space-y-6 px-8 py-8 bg-slate-900">
+                    <div className="space-y-3">
+                        <Label htmlFor="cat-offer-discount" className="text-slate-400 font-bold text-sm ml-1">Discount Percentage (%)</Label>
                         <div className="relative group">
                             <Input
                                 id="cat-offer-discount"
@@ -107,35 +110,35 @@ const CategoryOfferDialog = ({ category, cuisine, onApply, isDropdownItem = fals
                                     const val = Number(e.target.value);
                                     setDiscount(isNaN(val) ? 0 : val);
                                 }}
-                                className="pl-12 h-14 bg-black/40 border-white/10 text-slate-100 placeholder:text-slate-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-xl text-xl font-black transition-all group-hover:border-white/20"
+                                className="pl-14 bg-slate-800 border-slate-700 text-green-400 placeholder:text-slate-500 focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 rounded-2xl h-14 text-xl font-black shadow-sm transition-all group-hover:border-slate-600 remove-arrow"
                             />
-                            <Percent className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-500 drop-shadow-[0_0_5px_rgba(245,158,11,0.5)]" />
+                            <Percent className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-green-500 drop-shadow-md" />
                         </div>
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="cat-offer-name" className="text-slate-300 font-bold">Offer Name (Optional)</Label>
+                    <div className="space-y-3">
+                        <Label htmlFor="cat-offer-name" className="text-slate-400 font-bold text-sm ml-1">Offer Label (Optional)</Label>
                         <Input
                             id="cat-offer-name"
                             placeholder="e.g. Weekend Special, Happy Hour"
                             value={offerName}
                             onChange={(e) => setOfferName(e.target.value)}
-                            className="h-14 bg-black/40 border-white/10 text-slate-100 placeholder:text-slate-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-xl font-medium transition-all hover:border-white/20"
+                            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-2xl h-14 px-5 font-semibold shadow-sm transition-all group-hover:border-slate-600"
                         />
                     </div>
                 </div>
 
-                <div className="px-6 py-5 bg-white/5 border-t border-white/10 flex flex-col sm:flex-row gap-3">
-                    <Button variant="outline" onClick={() => setIsOpen(false)} className="flex-1 h-12 rounded-xl border-white/10 text-slate-300 font-bold hover:bg-white/10 hover:text-white transition-all duration-200 glass-card">
+                <div className="px-8 py-6 bg-slate-900 border-t border-slate-800 flex flex-col sm:flex-row gap-4">
+                    <Button variant="outline" onClick={() => setIsOpen(false)} className="flex-1 h-14 rounded-2xl border-slate-700 text-slate-400 font-bold hover:bg-slate-800 hover:text-white transition-all duration-200">
                         Cancel
                     </Button>
                     <Button
-                        className="flex-1 h-12 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-400 font-bold shadow-[0_0_15px_rgba(245,158,11,0.2)] active:scale-[0.98] transition-all duration-200"
+                        className="flex-[1.5] h-14 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-lg shadow-xl shadow-amber-500/10 active:scale-[0.98] transition-all duration-200"
                         onClick={() => {
                             onApply(category, cuisine, discount, offerName);
                             setIsOpen(false);
                         }}
                     >
-                        Apply Discount
+                        Apply to {category}
                     </Button>
                 </div>
             </DialogContent>
@@ -197,6 +200,7 @@ const MenuManager = () => {
 
     // Auto-fill State
     const [isAutoFilling, setIsAutoFilling] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // --- AUTO-FILL MISSING IMAGES LOGIC ---
     const autoFillMissingImages = async () => {
@@ -362,8 +366,28 @@ const MenuManager = () => {
     const menuRef = useRef<HTMLDivElement>(null);
     const dealOriginalPrice = dealItems.reduce((sum, item) => sum + (item.original_price * item.quantity), 0);
 
+    const finalPrice = useMemo(() => {
+        const base = currentItem.price || 0;
+        const disc = currentItem.discount_percentage || 0;
+        return Math.round(base - (base * (disc / 100)));
+    }, [currentItem.price, currentItem.discount_percentage]);
+
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+    const handleImageUpload = (file: File | null) => {
+        if (!file) {
+            setImageFile(null);
+            setImagePreview(null);
+            return;
+        }
+        setImageFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setImagePreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+    };
 
     // Individual Offer Modal State
     const [itemForDirectOffer, setItemForDirectOffer] = useState<MenuItem | null>(null);
@@ -863,6 +887,7 @@ const MenuManager = () => {
             currentItem.price = lowestPrice;
         }
 
+        setIsSubmitting(true);
         try {
             let finalImageUrl = currentItem.image_url || '';
 
@@ -909,10 +934,12 @@ const MenuManager = () => {
                 }
             }
 
+            const finalCalculatedPrice = currentItem.item_type === 'deal' ? parseFloat(currentItem.price?.toString() || '0') : finalPrice;
+
             const payload = {
                 restaurant_id: restId,
                 name: currentItem.name,
-                price: parseFloat(currentItem.price.toString()),
+                price: parseFloat(finalCalculatedPrice.toString()),
                 description: currentItem.description,
                 category_id: catId,
                 cuisine: currentItem.cuisine,
@@ -931,7 +958,7 @@ const MenuManager = () => {
                         category: di.category || original?.category
                     };
                 }) : null,
-                original_price: currentItem.item_type === 'deal' ? dealOriginalPrice : (currentItem.original_price || null),
+                original_price: currentItem.item_type === 'deal' ? dealOriginalPrice : (currentItem.discount_percentage ? currentItem.price : (currentItem.original_price || null)),
                 discount_percentage: currentItem.discount_percentage || null,
                 offer_name: currentItem.offer_name || null,
                 available_start_time: currentItem.available_start_time,
@@ -1027,6 +1054,8 @@ const MenuManager = () => {
         } catch (error: any) {
             console.error(error);
             toast.error(error.message || "Failed to save dish");
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -2561,100 +2590,126 @@ const MenuManager = () => {
                     </DialogContent>
                 </Dialog>
 
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen} modal={true}>
-                    <DialogContent
+                <Sheet open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <SheetContent
+                        side="right"
                         onOpenAutoFocus={(e) => e.preventDefault()}
-                        className={`sm:max-w-2xl bg-black/95 backdrop-blur-3xl border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.7)] rounded-[2.5rem] p-0 overflow-hidden flex flex-col max-h-[95vh] ${currentItem.item_type === 'deal' ? 'sm:max-w-3xl' : ''}`}
+                        className="sm:max-w-6xl w-[95vw] bg-slate-950 border-slate-900 shadow-[20px_0_90px_rgba(0,0,0,0.6)] p-0 overflow-hidden flex flex-col h-full transition-all duration-500 border-l border-white/5"
                     >
-                        <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-amber-500/50 to-transparent z-50"></div>
+                        <div className="absolute inset-x-0 -top-px h-1.5 bg-gradient-to-r from-transparent via-amber-500/40 to-transparent z-50"></div>
 
-                        {/* Modal Header - Fixed */}
-                        <div className="p-8 pb-4 shrink-0 border-b border-white/5 bg-black/40 backdrop-blur-md">
-                            <DialogHeader>
-                                <DialogTitle className="flex items-center gap-3 text-3xl font-black text-slate-100">
+                        {/* Sheet Header - Fixed */}
+                        <div className="p-8 pb-5 shrink-0 border-b border-slate-900 bg-slate-950/80 backdrop-blur-xl z-20">
+                            <SheetHeader>
+                                <SheetTitle className="flex items-center gap-4 text-3xl font-black text-white">
                                     {selectionMode ? (
                                         <>
-                                            <Sparkles className="w-8 h-8 text-amber-500 drop-shadow-[0_0_15px_rgba(251,191,36,0.5)]" />
+                                            <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center border border-amber-500/20">
+                                                <Sparkles className="w-7 h-7 text-amber-600 drop-shadow-[0_0_10px_rgba(251,191,36,0.3)]" />
+                                            </div>
                                             What would you like to add?
                                         </>
                                     ) : (
                                         <>
-                                            {currentItem.item_type === 'deal' && <Package className="w-8 h-8 text-purple-400 drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]" />}
-                                            {isEditing ? 'Edit' : 'Add New'} {currentItem.item_type === 'deal' ? 'Deal' : 'Dish'}
+                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${currentItem.item_type === 'deal' ? 'bg-purple-500/10 border-purple-500/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
+                                                {currentItem.item_type === 'deal'
+                                                    ? <Package className="w-7 h-7 text-purple-600" />
+                                                    : <Utensils className="w-7 h-7 text-amber-600" />
+                                                }
+                                            </div>
+                                            <span className="tracking-tight">{isEditing ? 'Edit' : 'Add New'} {currentItem.item_type === 'deal' ? 'Deal' : 'Dish'}</span>
                                         </>
                                     )}
-                                </DialogTitle>
-                                <DialogDescription className="text-slate-400 font-medium text-lg mt-2">
+                                </SheetTitle>
+                                <SheetDescription className="text-slate-400 font-bold text-base mt-2 ml-16">
                                     {selectionMode ? "Choose the type of menu item you want to create." : (
                                         currentItem.item_type === 'deal'
                                             ? "Bundle items together to create a value meal."
-                                            : "Configure dish details, variations, and add-ons."
+                                            : "Configure dish details, pricing, and variants."
                                     )}
-                                </DialogDescription>
-                            </DialogHeader>
+                                </SheetDescription>
+                            </SheetHeader>
                         </div>
 
-                        {/* Scrollable Modal Body - Added touch-pan-y and higher z-index for clarity */}
-                        <div className="flex-1 overflow-y-auto custom-scrollbar overscroll-contain px-8 pb-10 touch-pan-y">
-                            {selectionMode && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                                    <div
-                                        onClick={() => {
-                                            setCurrentItem(prev => ({ ...prev, item_type: 'single' }));
-                                            setSelectionMode(false);
-                                        }}
-                                        className="flex flex-col items-center justify-center p-8 glass-card border-white/5 rounded-[2rem] cursor-pointer hover:border-amber-500/30 hover:bg-amber-500/5 hover:-translate-y-1 transition-all group shadow-[0_0_30px_rgba(245,158,11,0.05)]"
-                                    >
-                                        <div className="bg-amber-500/20 border border-amber-500/30 text-amber-400 p-5 rounded-2xl mb-5 shadow-[0_0_20px_rgba(245,158,11,0.2)] group-hover:shadow-[0_0_30px_rgba(245,158,11,0.4)] group-hover:scale-110 transition-transform">
-                                            <Utensils className="w-10 h-10 drop-shadow-[0_0_10px_rgba(251,191,36,0.5)]" />
+                        {/* Modal Body - Two Column Side-by-Side Preview */}
+                        <div className="flex-1 overflow-hidden flex flex-col lg:flex-row bg-slate-950">
+                            {/* Left Column: Form Content */}
+                            <div className="flex-1 overflow-y-auto custom-scrollbar px-8 pb-10 touch-pan-y border-r border-white/5">
+                                {selectionMode && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-10">
+                                        <div
+                                            onClick={() => {
+                                                setCurrentItem(prev => ({ ...prev, item_type: 'single' }));
+                                                setSelectionMode(false);
+                                            }}
+                                            className="flex flex-col items-center justify-center p-10 bg-slate-900 border border-slate-800 rounded-[2.5rem] cursor-pointer hover:border-amber-500/50 hover:shadow-[0_20px_40px_rgba(245,158,11,0.2)] hover:-translate-y-1.5 transition-all group"
+                                        >
+                                            <div className="bg-amber-500/10 border border-amber-500/20 text-amber-500 p-6 rounded-3xl mb-6 group-hover:bg-amber-500 group-hover:text-white transition-all transform group-hover:rotate-6">
+                                                <Utensils className="w-10 h-10" />
+                                            </div>
+                                            <h3 className="text-2xl font-black text-white group-hover:text-amber-500 transition-colors">Add Single Dish</h3>
+                                            <p className="text-slate-400 text-center text-sm mt-3 leading-relaxed font-bold max-w-[200px]">
+                                                Create a standalone menu item with variants and add-ons.
+                                            </p>
                                         </div>
-                                        <h3 className="text-2xl font-black text-slate-100 group-hover:text-amber-400 transition-colors">Add Single Dish</h3>
-                                        <p className="text-slate-400 text-center text-sm mt-3 leading-relaxed font-medium">
-                                            Create a standalone menu item with variants, sizes, and add-ons.
-                                        </p>
-                                    </div>
 
-                                    <div
-                                        onClick={() => {
-                                            setCurrentItem(prev => ({ ...prev, item_type: 'deal' }));
-                                            setSelectionMode(false);
-                                        }}
-                                        className="flex flex-col items-center justify-center p-8 glass-card border-white/5 rounded-[2rem] cursor-pointer hover:border-purple-500/30 hover:bg-purple-500/5 hover:-translate-y-1 transition-all group shadow-[0_0_30px_rgba(168,85,247,0.05)]"
-                                    >
-                                        <div className="bg-purple-500/20 border border-purple-500/30 text-purple-400 p-5 rounded-2xl mb-5 shadow-[0_0_20px_rgba(168,85,247,0.2)] group-hover:shadow-[0_0_30px_rgba(168,85,247,0.4)] group-hover:scale-110 transition-transform">
-                                            <Package className="w-10 h-10 drop-shadow-[0_0_10px_rgba(192,132,252,0.5)]" />
+                                        <div
+                                            onClick={() => {
+                                                setCurrentItem(prev => ({ ...prev, item_type: 'deal' }));
+                                                setSelectionMode(false);
+                                            }}
+                                            className="flex flex-col items-center justify-center p-10 bg-slate-900 border border-slate-800 rounded-[2.5rem] cursor-pointer hover:border-purple-500/50 hover:shadow-[0_20px_40px_rgba(168,85,247,0.2)] hover:-translate-y-1.5 transition-all group"
+                                        >
+                                            <div className="bg-purple-500/10 border border-purple-500/20 text-purple-400 p-6 rounded-3xl mb-6 group-hover:bg-purple-500 group-hover:text-white transition-all transform group-hover:-rotate-6">
+                                                <Package className="w-10 h-10" />
+                                            </div>
+                                            <h3 className="text-2xl font-black text-white group-hover:text-purple-400 transition-colors">Create Deal Bundle</h3>
+                                            <p className="text-slate-400 text-center text-sm mt-3 leading-relaxed font-bold max-w-[200px]">
+                                                Combine multiple items into a discounted value meal.
+                                            </p>
                                         </div>
-                                        <h3 className="text-2xl font-black text-slate-100 group-hover:text-purple-400 transition-colors">Create Deal Bundle</h3>
-                                        <p className="text-slate-400 text-center text-sm mt-3 leading-relaxed font-medium">
-                                            Combine multiple items into a value meal with a special discounted price.
-                                        </p>
                                     </div>
-                                </div>
-                            )}
+                                )}
 
-                            {!selectionMode && (
-                                <>
-                                    {/* Tabs Navigation */}
-                                    <Tabs value={activeModalTab} onValueChange={setActiveModalTab} className="mt-2 text-slate-100">
-                                        <TabsList className={`grid w-full bg-black/60 border border-white/5 p-1.5 rounded-2xl shadow-inner ${currentItem.item_type === 'deal' ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                                            <TabsTrigger value="basic" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400 data-[state=active]:shadow-[0_0_15px_rgba(245,158,11,0.15)] rounded-xl transition-all h-10 font-bold text-slate-300 hover:text-slate-100">Basic Info</TabsTrigger>
-                                            {currentItem.item_type === 'deal' ? (
-                                                <TabsTrigger value="builder" className="gap-2 data-[state=active]:bg-purple-500/20 data-[state=active]:text-purple-400 data-[state=active]:shadow-[0_0_15px_rgba(168,85,247,0.15)] rounded-xl transition-all h-10 font-bold text-slate-300 hover:text-slate-100">
-                                                    <Package className="w-4 h-4" /> Deal Builder
-                                                </TabsTrigger>
-                                            ) : (
-                                                <>
-                                                    <TabsTrigger value="variants" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400 data-[state=active]:shadow-[0_0_15px_rgba(245,158,11,0.15)] rounded-xl transition-all h-10 font-bold text-slate-300 hover:text-slate-100">Variants</TabsTrigger>
-                                                    <TabsTrigger value="addons" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400 data-[state=active]:shadow-[0_0_15px_rgba(245,158,11,0.15)] rounded-xl transition-all h-10 font-bold text-slate-300 hover:text-slate-100">Add-ons</TabsTrigger>
-                                                </>
-                                            )}
-                                        </TabsList>
+                                {!selectionMode && (
+                                    <div className="sticky top-0 z-[30] bg-slate-950/80 backdrop-blur-md border-b border-white/5 mx-[-2rem] px-8 py-4 mb-6 flex items-center justify-between">
+                                        <div className="flex gap-6">
+                                            {[
+                                                { id: 'section-basic', label: 'Pricing', icon: LayoutList },
+                                                { id: 'section-media', label: 'Media', icon: ImageIcon },
+                                                { id: 'section-inventory', label: 'Stock', icon: Box },
+                                                { id: 'section-variants', label: 'Variants', icon: Sparkles }
+                                            ].map((tab) => (
+                                                <button
+                                                    key={tab.id}
+                                                    onClick={() => document.getElementById(tab.id)?.scrollIntoView({ behavior: 'smooth' })}
+                                                    className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-amber-500 transition-colors group"
+                                                >
+                                                    <tab.icon className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                                                    {tab.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 font-black text-[9px] px-3 py-1 rounded-full uppercase tracking-widest">
+                                            LIVE SYNC ON
+                                        </Badge>
+                                    </div>
+                                )}
 
-                                        {/* 1. Basic Info Tab (Shared) */}
-                                        <TabsContent value="basic" className="space-y-8 py-6">
-                                            <div className="grid grid-cols-2 gap-8">
+                                {!selectionMode && (
+                                    <div className="space-y-12 py-10">
+                                        {/* 1. Basic Details & Pricing Section */}
+                                        <div id="section-basic" className="space-y-8 scroll-mt-20">
+                                            <div className="flex items-center gap-4 mb-2">
+                                                <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center border border-amber-500/20">
+                                                    <LayoutList className="w-5 h-5 text-amber-500" />
+                                                </div>
+                                                <h4 className="text-xl font-black text-white uppercase tracking-tight">Basic Details & Pricing</h4>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                                 <div className="space-y-3 relative group">
-                                                    <Label htmlFor="name" className="text-slate-300 font-bold text-sm tracking-wide ml-1">{currentItem.item_type === 'deal' ? 'Deal Name' : 'Dish Name'}</Label>
+                                                    <Label htmlFor="name" className="text-slate-400 font-bold text-sm tracking-wide ml-1">{currentItem.item_type === 'deal' ? 'Deal Name' : 'Dish Name'}</Label>
                                                     <Input
                                                         id="name"
                                                         name="dish-name"
@@ -2662,7 +2717,6 @@ const MenuManager = () => {
                                                         onChange={(e) => setCurrentItem(prev => ({ ...prev, name: e.target.value }))}
                                                         onBlur={async (e) => {
                                                             const val = e.target.value.trim();
-                                                            // Only auto-assign if they haven't already explicitly set an image URL
                                                             if (val && !currentItem.image_url) {
                                                                 const matchedUrl = await findBestPresetImage(val, currentItem.category || currentItem.cuisine || "");
                                                                 if (matchedUrl) {
@@ -2672,162 +2726,76 @@ const MenuManager = () => {
                                                             }
                                                         }}
                                                         placeholder={currentItem.item_type === 'deal' ? "e.g. Zinger Combo" : "e.g. Zinger Burger"}
-                                                        className="bg-black/40 border-white/10 text-slate-100 placeholder:text-slate-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-2xl h-14 px-4 text-lg font-medium shadow-inner transition-all group-hover:border-white/20"
+                                                        className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-2xl h-14 px-5 text-lg font-semibold shadow-sm transition-all group-hover:border-slate-600"
                                                         autoComplete="off"
                                                     />
                                                 </div>
-                                                <div className="space-y-3 relative group">
-                                                    <div className="flex justify-between items-center ml-1">
-                                                        <Label htmlFor="price" className="text-slate-300 font-bold text-sm tracking-wide">
-                                                            {currentItem.item_type === 'deal' ? 'Deal Price (Rs)' : 'Base Price (Rs)'}
+
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="space-y-3 relative group text-blue-400">
+                                                        <Label htmlFor="price" className="text-slate-400 font-bold text-sm tracking-wide ml-1">
+                                                            Base Price (Rs)
                                                         </Label>
-                                                        {currentItem.item_type === 'deal' && dealOriginalPrice > 0 ? (
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.preventDefault();
-                                                                    setCurrentItem(prev => ({ ...prev, price: dealOriginalPrice }));
-                                                                }}
-                                                                className="text-[10px] text-purple-400 font-bold hover:text-purple-300 transition-colors bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20"
-                                                            >
-                                                                Apply Total ({formatPriceDisplay(dealOriginalPrice)})
-                                                            </button>
-                                                        ) : (
-                                                            variants.length > 0 && <span className="text-[10px] text-amber-500/70 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 font-bold tracking-wider uppercase">Optional</span>
-                                                        )}
-                                                    </div>
-                                                    <Input
-                                                        id="price"
-                                                        name="dish-price"
-                                                        type="number"
-                                                        value={currentItem.price === 0 ? '' : currentItem.price}
-                                                        onChange={(e) => {
-                                                            const val = parseFloat(e.target.value);
-                                                            setCurrentItem(prev => ({ ...prev, price: isNaN(val) ? 0 : val }));
-                                                        }}
-                                                        placeholder={variants.length > 0 ? "Optional — variants set prices" : "0"}
-                                                        className="bg-black/40 border-white/10 text-amber-400 placeholder:text-slate-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-2xl h-14 px-4 text-lg font-black shadow-inner transition-all group-hover:border-white/20 remove-arrow"
-                                                        autoComplete="off"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-8">
-                                                <div className="space-y-3 relative group">
-                                                    <Label htmlFor="item-discount" className="text-slate-300 font-bold text-sm tracking-wide ml-1">Discount (%)</Label>
-                                                    <div className="relative">
                                                         <Input
-                                                            id="item-discount"
-                                                            name="item-discount"
+                                                            id="price"
                                                             type="number"
-                                                            value={currentItem.discount_percentage || ''}
+                                                            value={currentItem.price === 0 ? '' : currentItem.price}
                                                             onChange={(e) => {
-                                                                const pct = parseFloat(e.target.value);
-                                                                setCurrentItem(prev => ({ ...prev, discount_percentage: isNaN(pct) ? null : pct }));
+                                                                const val = parseFloat(e.target.value);
+                                                                setCurrentItem(prev => ({ ...prev, price: isNaN(val) ? 0 : val }));
                                                             }}
-                                                            placeholder="e.g. 15"
-                                                            className="pl-12 bg-black/40 border-white/10 text-green-400 placeholder:text-slate-600 focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 rounded-2xl h-14 text-lg font-black shadow-inner transition-all group-hover:border-white/20 remove-arrow"
+                                                            placeholder="0"
+                                                            className="bg-slate-800 border-slate-700 text-amber-500 placeholder:text-slate-500 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-2xl h-14 px-5 text-xl font-black shadow-sm transition-all group-hover:border-slate-600 remove-arrow"
                                                         />
-                                                        <Percent className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-green-500 drop-shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
                                                     </div>
-                                                </div>
-                                                <div className="space-y-3 relative group">
-                                                    <Label htmlFor="item-offer-name" className="text-slate-300 font-bold text-sm tracking-wide ml-1">Offer Name</Label>
-                                                    <Input
-                                                        id="item-offer-name"
-                                                        name="item-offer-name"
-                                                        value={currentItem.offer_name || ''}
-                                                        onChange={(e) => setCurrentItem(prev => ({ ...prev, offer_name: e.target.value }))}
-                                                        placeholder="e.g. BOGO, Flash Sale"
-                                                        className="bg-black/40 border-white/10 text-slate-100 placeholder:text-slate-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-2xl h-14 px-4 font-medium shadow-inner transition-all group-hover:border-white/20"
-                                                    />
+                                                    <div className="space-y-3 relative group">
+                                                        <Label htmlFor="item-discount" className="text-slate-400 font-bold text-sm tracking-wide ml-1">Discount (%)</Label>
+                                                        <div className="relative">
+                                                            <Input
+                                                                id="item-discount"
+                                                                type="number"
+                                                                value={currentItem.discount_percentage || ''}
+                                                                onChange={(e) => {
+                                                                    const pct = parseFloat(e.target.value);
+                                                                    setCurrentItem(prev => ({ ...prev, discount_percentage: isNaN(pct) ? null : pct }));
+                                                                }}
+                                                                placeholder="0"
+                                                                className="pl-12 bg-slate-800 border-slate-700 text-green-500 placeholder:text-slate-500 focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 rounded-2xl h-14 text-xl font-black shadow-sm transition-all group-hover:border-slate-600 remove-arrow"
+                                                            />
+                                                            <Percent className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500/50" />
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
 
-                                            {currentItem.discount_percentage && currentItem.discount_percentage > 0 && currentItem.item_type !== 'deal' && (
-                                                <div className="p-4 bg-green-500/10 rounded-2xl border border-green-500/20 flex items-center justify-between shadow-[0_0_15px_rgba(34,197,94,0.05)]">
-                                                    <div className="flex items-center gap-3 text-sm text-green-400">
-                                                        <Sparkles className="w-5 h-5 drop-shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
-                                                        <span>
-                                                            Set price to <strong className="text-white">{formatPriceDisplay(Math.round((currentItem.price || 0) * (1 - currentItem.discount_percentage / 100)))}</strong>?
-                                                        </span>
+                                            {/* Final Price Preview Nudge */}
+                                            {currentItem.price && currentItem.price > 0 && (
+                                                <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 flex items-center justify-between group/nudge hover:border-amber-500/30 transition-all duration-300 shadow-inner">
+                                                    <div className="flex items-center gap-5">
+                                                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/5 flex items-center justify-center border border-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.1)]">
+                                                            <Zap className="w-7 h-7 text-amber-500 animate-pulse" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Live Sale Price</p>
+                                                            <p className="text-3xl font-black text-white tracking-tight">
+                                                                {formatPriceDisplay(finalPrice)}
+                                                                <span className="text-sm font-bold text-slate-500 ml-3 line-through opacity-50">{formatPriceDisplay(currentItem.price)}</span>
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="h-8 px-4 text-xs bg-green-500/20 border-green-500/30 text-green-300 hover:bg-green-500/30 hover:text-white rounded-xl"
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            const original = currentItem.original_price || currentItem.price;
-                                                            const discounted = Math.round(original * (1 - (currentItem.discount_percentage || 0) / 100));
-                                                            setCurrentItem(prev => ({
-                                                                ...prev,
-                                                                original_price: original,
-                                                                price: discounted
-                                                            }));
-                                                        }}
-                                                    >
-                                                        Calculate & Apply
-                                                    </Button>
+                                                    {currentItem.discount_percentage && currentItem.discount_percentage > 0 && (
+                                                        <Badge className="bg-green-500/10 text-green-400 border-green-500/20 px-4 py-2 rounded-xl font-black text-sm">
+                                                            SAVE {currentItem.discount_percentage}%
+                                                        </Badge>
+                                                    )}
                                                 </div>
                                             )}
 
-                                            <div className="pt-8 border-t border-white/10">
-                                                <div className="flex items-center justify-between mb-6 bg-white/5 p-5 rounded-[1.5rem] border border-white/5 shadow-inner transition-colors hover:bg-white/10">
-                                                    <div className="space-y-1.5 cursor-pointer" onClick={() => setCurrentItem(prev => ({ ...prev, is_stock_managed: !prev.is_stock_managed }))}>
-                                                        <Label className="text-lg font-black text-slate-100 cursor-pointer pointer-events-none">Stock Management</Label>
-                                                        <p className="text-sm text-slate-400 font-medium">Track and display real-time inventory levels.</p>
-                                                    </div>
-                                                    <Switch
-                                                        id="stock-managed-toggle"
-                                                        name="stock-managed-toggle"
-                                                        checked={currentItem.is_stock_managed}
-                                                        onCheckedChange={(val) => setCurrentItem(prev => ({ ...prev, is_stock_managed: val }))}
-                                                        className="scale-125 data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-slate-700 shadow-inner"
-                                                    />
-                                                </div>
-
-                                                {currentItem.is_stock_managed && (
-                                                    <div className="grid grid-cols-2 gap-8 mb-6 animate-in fade-in slide-in-from-top-4 duration-300">
-                                                        <div className="space-y-3 relative group">
-                                                            <Label htmlFor="stock-count" className="text-sm font-bold text-slate-300 ml-1 tracking-wide">Current Quantity</Label>
-                                                            <Input
-                                                                id="stock-count"
-                                                                name="stock-count"
-                                                                type="number"
-                                                                value={currentItem.stock_count === null ? '' : currentItem.stock_count}
-                                                                onChange={(e) => {
-                                                                    const val = parseInt(e.target.value);
-                                                                    setCurrentItem(prev => ({ ...prev, stock_count: isNaN(val) ? null : val }));
-                                                                }}
-                                                                placeholder="Unlimited"
-                                                                className="bg-black/40 border-white/10 text-slate-100 placeholder:text-slate-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-2xl h-14 px-4 text-lg font-bold shadow-inner transition-all group-hover:border-white/20 remove-arrow"
-                                                            />
-                                                        </div>
-                                                        <div className="space-y-3 relative group">
-                                                            <Label htmlFor="low-stock" className="text-sm font-bold text-slate-300 ml-1 tracking-wide">Low Stock Threshold</Label>
-                                                            <Input
-                                                                id="low-stock"
-                                                                name="low-stock-threshold"
-                                                                type="number"
-                                                                value={currentItem.low_stock_threshold || 5}
-                                                                onChange={(e) => {
-                                                                    const val = parseInt(e.target.value);
-                                                                    setCurrentItem(prev => ({ ...prev, low_stock_threshold: isNaN(val) ? 5 : val }));
-                                                                }}
-                                                                placeholder="Alert at e.g. 5"
-                                                                className="bg-black/40 border-white/10 text-slate-100 placeholder:text-slate-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-2xl h-14 px-4 text-lg font-bold shadow-inner transition-all group-hover:border-white/20 remove-arrow"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-8 pt-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                                 <div className="space-y-3">
-                                                    <Label htmlFor="item-category" className="text-sm font-bold text-slate-300 ml-1 tracking-wide">Category</Label>
+                                                    <Label htmlFor="item-category" className="text-slate-400 font-bold text-sm tracking-wide">Category</Label>
                                                     <CreatableSelect
                                                         id="item-category"
-                                                        name="dish-category"
                                                         options={existingCategories}
                                                         value={currentItem.category}
                                                         onChange={(val) => setCurrentItem(prev => ({ ...prev, category: val }))}
@@ -2840,10 +2808,9 @@ const MenuManager = () => {
                                                 </div>
 
                                                 <div className="space-y-3">
-                                                    <Label htmlFor="item-cuisine" className="text-sm font-bold text-slate-300 ml-1 tracking-wide">Cuisine</Label>
+                                                    <Label htmlFor="item-cuisine" className="text-slate-400 font-bold text-sm tracking-wide">Cuisine</Label>
                                                     <CreatableSelect
                                                         id="item-cuisine"
-                                                        name="dish-cuisine"
                                                         options={existingCuisines}
                                                         value={currentItem.cuisine}
                                                         onChange={(val) => setCurrentItem(prev => ({ ...prev, cuisine: val }))}
@@ -2856,131 +2823,296 @@ const MenuManager = () => {
                                                 </div>
                                             </div>
 
-                                            <div className="space-y-4 relative group pt-6 border-t border-white/10">
+                                            <div className="space-y-4 relative group">
                                                 <div className="flex justify-between items-center ml-1">
-                                                    <Label htmlFor="description" className="text-slate-300 font-bold text-sm tracking-wide">Description</Label>
+                                                    <Label htmlFor="description" className="text-slate-400 font-bold text-sm tracking-wide tracking-tight">Dish Description</Label>
                                                     <button
                                                         onClick={handleAIGenerate}
                                                         type="button"
-                                                        className="text-xs flex items-center gap-1.5 text-amber-500 font-bold hover:text-amber-400 uppercase tracking-widest transition-colors bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20"
+                                                        className="text-[10px] flex items-center gap-2 text-amber-500 font-black hover:text-amber-400 tracking-widest transition-all bg-amber-500/10 px-3 py-1.5 rounded-full border border-amber-500/20"
                                                     >
-                                                        <Sparkles className="w-3.5 h-3.5" /> AI Write
+                                                        <Sparkles className="w-3.5 h-3.5" /> AI ENHANCE
                                                     </button>
                                                 </div>
                                                 <Textarea
                                                     id="description"
-                                                    name="dish-description"
                                                     value={currentItem.description || ''}
                                                     onChange={(e) => setCurrentItem(prev => ({ ...prev, description: e.target.value }))}
                                                     placeholder="Enter a mouth-watering description..."
-                                                    className="resize-none h-32 bg-black/40 border-white/10 text-slate-100 placeholder:text-slate-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-2xl p-4 text-base shadow-inner transition-all group-hover:border-white/20 custom-scrollbar"
-                                                    autoComplete="off"
+                                                    className="resize-none h-32 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-2xl p-4 text-base shadow-sm transition-all group-hover:border-slate-600 custom-scrollbar font-medium leading-relaxed"
                                                 />
                                             </div>
+                                        </div>
 
-                                            <div className="space-y-4 pt-6 border-t border-white/10">
-                                                <div className="space-y-3">
-                                                    <Label className="text-sm font-bold text-slate-300 ml-1 tracking-wide">Dish Image</Label>
-                                                    <div className="flex flex-col gap-4">
-                                                        {imagePreview ? (
-                                                            <div className="relative w-full h-56 rounded-3xl overflow-hidden border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.6)] group">
-                                                                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                                                                <button
-                                                                    onClick={() => { setImageFile(null); setImagePreview(null); setCurrentItem(prev => ({ ...prev, image_url: '' })) }}
-                                                                    type="button"
-                                                                    className="absolute top-4 right-4 bg-red-500/80 backdrop-blur-md text-white p-2.5 rounded-2xl shadow-[0_0_20px_rgba(239,68,68,0.5)] hover:bg-red-500 transition-all transform hover:rotate-90 hover:scale-110"
-                                                                >
-                                                                    <X className="w-5 h-5 drop-shadow-md" />
-                                                                </button>
-                                                                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent pt-12 pb-4 px-6 text-white text-sm text-center backdrop-blur-sm font-bold tracking-wide">
-                                                                    Current Preview Image
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="grid grid-cols-1 gap-4">
-                                                                <label className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-white/10 rounded-[2rem] cursor-pointer hover:border-amber-500/50 hover:bg-amber-500/5 transition-all group relative overflow-hidden glass-card shadow-inner">
-                                                                    <div className="absolute inset-0 bg-gradient-to-br from-amber-500/0 via-amber-500/0 to-amber-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                                                    <div className="relative z-10 flex flex-col items-center justify-center pt-2 pb-2">
-                                                                        <div className="p-5 bg-black/40 border border-white/5 rounded-[1.5rem] mb-4 shadow-[0_0_15px_rgba(0,0,0,0.5)] group-hover:shadow-[0_0_25px_rgba(245,158,11,0.2)] group-hover:border-amber-500/30 transition-all duration-300 group-hover:-translate-y-2">
-                                                                            <UploadCloud className="w-8 h-8 text-slate-400 group-hover:text-amber-500 transition-colors drop-shadow-md" />
-                                                                        </div>
-                                                                        <p className="text-base font-bold text-slate-300 group-hover:text-amber-400 transition-colors">Click to upload dish photo</p>
-                                                                        <p className="text-xs text-slate-500 mt-2 font-medium tracking-wide">SVG, PNG, JPG or WEBP (Max 5MB)</p>
+                                        {/* 2. Media Section */}
+                                        <div id="section-media" className="space-y-6 scroll-mt-20">
+                                            <div className="flex items-center gap-4 mb-2">
+                                                <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center border border-blue-500/20">
+                                                    <ImageIcon className="w-5 h-5 text-blue-500" />
+                                                </div>
+                                                <h4 className="text-xl font-black text-white uppercase tracking-tight">Dish Media</h4>
+                                            </div>
+
+                                            <div className="border border-slate-800 rounded-[2.5rem] p-8 space-y-8 bg-slate-900/50">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <h4 className="text-lg font-black text-white">Upload Photograph</h4>
+                                                        <p className="text-slate-400 text-xs font-bold leading-tight">High quality images sell 2x more!</p>
+                                                    </div>
+                                                    {(currentItem.image_url || imagePreview) && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="text-red-400 hover:text-red-300 hover:bg-red-500/10 gap-2 h-10 px-4 rounded-xl font-bold transition-all border border-transparent hover:border-red-500/20"
+                                                            onClick={() => {
+                                                                setCurrentItem(prev => ({ ...prev, image_url: '' }));
+                                                                setImageFile(null);
+                                                                setImagePreview(null);
+                                                            }}
+                                                        >
+                                                            <Trash2 className="w-4 h-4" /> Remove Image
+                                                        </Button>
+                                                    )}
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                                                    <div className="relative aspect-video rounded-[2rem] overflow-hidden border-2 border-slate-800 bg-slate-800 shadow-2xl group/img flex items-center justify-center">
+                                                        {(imagePreview || currentItem.image_url) ? (
+                                                            <>
+                                                                <img src={imagePreview || currentItem.image_url} alt="Preview" className="w-full h-full object-cover transition-transform duration-700 group-hover/img:scale-110" />
+                                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
+                                                                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-white">
+                                                                        <Sparkles className="w-6 h-6 animate-pulse" />
                                                                     </div>
-                                                                    <input
-                                                                        type="file"
-                                                                        className="hidden"
-                                                                        accept="image/*"
-                                                                        onChange={(e) => {
-                                                                            const file = e.target.files?.[0];
-                                                                            if (file) {
-                                                                                setImageFile(file);
-                                                                                const reader = new FileReader();
-                                                                                reader.onloadend = () => setImagePreview(reader.result as string);
-                                                                                reader.readAsDataURL(file);
-                                                                            }
-                                                                        }}
-                                                                    />
-                                                                </label>
+                                                                </div>
+                                                            </>
+                                                        ) : (
+                                                            <div className="flex flex-col items-center gap-3 text-slate-500">
+                                                                <ImageIcon className="w-12 h-12 opacity-20" />
+                                                                <p className="text-xs font-black uppercase tracking-widest opacity-40">No Image Uploaded</p>
                                                             </div>
                                                         )}
                                                     </div>
+
+                                                    <div className="space-y-4">
+                                                        <div
+                                                            className="border-2 border-dashed border-slate-700 rounded-[2rem] p-8 text-center bg-slate-800 hover:bg-slate-700/50 hover:border-amber-500/40 transition-all cursor-pointer group/upload relative overflow-hidden"
+                                                            onClick={() => document.getElementById('dish-image')?.click()}
+                                                        >
+                                                            <div className="relative z-10 flex flex-col items-center gap-3">
+                                                                <div className="w-14 h-14 bg-amber-500/10 rounded-2xl flex items-center justify-center border border-amber-500/20 group-hover/upload:scale-110 group-hover/upload:rotate-3 transition-transform">
+                                                                    <UploadCloud className="w-7 h-7 text-amber-500" />
+                                                                </div>
+                                                                <div className="space-y-1">
+                                                                    <p className="text-white font-black text-sm">Upload Photo</p>
+                                                                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">PNG, JPG up to 5MB</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <input
+                                                            type="file"
+                                                            id="dish-image"
+                                                            className="hidden"
+                                                            accept="image/*"
+                                                            onChange={(e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) handleImageUpload(file);
+                                                            }}
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </TabsContent>
-
-                                        {/* 2. Deal Builder Tab (Deals only) */}
-                                        {currentItem.item_type === 'deal' && (
-                                            <TabsContent value="builder" className="py-2">
-                                                <DealBuilder
-                                                    existingItems={items} // Pass all items to potential bundle
-                                                    dealItems={dealItems}
-                                                    setDealItems={setDealItems}
-                                                    originalPrice={dealOriginalPrice}
-                                                    discountPercentage={currentItem.discount_percentage || null}
-                                                    setDiscountPercentage={(val) => setCurrentItem(prev => ({ ...prev, discount_percentage: val }))}
-                                                    offerName={currentItem.offer_name || null}
-                                                    setOfferName={(val) => setCurrentItem(prev => ({ ...prev, offer_name: val }))}
-                                                    onPriceSync={(price) => setCurrentItem(prev => ({ ...prev, price }))}
-                                                />
-                                            </TabsContent>
-                                        )}
-
-                                        {/* 3. Variants Tab (Singles only) */}
-                                        {currentItem.item_type !== 'deal' && (
-                                            <TabsContent value="variants" className="py-4">
-                                                <VariantManager
-                                                    variants={variants}
-                                                    setVariants={setVariants}
-                                                    basePrice={currentItem.price || 0}
-                                                />
-                                            </TabsContent>
-                                        )}
-
-                                        {/* 4. Add-ons Tab (Singles only) */}
-                                        {currentItem.item_type !== 'deal' && (
-                                            <TabsContent value="addons" className="py-4">
-                                                <ModifierManager
-                                                    groups={modifierGroups}
-                                                    setGroups={setModifierGroups}
-                                                />
-                                            </TabsContent>
-                                        )}
-                                    </Tabs>
-
-                                    <DialogFooter className="pt-6 border-t border-white/10 bg-black/40 px-8 py-6 -mx-8 -mb-8 rounded-b-[2.5rem]">
-                                        <div className="flex w-full gap-4 sm:justify-end">
-                                            <Button variant="outline" className="border-white/10 text-slate-300 hover:bg-white/10 hover:text-white glass-card h-12 rounded-xl font-bold px-8 transition-colors" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                                            <Button onClick={handleSave} className={`h-12 rounded-xl ${currentItem.item_type === 'deal' ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/30 shadow-[0_0_20px_rgba(168,85,247,0.25)]' : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 shadow-[0_0_20px_rgba(245,158,11,0.25)]'} font-black px-10 text-base active:scale-95 transition-all`}>
-                                                {isEditing ? 'Save Changes' : (currentItem.item_type === 'deal' ? 'Create Deal' : 'Add Item')}
-                                            </Button>
                                         </div>
-                                    </DialogFooter>
-                                </>
+
+                                        {/* 3. Description Section (Already merged into Basic in my mental model, but keeping it separate for clarity in scroll if needed) */}
+                                        {/* Actually, I already moved Description into Basic section above. So I'll delete this duplication. */}
+
+                                        {/* 3. Stock Management Section */}
+                                        <div id="section-inventory" className="space-y-6 scroll-mt-20">
+                                            <div className="flex items-center gap-4 mb-2">
+                                                <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20">
+                                                    <Box className="w-5 h-5 text-emerald-500" />
+                                                </div>
+                                                <h4 className="text-xl font-black text-white uppercase tracking-tight">Inventory Tracking</h4>
+                                            </div>
+
+                                            <div className="border border-slate-800 rounded-[2.5rem] p-8 bg-gradient-to-br from-slate-900 to-slate-800 shadow-xl overflow-hidden relative">
+                                                <div className="flex items-center justify-between mb-8 relative z-10">
+                                                    <div>
+                                                        <h4 className="text-lg font-black text-white">Stock Management</h4>
+                                                        <p className="text-slate-400 text-xs font-bold leading-tight">Track availability automatically</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 bg-slate-800 px-4 py-2 rounded-2xl border border-slate-700">
+                                                        <span className="text-xs font-black text-slate-300 uppercase tracking-widest">{currentItem.is_stock_managed ? 'ON' : 'OFF'}</span>
+                                                        <Switch
+                                                            checked={currentItem.is_stock_managed}
+                                                            onCheckedChange={(val) => setCurrentItem(prev => ({ ...prev, is_stock_managed: val }))}
+                                                            className="data-[state=checked]:bg-emerald-500"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {currentItem.is_stock_managed && (
+                                                    <div className="grid grid-cols-2 gap-8 animate-in zoom-in-95 duration-300 relative z-10">
+                                                        <div className="space-y-3 group">
+                                                            <Label className="text-slate-400 font-bold text-sm tracking-wide ml-1">Current Stock</Label>
+                                                            <Input
+                                                                type="number"
+                                                                value={currentItem.stock_count ?? ''}
+                                                                onChange={(e) => setCurrentItem(prev => ({ ...prev, stock_count: parseInt(e.target.value) }))}
+                                                                placeholder="0"
+                                                                className="bg-slate-800 border-slate-700 text-white h-14 rounded-2xl font-black text-xl group-hover:border-slate-600 transition-all text-center"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-3 group">
+                                                            <Label className="text-slate-400 font-bold text-sm tracking-wide ml-1">Low Stock Alert</Label>
+                                                            <Input
+                                                                type="number"
+                                                                value={currentItem.low_stock_threshold || ''}
+                                                                onChange={(e) => setCurrentItem(prev => ({ ...prev, low_stock_threshold: parseInt(e.target.value) }))}
+                                                                placeholder="5"
+                                                                className="bg-slate-800 border-slate-700 text-rose-500 h-14 rounded-2xl font-black text-xl group-hover:border-slate-600 transition-all text-center"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* 4. Options & Variants Section */}
+                                        <div id="section-variants" className="space-y-6 scroll-mt-20">
+                                            <div className="flex items-center gap-4 mb-2">
+                                                <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center border border-amber-500/20">
+                                                    <Sparkles className="w-5 h-5 text-amber-500" />
+                                                </div>
+                                                <h4 className="text-xl font-black text-white uppercase tracking-tight">Options & Add-ons</h4>
+                                            </div>
+
+                                            {currentItem.item_type === 'deal' ? (
+                                                <div className="space-y-8 bg-slate-900/40 p-8 rounded-[2.5rem] border border-slate-800">
+                                                    <DealBuilder
+                                                        existingItems={items}
+                                                        dealItems={dealItems}
+                                                        setDealItems={setDealItems}
+                                                        originalPrice={dealOriginalPrice}
+                                                        discountPercentage={currentItem.discount_percentage || null}
+                                                        setDiscountPercentage={(val) => setCurrentItem(prev => ({ ...prev, discount_percentage: val }))}
+                                                        offerName={currentItem.offer_name || null}
+                                                        setOfferName={(val) => setCurrentItem(prev => ({ ...prev, offer_name: val }))}
+                                                        onPriceSync={(price) => setCurrentItem(prev => ({ ...prev, price }))}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-12">
+                                                    <div className="bg-slate-900/40 p-8 rounded-[2.5rem] border border-slate-800">
+                                                        <VariantManager
+                                                            variants={variants}
+                                                            setVariants={setVariants}
+                                                            basePrice={currentItem.price || 0}
+                                                        />
+                                                    </div>
+                                                    <div className="bg-slate-900/40 p-8 rounded-[2.5rem] border border-slate-800">
+                                                        <ModifierManager
+                                                            groups={modifierGroups}
+                                                            setGroups={setModifierGroups}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Pro-Tip Nudge */}
+                                        <div className="p-8 rounded-[2.5rem] bg-gradient-to-br from-amber-500/10 to-transparent border border-amber-500/10 relative overflow-hidden group">
+                                            <div className="absolute -right-8 -bottom-8 opacity-5 group-hover:opacity-10 transition-opacity">
+                                                <Sparkles className="w-32 h-32 text-amber-500" />
+                                            </div>
+                                            <div className="relative z-10 space-y-3">
+                                                <div className="flex items-center gap-2 text-amber-500 font-black text-xs uppercase tracking-[0.2em]">
+                                                    <Zap className="w-3.5 h-3.5" /> Pro-Tip
+                                                </div>
+                                                <h5 className="text-lg font-black text-white leading-tight">Add at least one Variant!</h5>
+                                                <p className="text-sm text-slate-400 font-medium leading-relaxed max-w-lg">
+                                                    Items with options like "Size" or "Add-ons" have a <span className="text-amber-500 font-bold">40% higher chance</span> of being ordered.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Right Column: Real-time Live Preview */}
+                            {!selectionMode && (
+                                <div className="hidden lg:flex lg:w-96 bg-black/40 backdrop-blur-md p-8 flex-col items-center justify-start gap-8 border-l border-white/5 animate-in fade-in slide-in-from-right-10 duration-700">
+                                    <div className="w-full">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                                                <Sparkles className="w-4 h-4 text-emerald-500" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-black text-white uppercase tracking-widest">Live Preview</h4>
+                                                <p className="text-[10px] text-slate-500 font-bold">See changes in real-time</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="perspective-[1000px] hover:rotate-y-2 transition-transform duration-500">
+                                            <div className="w-full max-w-[320px] mx-auto shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden scale-[1.05]">
+                                                <MenuItemCard
+                                                    item={{
+                                                        ...currentItem,
+                                                        name: currentItem.name || "Dish Name",
+                                                        price: currentItem.price || 0,
+                                                        description: currentItem.description || "Description will appear here...",
+                                                        category: currentItem.category,
+                                                        image_url: currentItem.image_url,
+                                                        item_type: currentItem.item_type,
+                                                        variants: variants,
+                                                        modifier_groups: modifierGroups,
+                                                        deal_items: dealItems
+                                                    } as MenuItem}
+                                                    onEdit={() => { }}
+                                                    onDelete={() => { }}
+                                                    onToggleAvailability={() => { }}
+                                                    allMenuItems={items}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-12 space-y-4">
+                                            <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-2">
+                                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Quick Tip</p>
+                                                <p className="text-xs text-slate-400 leading-relaxed font-medium">
+                                                    Your customers will see exactly what you see here. Make sure to add a catchy description!
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             )}
                         </div>
-                    </DialogContent>
-                </Dialog>
+
+                        {/* Sticky Footer */}
+                        <div className="p-8 shrink-0 border-t border-slate-800 bg-slate-900/80 backdrop-blur-xl z-20 flex items-center justify-end gap-5">
+                            <Button
+                                variant="ghost"
+                                onClick={() => setIsDialogOpen(false)}
+                                className="h-14 px-8 rounded-2xl text-slate-400 font-bold hover:bg-slate-800 hover:text-white transition-all transform active:scale-95"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleSave}
+                                disabled={isSubmitting}
+                                className={`h-14 px-12 rounded-[1.5rem] font-black text-lg shadow-xl active:scale-[0.98] transition-all flex items-center gap-3 ${currentItem.item_type === 'deal'
+                                    ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-purple-500/20'
+                                    : 'bg-amber-500 hover:bg-amber-600 text-slate-900 shadow-amber-500/20'
+                                    }`}
+                            >
+                                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                                {isEditing ? 'Save Changes' : (currentItem.item_type === 'deal' ? 'Launch Deal' : 'Add to Menu')}
+                            </Button>
+                        </div>
+                    </SheetContent>
+                </Sheet>
 
                 {/* Floating Bulk Actions Bar */}
                 {

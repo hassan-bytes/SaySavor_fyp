@@ -1,6 +1,9 @@
+// @ts-ignore
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+// @ts-ignore
 import { Stripe } from "https://esm.sh/stripe?target=deno"
 
+// @ts-ignore
 const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY')
 
 const stripe = new Stripe(STRIPE_SECRET_KEY || '', {
