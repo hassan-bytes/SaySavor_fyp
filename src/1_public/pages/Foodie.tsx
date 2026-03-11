@@ -1,16 +1,18 @@
-﻿// ============================================================
+// ============================================================
 // FILE: Foodie.tsx
 // SECTION: 1_public > pages
-// PURPOSE: Customer (foodie) ke liye dedicated landing page.
+// PURPOSE: Customer (Foodie) ka cinematic landing page.
+//          Partner.tsx ki tarah — hero + features + testimonials + CTA.
+//          CTA buttons /foodie/auth par jaate hain.
 // ROUTE: /foodie
 // ============================================================
+import { Link } from 'react-router-dom';
 import Navbar from '@/1_public/components/Navbar';
 import Footer from '@/1_public/components/Footer';
 import {
-  Mic, Search, MapPin, Clock, Heart, ShoppingBag,
-  Star, ArrowRight, Play
+  ShoppingCart, Search, MapPin, Clock, Heart, Zap,
+  Star, ArrowRight, Check, Flame, Trophy, Gift
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { useScrollAnimation } from '@/shared/hooks/useScrollAnimation';
 import { useLanguage } from '@/shared/contexts/LanguageContext';
 import logoIcon from '@/shared/assets/saysavor-icon.png';
@@ -23,129 +25,242 @@ const Foodie = () => {
   const [ctaRef, ctaVisible] = useScrollAnimation();
 
   const features = [
-    { icon: Mic, title: t('persona.foodieFeature1'), description: t('features.subtitle') },
-    { icon: Search, title: t('persona.foodieFeature2'), description: t('features.aiDesc') },
-    { icon: MapPin, title: t('about.globalReach'), description: t('about.globalReachDesc') },
-    { icon: Clock, title: t('persona.foodieFeature4'), description: t('about.fastDesc') },
-    { icon: Heart, title: t('foodie.saveFav'), description: t('foodie.saveFavDesc') },
-    { icon: ShoppingBag, title: t('foodie.easyReorder'), description: t('foodie.easyReorderDesc') },
+    { icon: ShoppingCart, title: 'One-Tap Ordering', description: 'Order from your favourite restaurants in seconds. No calls, no waiting.' },
+    { icon: Search, title: 'Smart Search', description: 'Search by dish name, cuisine, or restaurant. AI-powered fuzzy matching.' },
+    { icon: MapPin, title: 'Near You', description: 'Discover restaurants in your area with live availability status.' },
+    { icon: Clock, title: 'Fast Delivery', description: 'Real-time order tracking. Know exactly when your food arrives.' },
+    { icon: Heart, title: 'Save Favourites', description: 'Bookmark your go-to dishes and reorder with one tap.' },
+    { icon: Gift, title: 'Savor Points', description: 'Earn loyalty points on every order. Redeem for free meals.' },
+  ];
+
+  const whyUs = [
+    'Order from 500+ restaurants near you',
+    'Live order tracking — from kitchen to door',
+    'Earn Savor Points on every single order',
+    'Guest checkout — no account needed',
+    'EN/UR language support',
+    'Exclusive deals & bundles daily',
   ];
 
   const testimonials = [
-    { name: t('foodie.t1Name'), location: t('foodie.t1Location'), text: t('foodie.t1Text'), rating: 5 },
-    { name: t('foodie.t2Name'), location: t('foodie.t2Location'), text: t('foodie.t2Text'), rating: 5 },
-    { name: t('foodie.t3Name'), location: t('foodie.t3Location'), text: t('foodie.t3Text'), rating: 5 },
+    { name: 'Sara Ahmed', location: 'Gujrat, PK', text: 'I ordered Biryani in 10 seconds. SaySavor is insane!', rating: 5 },
+    { name: 'Usman Raza', location: 'Lahore, PK', text: 'The Savor Points system is addictive. Free meal every month!', rating: 5 },
+    { name: 'Fatima Khan', location: 'Islamabad, PK', text: 'Love the EN/UR toggle. My mom can use it too now.', rating: 5 },
   ];
 
   return (
-    <div className="min-h-screen bg-obsidian text-foreground selection:bg-primary/30 selection:text-primary-foreground">
+    <div className="min-h-screen" style={{ background: '#0d0500' }}>
       <Navbar />
 
-      {/* Hero Section */}
-      <section ref={heroRef as React.RefObject<HTMLDivElement>} className="pt-32 pb-20 px-6 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-obsidian-dark via-obsidian to-primary/5" />
-        <div className="absolute top-1/2 right-0 w-[600px] h-[600px] bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-
-        {/* Floating background frame (Empty Space fill) */}
-        <div className="absolute left-10 top-20 w-40 h-40 opacity-20 pointer-events-none rounded-full overflow-hidden blur-[2px] border border-primary/20 rotate-[-12deg] mix-blend-screen hidden lg:block">
-          <img src="/burgers_frames/ezgif-frame-005.jpg" alt="Dish preview" className="w-full h-full object-cover" />
-        </div>
+      {/* ══ HERO ══════════════════════════════════════════════════ */}
+      <section
+        ref={heroRef as React.RefObject<HTMLDivElement>}
+        className="pt-32 pb-20 px-6 relative overflow-hidden"
+        style={{ background: 'linear-gradient(180deg, #0d0500 0%, #1a0800 100%)' }}
+      >
+        {/* Ambient glow — orange for foodies */}
+        <div
+          className="absolute top-1/2 right-0 w-[700px] h-[700px] rounded-full blur-3xl pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(255,107,53,0.10) 0%, transparent 70%)' }}
+        />
+        <div
+          className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full blur-3xl pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(255,140,0,0.06) 0%, transparent 70%)' }}
+        />
 
         <div className="relative z-10 max-w-6xl mx-auto">
           <div className={`grid lg:grid-cols-2 gap-12 items-center transition-all duration-700 ${heroVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+
+            {/* LEFT — Copy */}
             <div>
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-6 backdrop-blur-md">
+              <div
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-orange-400 text-sm font-medium mb-6"
+                style={{ background: 'rgba(255,107,53,0.1)', border: '1px solid rgba(255,107,53,0.3)' }}
+              >
                 <img src={logoIcon} alt="SaySavor" className="w-5 h-5 rounded" />
                 {t('nav.foodie')}
               </div>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
-                <span className="text-foreground">{t('persona.foodieSubtitle').split(' ').slice(0, 2).join(' ')} </span>
-                <span className="text-primary">{t('persona.foodieSubtitle').split(' ').slice(2).join(' ')}</span>
+
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold mb-6 text-white leading-tight">
+                <span>Hungry? </span>
+                <span style={{ color: '#FF6B35' }}>Order Smarter.</span>
+                <br />
+                <span className="text-white">Savor Every Bite.</span>
               </h1>
-              <p className="text-xl text-muted-foreground mb-8">
-                {t('hero.subheadline')}
+
+              <p className="text-xl mb-8 font-light" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                Discover the best food near you. One tap to order, live tracking, and points that turn into free meals.
               </p>
+
               <div className="flex flex-col sm:flex-row gap-4">
-                <button className="flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-primary text-primary-foreground font-semibold text-lg glow-crimson-box transition-all duration-300 hover:scale-105">
-                  <Mic className="w-5 h-5" />
-                  {t('hero.tryVoice')}
-                </button>
-                <button className="flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-glass/60 border border-glass-border text-foreground font-semibold hover:border-primary/50 transition-all duration-300 backdrop-blur-xl">
-                  <Play className="w-5 h-5 text-primary" />
-                  {t('howItWorks.learnMore')}
-                </button>
+                <Link
+                  to="/foodie/auth"
+                  className="flex items-center justify-center gap-2 px-8 py-4 rounded-full font-bold text-lg text-white transition-all duration-300 hover:scale-105"
+                  style={{
+                    background: 'linear-gradient(135deg, #FF6B35, #E85A24)',
+                    boxShadow: '0 4px 24px rgba(255,107,53,0.35)',
+                  }}
+                >
+                  <ShoppingCart className="w-5 h-5" />
+                  Start Ordering
+                  <ArrowRight className="w-5 h-5" />
+                </Link>
+                <Link
+                  to="/foodie/auth"
+                  className="flex items-center justify-center gap-2 px-8 py-4 rounded-full font-semibold text-white transition-all duration-300 hover:scale-105"
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                  }}
+                >
+                  Browse as Guest
+                </Link>
+              </div>
+
+              {/* Trust badges */}
+              <div className="flex flex-wrap gap-6 mt-8">
+                {[
+                  { icon: '⚡', label: 'Instant Orders' },
+                  { icon: '📍', label: 'Live Tracking' },
+                  { icon: '🌟', label: 'Savor Points' },
+                ].map(b => (
+                  <div key={b.label} className="flex items-center gap-2 text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                    <span>{b.icon}</span>
+                    <span className="font-medium">{b.label}</span>
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="cinematic-card p-8 h-80 flex items-center justify-center group hover:border-primary/40 transition-all duration-500 bg-glass/60 border border-glass-border backdrop-blur-xl rounded-3xl relative overflow-hidden">
-              {/* Internal Card Decor */}
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/0 via-primary/5 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="text-center relative z-10">
-                <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center group-hover:scale-110 transition-transform duration-500 shadow-[0_0_30px_rgba(220,38,38,0.2)]">
-                  <Mic className="w-12 h-12 text-primary drop-shadow-[0_0_8px_rgba(220,38,38,0.8)]" />
+
+            {/* RIGHT — 3D Benefit Card */}
+            <div
+              className="p-8 rounded-3xl relative overflow-hidden"
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,107,53,0.15)',
+                backdropFilter: 'blur(16px)',
+                boxShadow: '0 0 60px rgba(255,107,53,0.06), inset 0 1px 0 rgba(255,255,255,0.05)',
+                transform: 'perspective(1000px) rotateY(-3deg) rotateX(1deg)',
+                transition: 'transform 0.5s ease',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.transform = 'perspective(1000px) rotateY(0deg) rotateX(0deg) scale(1.02)';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.transform = 'perspective(1000px) rotateY(-3deg) rotateX(1deg)';
+              }}
+            >
+              {/* Inner glow */}
+              <div
+                className="absolute top-0 right-0 w-48 h-48 rounded-full blur-3xl pointer-events-none"
+                style={{ background: 'rgba(255,107,53,0.08)' }}
+              />
+
+              <div className="flex items-center gap-3 mb-6">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center"
+                  style={{ background: 'rgba(255,107,53,0.15)', border: '1px solid rgba(255,107,53,0.25)' }}
+                >
+                  <Trophy className="w-5 h-5" style={{ color: '#FF6B35' }} />
                 </div>
-                <p className="text-muted-foreground font-medium">{t('foodie.voiceDemo')}</p>
+                <h3 className="text-xl font-bold text-white">Why Foodies Love Us</h3>
               </div>
+
+              <ul className="space-y-4">
+                {whyUs.map((item, i) => (
+                  <li
+                    key={i}
+                    className={`flex items-center gap-3 transition-all duration-500 ${heroVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}
+                    style={{ color: 'rgba(255,255,255,0.75)', transitionDelay: `${i * 80}ms` }}
+                  >
+                    <Check className="w-5 h-5 flex-shrink-0" style={{ color: '#FF6B35' }} />
+                    {item}
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features Grid */}
-      <section ref={featuresRef as React.RefObject<HTMLDivElement>} className="py-20 px-6 relative overflow-hidden bg-obsidian-dark/40">
-        <div className="max-w-6xl mx-auto relative z-10">
-          <h2 className={`text-3xl lg:text-5xl font-extrabold text-center mb-16 transition-all duration-700 ${featuresVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-            <span className="text-foreground">{t('features.everythingYou')} </span>
-            <span className="text-primary">{t('features.need')}</span>
+      {/* ══ FEATURES ════════════════════════════════════════════ */}
+      <section ref={featuresRef as React.RefObject<HTMLDivElement>} className="py-20 px-6">
+        <div className="max-w-6xl mx-auto">
+          <h2 className={`text-3xl font-extrabold text-center mb-12 transition-all duration-700 ${featuresVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+            <span className="text-white">Everything You Need to </span>
+            <span style={{ color: '#FF6B35' }}>Order & Enjoy</span>
           </h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {features.map((feature, index) => (
               <div
                 key={feature.title}
-                className={`cinematic-card p-6 border border-glass-border bg-glass/60 backdrop-blur-xl rounded-2xl glow-crimson-box transition-all duration-500 group hover:-translate-y-2 relative overflow-hidden ${featuresVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
-                style={{ transitionDelay: `${index * 100}ms` }}
+                className={`p-6 rounded-2xl group transition-all duration-500 hover:-translate-y-2 ${featuresVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
+                style={{
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.07)',
+                  backdropFilter: 'blur(12px)',
+                  transitionDelay: `${index * 80}ms`,
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.boxShadow = '0 12px 36px rgba(255,107,53,0.15)';
+                  (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,107,53,0.25)';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.boxShadow = '';
+                  (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.07)';
+                }}
               >
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/0 via-primary/5 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="relative z-10">
-                  <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 w-fit mb-4 group-hover:bg-primary/20 group-hover:scale-110 transition-all duration-300">
-                    <feature.icon className="w-6 h-6 text-primary" />
-                  </div>
-                  <h3 className="text-lg font-bold text-foreground mb-2 group-hover:text-primary transition-colors">{feature.title}</h3>
-                  <p className="text-muted-foreground text-sm">{feature.description}</p>
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-all duration-300 group-hover:scale-110"
+                  style={{ background: 'rgba(255,107,53,0.12)', border: '1px solid rgba(255,107,53,0.2)' }}
+                >
+                  <feature.icon className="w-6 h-6" style={{ color: '#FF6B35' }} />
                 </div>
+                <h3 className="text-lg font-bold text-white mb-2 group-hover:transition-colors" style={{ transition: 'color 0.2s' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#FF8C00')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'white')}
+                >
+                  {feature.title}
+                </h3>
+                <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>{feature.description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section ref={testimonialsRef as React.RefObject<HTMLDivElement>} className="py-20 px-6 bg-obsidian-dark/90 relative overflow-hidden lens-flare-bg">
-        {/* Floating decorative image */}
-        <div className="absolute right-10 bottom-10 w-48 h-48 opacity-10 pointer-events-none rounded-2xl overflow-hidden blur-[3px] border border-primary/20 rotate-12 mix-blend-screen hidden lg:block">
-          <img src="/burgers_frames/ezgif-frame-150.jpg" alt="Dish preview" className="w-full h-full object-cover" />
-        </div>
-
-        <div className="max-w-4xl mx-auto relative z-10">
-          <h2 className={`text-3xl lg:text-5xl font-extrabold text-center mb-16 transition-all duration-700 ${testimonialsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-            <span className="text-foreground">{t('foodie.lovedBy')} </span>
-            <span className="text-primary">{t('foodie.foodies')}</span>
+      {/* ══ TESTIMONIALS ════════════════════════════════════════ */}
+      <section
+        ref={testimonialsRef as React.RefObject<HTMLDivElement>}
+        className="py-20 px-6"
+        style={{ background: 'rgba(20,8,0,0.6)' }}
+      >
+        <div className="max-w-4xl mx-auto">
+          <h2 className={`text-3xl font-extrabold text-center mb-12 transition-all duration-700 ${testimonialsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+            <span className="text-white">Loved by </span>
+            <span style={{ color: '#FF6B35' }}>500K+ Foodies</span>
           </h2>
           <div className="grid md:grid-cols-3 gap-6">
             {testimonials.map((t, i) => (
               <div
                 key={i}
-                className={`cinematic-card p-6 border border-glass-border bg-glass/60 backdrop-blur-xl rounded-2xl transition-all duration-500 hover:-translate-y-2 glow-crimson-box ${testimonialsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
-                style={{ transitionDelay: `${i * 150}ms` }}
+                className={`p-6 rounded-2xl transition-all duration-500 hover:-translate-y-2 ${testimonialsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
+                style={{
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.07)',
+                  backdropFilter: 'blur(12px)',
+                  transitionDelay: `${i * 150}ms`,
+                }}
               >
-                <div className="flex gap-1 mb-4">
-                  {[...Array(t.rating)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-primary text-primary drop-shadow-[0_0_8px_rgba(220,38,38,0.5)]" />
+                <div className="flex gap-1 mb-3">
+                  {[...Array(t.rating)].map((_, idx) => (
+                    <Star key={idx} className="w-4 h-4 fill-orange-500 text-orange-500" />
                   ))}
                 </div>
-                <p className="text-foreground/90 mb-4 italic leading-relaxed">"{t.text}"</p>
-                <div className="mt-auto pt-4 border-t border-border/30">
-                  <p className="text-sm font-semibold text-primary">{t.name}</p>
-                  <p className="text-xs text-muted-foreground">{t.location}</p>
+                <p className="mb-4 italic leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>"{t.text}"</p>
+                <div className="pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                  <p className="font-semibold" style={{ color: '#FF6B35' }}>{t.name}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>{t.location}</p>
                 </div>
               </div>
             ))}
@@ -153,17 +268,49 @@ const Foodie = () => {
         </div>
       </section>
 
-      {/* CTA */}
-      <section ref={ctaRef as React.RefObject<HTMLDivElement>} className="py-28 px-6 bg-obsidian">
-        <div className={`max-w-2xl mx-auto text-center cinematic-card p-12 border border-glass-border bg-glass backdrop-blur-2xl rounded-3xl glow-crimson-box-intense transition-all duration-700 relative overflow-hidden ${ctaVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-10 scale-95'}`}>
-          <div className="absolute inset-0 bg-gradient-radial from-primary/10 via-transparent to-transparent opacity-50 pointer-events-none" />
-          <h2 className="text-3xl lg:text-4xl font-extrabold text-foreground mb-6 relative z-10">{t('foodie.readyOrder')}</h2>
-          <p className="text-muted-foreground mb-8 text-lg relative z-10">
-            {t('foodie.join500k')}
+      {/* ══ CTA ═════════════════════════════════════════════════ */}
+      <section ref={ctaRef as React.RefObject<HTMLDivElement>} className="py-20 px-6">
+        <div
+          className={`max-w-2xl mx-auto text-center p-12 rounded-3xl relative overflow-hidden transition-all duration-700 ${ctaVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-10 scale-95'}`}
+          style={{
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,107,53,0.25)',
+            backdropFilter: 'blur(12px)',
+            boxShadow: '0 0 80px rgba(255,107,53,0.07)',
+          }}
+        >
+          {/* Inner glow */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ background: 'radial-gradient(circle at center, rgba(255,107,53,0.07) 0%, transparent 65%)' }}
+          />
+
+          <div
+            className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-6 relative z-10"
+            style={{ background: 'rgba(255,107,53,0.12)', border: '1px solid rgba(255,107,53,0.25)' }}
+          >
+            <Flame className="w-8 h-8" style={{ color: '#FF6B35' }} />
+          </div>
+
+          <h2 className="text-3xl font-extrabold text-white mb-4 relative z-10">Ready to Order?</h2>
+          <p className="mb-8 text-lg relative z-10" style={{ color: 'rgba(255,255,255,0.45)' }}>
+            Join 500K+ foodies already ordering smarter with SaySavor.
           </p>
-          <button className="relative z-10 inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-primary text-primary-foreground font-bold text-lg hover:bg-orange-600 transition-all duration-300 hover:scale-105 shadow-[0_0_20px_rgba(220,38,38,0.4)]">
-            {t('foodie.getFree')} <ArrowRight className="w-5 h-5" />
-          </button>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center relative z-10">
+            <Link
+              to="/foodie/auth"
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full font-bold text-lg text-white transition-all duration-300 hover:scale-105"
+              style={{
+                background: 'linear-gradient(135deg, #FF6B35, #E85A24)',
+                boxShadow: '0 4px 24px rgba(255,107,53,0.35)',
+              }}
+            >
+              <Zap className="w-5 h-5" />
+              Order Now — It's Free!
+              <ArrowRight className="w-5 h-5" />
+            </Link>
+          </div>
         </div>
       </section>
 

@@ -44,6 +44,11 @@ import Settings from "@/2_partner/dashboard/pages/Settings";
 // --- 2_partner > customer_menu: Customer QR scan karta hai, yeh page khulta hai ---
 import CustomerMenu from "@/2_partner/customer_menu/pages/CustomerMenu";
 
+// --- 3_customer: Foodie / Customer App ---
+import CustomerAuth from "@/3_customer/auth/pages/CustomerAuth";
+import CustomerHome from "@/3_customer/pages/CustomerHome";
+import { CustomerAuthProvider } from "@/3_customer/context/CustomerAuthContext";
+
 const App = () => {
   useEffect(() => {
     const lenis = new Lenis({
@@ -88,6 +93,20 @@ const App = () => {
 
             {/* Public Customer Menu Route */}
             <Route path="/menu/:restaurantId" element={<CustomerMenu />} />
+
+            {/* ── 3_customer: Foodie App Routes ── */}
+            <Route
+              path="/foodie/*"
+              element={
+                <CustomerAuthProvider>
+                  <Routes>
+                    <Route path="auth" element={<CustomerAuth />} />
+                    <Route path="home" element={<CustomerHome />} />
+                    {/* Phase 3+ routes will be added here */}
+                  </Routes>
+                </CustomerAuthProvider>
+              }
+            />
 
             {/* Protected Routes */}
             <Route

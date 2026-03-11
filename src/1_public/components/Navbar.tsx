@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // FILE: Navbar.tsx — Warm Cream Stitch Design
 // PURPOSE: Top navigation — warm cream theme.
 //          Logo, links, language toggle. Functionality unchanged — routing same.
@@ -30,7 +30,10 @@ const Navbar = () => {
     { label: t('nav.policies'), href: '/policies' },
   ];
 
-  const isActive = (href: string) => location.pathname === href;
+  const isActive = (href: string) =>
+    href === '/foodie/auth'
+      ? location.pathname.startsWith('/foodie')
+      : location.pathname === href;
 
   const scrollToJourney = (e: React.MouseEvent) => {
     e.preventDefault();

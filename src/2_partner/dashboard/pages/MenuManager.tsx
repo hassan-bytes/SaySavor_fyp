@@ -10,9 +10,10 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/shared/lib/supabaseClient';
 import {
-    Plus, Search, Sparkles, Utensils, Loader2, Package, Clock, Zap, X, UploadCloud, Image as ImageIcon,
     FileDown, Wand2, Table, Percent, Tag, CheckSquare, Square, RotateCcw, Trash2, Box, Bell,
-    ChevronDown, ChevronRight, LayoutList, TrendingUp, TrendingDown, BarChart3, ArrowUpRight, AlertTriangle, PowerOff
+    ChevronDown, ChevronRight, LayoutList, TrendingUp, TrendingDown, BarChart3, ArrowUpRight, AlertTriangle, PowerOff,
+    Cloud, Languages, Mic, Globe,
+    Loader2, Search, Sparkles, ImageIcon, Package, Plus, Utensils, UploadCloud, X, Zap
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
@@ -27,9 +28,14 @@ import {
     Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter
 } from '@/shared/ui/sheet';
 import {
-    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-    AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/shared/ui/alert-dialog";
+import {
+    Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter, DrawerClose
+} from "@/shared/ui/drawer";
+import { ScrollArea } from "@/shared/ui/scroll-area";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobileNav } from "@/shared/components/MobileNav";
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
@@ -52,6 +58,78 @@ import { scanMenuImage, ScannedMainCategory } from '@/shared/services/aiScannerS
 import { CreatableSelect } from "@/shared/ui/creatable-select";
 import { findBestPresetImage } from '@/shared/services/imageMatchService';
 import { formatPrice, resolveCurrency, CurrencyInfo, DEFAULT_CURRENCY } from '@/shared/lib/currencyUtils';
+
+// --- Multi-Language Translations ---
+const translations = {
+    en: {
+        menuManager: "Menu Manager",
+        editDish: "Edit Dish",
+        addNew: "Add New",
+        dish: "Dish",
+        deal: "Deal",
+        saveChanges: "Save Changes",
+        cancel: "Cancel",
+        pricing: "Pricing",
+        media: "Media",
+        stock: "Stock",
+        variants: "Variants",
+        dishName: "Dish Name",
+        dealName: "Deal Name",
+        description: "Description",
+        category: "Category",
+        cuisine: "Cuisine",
+        price: "Price (Base)",
+        discount: "Discount (%)",
+        finalPrice: "Final Price",
+        inventory: "Inventory Tracking",
+        stockCount: "In-Stock Quantity",
+        lowStock: "Low Stock Alert",
+        options: "Options & Add-ons",
+        saving: "Saving...",
+        saved: "Saved!",
+        quickTip: "Quick Tip",
+        livePreview: "Live Preview",
+        syncOn: "LIVE SYNC ON",
+        createDeal: "Create Deal Bundle",
+        addFirst: "Add First Dish",
+        itemsSelected: "Items Selected",
+        actions: "Actions"
+    },
+    ur: {
+        menuManager: "مینو مینیجر",
+        editDish: "ڈش میں تبدیلی کریں",
+        addNew: "نیا شامل کریں",
+        dish: "ڈش",
+        deal: "ڈیل",
+        saveChanges: "تبدیلیاں محفوظ کریں",
+        cancel: "منسوخ کریں",
+        pricing: "قیمت",
+        media: "تصویر",
+        stock: "اسٹاک",
+        variants: "اقسام",
+        dishName: "ڈش کا نام",
+        dealName: "ڈیل کا نام",
+        description: "تفصیل",
+        category: "کیٹیگری",
+        cuisine: "کھانے کی قسم",
+        price: "بنیادی قیمت",
+        discount: "رعایت (%)",
+        finalPrice: "حتمی قیمت",
+        inventory: "اسٹاک مینجمنٹ",
+        stockCount: "اسٹاک کی مقدار",
+        lowStock: "کم اسٹاک الرٹ",
+        options: "اضافی آپشنز",
+        saving: "محفوظ ہو رہا ہے...",
+        saved: "محفوظ ہو گیا!",
+        quickTip: "فوری ٹپ",
+        livePreview: "براہ راست نظارہ",
+        syncOn: "لائیو ہم آہنگی آن ہے",
+        createDeal: "ڈیل بنڈل بنائیں",
+        addFirst: "پہلی ڈش شامل کریں",
+        itemsSelected: "منتخب اشیاء",
+        actions: "اقدامات"
+    }
+};
 
 // --- Helper Component: Category Offer Dialog ---
 const CategoryOfferDialog = ({ category, cuisine, onApply, isDropdownItem = false }: { category: string, cuisine: string, onApply: (c: string, cu: string, d: number, o: string) => void, isDropdownItem?: boolean }) => {
@@ -146,9 +224,28 @@ const CategoryOfferDialog = ({ category, cuisine, onApply, isDropdownItem = fals
     );
 };
 
-// --- Helper: Format Price for Display ---
 const formatPriceDisplay = (price: number | string, currency: CurrencyInfo = DEFAULT_CURRENCY) => {
     return formatPrice(price, currency);
+};
+
+// --- Helper: Visual Sync Indicator ---
+const CloudPulseIcon = ({ status }: { status: 'idle' | 'saving' | 'saved' }) => {
+    if (status === 'saved') {
+        return (
+            <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 px-3 py-1.5 rounded-full animate-in zoom-in duration-300">
+                <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+                <span className="text-[10px] font-black text-green-500 uppercase tracking-widest leading-none">Synced</span>
+            </div>
+        );
+    }
+    return (
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-500 ${status === 'saving' ? 'bg-amber-500/10 border-amber-500/20' : 'bg-white/5 border-white/10 opacity-50'}`}>
+            <Cloud className={`w-3.5 h-3.5 ${status === 'saving' ? 'text-amber-500 animate-pulse' : 'text-slate-400'}`} />
+            <span className={`text-[10px] font-black uppercase tracking-widest leading-none ${status === 'saving' ? 'text-amber-500' : 'text-slate-500'}`}>
+                {status === 'saving' ? 'Saving...' : 'Cloud Ready'}
+            </span>
+        </div>
+    );
 };
 
 const MenuManager = () => {
@@ -175,7 +272,6 @@ const MenuManager = () => {
     // Modal State
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const [activeModalTab, setActiveModalTab] = useState('basic');
     const [selectionMode, setSelectionMode] = useState(false); // New state for selection screen
 
     // Form State
@@ -201,6 +297,12 @@ const MenuManager = () => {
     // Auto-fill State
     const [isAutoFilling, setIsAutoFilling] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Responsive & UX State
+    const isMobile = useIsMobile();
+    const [lang, setLang] = useState<'en' | 'ur'>('en');
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+    const t = translations[lang];
 
     // --- AUTO-FILL MISSING IMAGES LOGIC ---
     const autoFillMissingImages = async () => {
@@ -395,7 +497,37 @@ const MenuManager = () => {
     const [directOfferName, setDirectOfferName] = useState("");
 
     // Delete Confirmation State
+    // Auto-Save Logic
+    const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const lastSavedMark = useRef<string>("");
+
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+
+    // Detect changes and trigger auto-save
+    useEffect(() => {
+        if (!isDialogOpen || !currentItem.id || isSubmitting) return;
+
+        // Create a signature of the current state to avoid saving unchanged data
+        const currentMark = JSON.stringify({
+            currentItem: { ...currentItem, image_url: currentItem.image_url || "" },
+            variants,
+            modifierGroups,
+            dealItems
+        });
+
+        if (lastSavedMark.current === currentMark) return;
+
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+
+        autoSaveTimerRef.current = setTimeout(() => {
+            handleSave(true); // Call with 'isAutoSave' flag
+            lastSavedMark.current = currentMark;
+        }, 2000); // 2 second debounce
+
+        return () => {
+            if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+        };
+    }, [currentItem, variants, modifierGroups, dealItems, isDialogOpen]);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
 
@@ -793,7 +925,6 @@ const MenuManager = () => {
         setImageFile(null);
         setImagePreview(null);
         setIsEditing(false);
-        setActiveModalTab('basic');
         setSelectionMode(true); // Show selection screen first
         setIsDialogOpen(true);
     };
@@ -813,7 +944,6 @@ const MenuManager = () => {
         setImageFile(null);
         setImagePreview(null);
         setIsEditing(false);
-        setActiveModalTab('basic');
         setSelectionMode(false); // Head straight to the form
         setIsDialogOpen(true);
     };
@@ -827,12 +957,17 @@ const MenuManager = () => {
             is_available: true
         }));
         setSelectionMode(false); // Skip selection since specific action was clicked
-        setActiveModalTab('basic');
     };
 
     const openEditModal = (item: MenuItem) => {
+        // Ensure we show the BASE price in the editor, not the already-discounted "live" price
+        const basePrice = (item.discount_percentage && item.discount_percentage > 0)
+            ? (item.original_price || item.price)
+            : item.price;
+
         setCurrentItem({
             ...item,
+            price: basePrice,
             offer_name: item.offer_name || '', // Ensure it's at least an empty string for the input
             low_stock_threshold: item.low_stock_threshold ?? 5,
             is_stock_managed: item.is_stock_managed ?? false,
@@ -841,7 +976,6 @@ const MenuManager = () => {
         setImagePreview(item.image_url || null);
         setIsEditing(true);
         setSelectionMode(false); // Direct edit
-        setActiveModalTab('basic');
         setVariants([]);
         setModifierGroups([]);
 
@@ -861,23 +995,20 @@ const MenuManager = () => {
 
     // --- 2. CRUD Operations ---
 
-    const handleSave = async () => {
+    const handleSave = async (isAutoSave = false) => {
         // Validation
         const hasVariantPrices = variants.length > 0 && variants.some(v => v.price > 0);
         if (!currentItem.name || !restId) {
-            toast.error("Please enter a Name in the Basic Info tab");
-            setActiveModalTab('basic');
+            toast.error("Please enter a Dish Name.");
             return;
         }
         if (!currentItem.price && !hasVariantPrices) {
             toast.error("Please enter a Base Price or add Variants with prices");
-            setActiveModalTab('basic');
             return;
         }
 
         if (currentItem.item_type === 'deal' && dealItems.length === 0) {
-            toast.error("Please add at least one item to the deal in the Deal Builder tab");
-            setActiveModalTab('builder');
+            toast.error("Please add at least one item to the deal in the Deal Builder.");
             return;
         }
 
@@ -888,6 +1019,7 @@ const MenuManager = () => {
         }
 
         setIsSubmitting(true);
+        setSaveStatus('saving');
         try {
             let finalImageUrl = currentItem.image_url || '';
 
@@ -958,7 +1090,11 @@ const MenuManager = () => {
                         category: di.category || original?.category
                     };
                 }) : null,
-                original_price: currentItem.item_type === 'deal' ? dealOriginalPrice : (currentItem.discount_percentage ? currentItem.price : (currentItem.original_price || null)),
+                original_price: currentItem.item_type === 'deal'
+                    ? dealOriginalPrice
+                    : (currentItem.discount_percentage && currentItem.discount_percentage > 0
+                        ? currentItem.price
+                        : null),
                 discount_percentage: currentItem.discount_percentage || null,
                 offer_name: currentItem.offer_name || null,
                 available_start_time: currentItem.available_start_time,
@@ -966,10 +1102,11 @@ const MenuManager = () => {
             };
 
             let itemId = currentItem.id;
+            let data: any = null;
 
             if (isEditing && itemId) {
                 // UPDATE
-                const { data, error } = await ((supabase as any)
+                const { data: updateData, error } = await ((supabase as any)
                     .from('menu_items')
                     .update(payload)
                     .eq('id', itemId)
@@ -977,22 +1114,18 @@ const MenuManager = () => {
                     .single() as any);
 
                 if (error) throw error;
-                // Refetching at the end to include variants
-                // setItems(prev => prev.map(item =>
-                //     item.id === itemId ? { ...item, ...(data as any), category: currentItem.category } as MenuItem : item
-                // ));
+                data = updateData;
             } else {
                 // CREATE
-                const { data, error } = await (supabase
+                const { data: insertData, error } = await (supabase
                     .from('menu_items')
                     .insert([payload] as any)
                     .select('*, categories(name)')
                     .single() as any);
 
                 if (error) throw error;
-                itemId = data.id;
-                // Refetching at the end to include variants
-                // setItems(prev => [{ ...data, category: currentItem.category }, ...prev]);
+                itemId = insertData.id;
+                data = insertData;
             }
 
             // --- SAVE VARIANTS & MODIFIERS ---
@@ -1013,12 +1146,10 @@ const MenuManager = () => {
                 }
 
                 // 2. Modifiers (Replace logic)
-                // Delete existing groups (cascade deletes modifiers)
                 await (supabase as any).from('menu_modifier_groups').delete().eq('item_id', itemId);
 
-                // Insert new groups
                 for (const group of modifierGroups) {
-                    const { data: groupData, error: groupError } = await (supabase as any)
+                    const { data: groupData } = await (supabase as any)
                         .from('menu_modifier_groups')
                         .insert([{
                             item_id: itemId,
@@ -1043,17 +1174,21 @@ const MenuManager = () => {
             }
 
             // --- CRITICAL: Sync UI state with DB ---
-            // Variants and Group Modifiers are in separate tables, 
-            // so we refetch everything to ensure current card UI has all data.
-            await fetchItems();
+            setItems(prev => prev.map(item =>
+                item.id === itemId ? ({ ...item, ...data, variants: variants, modifier_groups: modifierGroups, category: currentItem.category } as MenuItem) : item
+            ));
 
-            toast.success("Dish saved successfully");
-            setIsDialogOpen(false);
-            setImageFile(null);
-            setImagePreview(null);
+            setSaveStatus('saved');
+            if (!isAutoSave) {
+                toast.success(isEditing ? "Item updated successfully!" : "Item added successfully!");
+                setTimeout(() => setIsDialogOpen(false), 800);
+            }
+            setTimeout(() => setSaveStatus('idle'), 3000);
+
         } catch (error: any) {
-            console.error(error);
-            toast.error(error.message || "Failed to save dish");
+            setSaveStatus('idle');
+            console.error("Error saving item:", error);
+            toast.error(error.message || "Failed to save item");
         } finally {
             setIsSubmitting(false);
         }
@@ -1843,899 +1978,948 @@ const MenuManager = () => {
     }
 
     return (
-        <div className="min-h-screen relative overflow-hidden flex flex-col text-slate-900 dark:text-slate-200 p-6 md:p-8">
-            {/* Ambient Background Glows - Cinematic Dark Refinement */}
-            <div className="fixed top-[-10%] left-[-10%] w-[50%] h-[50%] bg-crimson-orb pointer-events-none z-0 opacity-60"></div>
-            <div className="fixed bottom-[-10%] right-[-10%] w-[60%] h-[60%] ambient-glow-gold pointer-events-none z-0 opacity-40"></div>
-            <div className="fixed top-[20%] right-[10%] w-[40%] h-[40%] bg-crimson-orb opacity-30 pointer-events-none z-0"></div>
+        <div className="min-h-screen relative overflow-hidden flex flex-col text-slate-900 dark:text-slate-200 bg-slate-50 dark:bg-black/95 transition-colors duration-500">
+            {/* Ambient Background Glows */}
+            <div className="fixed top-[-10%] left-[-10%] w-[50%] h-[50%] bg-crimson-orb pointer-events-none z-0 opacity-40"></div>
+            <div className="fixed bottom-[-10%] right-[-10%] w-[60%] h-[60%] ambient-glow-gold pointer-events-none z-0 opacity-20"></div>
 
-            <div className="max-w-7xl mx-auto space-y-6 relative z-10">
-
-                {/* Header Section */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                    <div>
-                        <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-3">
-                            Menu Manager
-                            <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 dark:text-amber-500 px-2.5 py-0.5 rounded-full border border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.2)]">
-                                v2.0
-                            </Badge>
-                        </h1>
-                        <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your 3D digital menu experiences.</p>
-                    </div>
-
-                    <div className="flex items-center gap-3 w-full md:w-auto">
-                        <Button
-                            variant="ghost"
-                            onClick={() => navigate('/restaurant-setup?step=3&from=menu')}
-                            className="order-glass-card hover:bg-white/10 dark:text-slate-200 gap-2 hidden sm:flex font-bold shadow-sm transition-all duration-300"
-                        >
-                            <Wand2 className="w-4 h-4 text-purple-500" /> Wizard
-                        </Button>
-
-                        <Button
-                            variant="ghost"
-                            onClick={() => setIsExportDialogOpen(true)}
-                            className="order-glass-card hover:bg-white/10 dark:text-slate-200 gap-2 hidden sm:flex font-bold shadow-sm transition-all duration-300"
-                        >
-                            <FileDown className="w-4 h-4 text-amber-500" /> Export
-                        </Button>
-
-                        <Button
-                            variant={isSelectionMode ? "default" : "ghost"}
-                            onClick={() => {
-                                setIsSelectionMode(!isSelectionMode);
-                                setSelectedItems([]);
-                            }}
-                            className={`gap-2 hidden sm:flex font-bold shadow-sm transition-all duration-300 ${isSelectionMode ? 'bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-[0_0_20px_rgba(245,158,11,0.3)]' : 'order-glass-card hover:bg-white/10 dark:text-slate-200'}`}
-                        >
-                            {isSelectionMode ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4 text-blue-400" />}
-                            {isSelectionMode ? 'Exit Selection' : 'Select Items'}
-                        </Button>
-
-                        <Button
-                            onClick={autoFillMissingImages}
-                            disabled={isAutoFilling}
-                            variant="ghost"
-                            className="hidden lg:flex gap-2 font-bold order-glass-card hover:bg-white/10 dark:text-slate-200 transition-all duration-300"
-                        >
-                            {isAutoFilling ? <Loader2 className="w-4 h-4 animate-spin text-purple-500" /> : <Sparkles className="w-4 h-4 text-purple-400" />}
-                            {isAutoFilling ? 'Processing...' : 'Auto-Fill Images'}
-                        </Button>
-
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-black gap-2 shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:shadow-[0_0_30px_rgba(245,158,11,0.5)] flex-1 sm:flex-none transition-all duration-300 rounded-xl">
-                                    <Plus className="w-4 h-4" /> Add New
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="order-glass-panel border-white/10 backdrop-blur-2xl bg-black/40">
-                                <DropdownMenuItem onClick={openAddModal} className="gap-2 cursor-pointer text-slate-200 hover:bg-white/10 focus:bg-white/10">
-                                    <Utensils className="w-4 h-4 text-amber-500" /> Add Single Dish
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={openAddDealModal} className="gap-2 cursor-pointer text-slate-200 hover:bg-white/10 focus:bg-white/10">
-                                    <Package className="w-4 h-4 text-purple-500" /> Create Deal
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </div>
-                </div>
-
-                {/* Analytics Snapshot */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 perspective-[2000px] animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
-                    <div className="order-glass-card p-5 rounded-2xl flex items-center gap-4 group hover:-translate-y-1 hover:rotate-x-2 transition-all duration-300 cursor-default relative overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 group-hover:scale-110 group-hover:shadow-[0_0_15px_rgba(245,158,11,0.4)] transition-all">
-                            <Utensils className="w-6 h-6" />
+            {/* Sticky Professional Header */}
+            <header className="sticky top-0 z-40 bg-white/80 dark:bg-black/80 backdrop-blur-xl border-b border-white/5 px-6 py-4 shadow-xl">
+                <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className="hidden lg:block">
+                            <h1 className="text-2xl font-black text-slate-100 flex items-center gap-3">
+                                {t.menuManager}
+                                <Badge variant="secondary" className="bg-amber-500/10 text-amber-500 px-2.5 py-0.5 rounded-full border border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.2)]">
+                                    PRO
+                                </Badge>
+                            </h1>
+                            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-0.5">Global Menu Dashboard</p>
                         </div>
-                        <div className="relative z-10">
-                            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Total Dishes</p>
-                            <h4 className="text-2xl font-black text-slate-900 dark:text-white leading-none mt-1 drop-shadow-md">{stats.totalItems}</h4>
+
+                        {/* Voice Readiness & Sync Status */}
+                        <div className="flex items-center gap-3 bg-white/5 border border-white/10 p-1 rounded-2xl">
+                            <CloudPulseIcon status={saveStatus} />
+                            <div className="h-4 w-px bg-white/10"></div>
+                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 group cursor-help transition-all hover:bg-blue-500/20" title="AI Voice Commands Ready">
+                                <Mic className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
+                                <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest leading-none">Voice Ready</span>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="order-glass-card p-5 rounded-2xl flex items-center gap-4 group hover:-translate-y-1 hover:rotate-x-2 transition-all duration-300 cursor-default relative overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500/20 to-rose-500/10 border border-red-500/30 flex items-center justify-center text-red-500 group-hover:scale-110 group-hover:shadow-[0_0_15px_rgba(239,68,68,0.4)] transition-all">
-                            <AlertTriangle className="w-6 h-6" />
+                    <div className="flex items-center gap-2 lg:gap-4">
+                        {/* Language Toggle */}
+                        <div className="bg-white/5 border border-white/10 p-1 rounded-2xl flex items-center">
+                            <button
+                                onClick={() => setLang('en')}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${lang === 'en' ? 'bg-amber-500 text-slate-900 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                English
+                            </button>
+                            <button
+                                onClick={() => setLang('ur')}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${lang === 'ur' ? 'bg-amber-500 text-slate-900 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                Urdu
+                            </button>
                         </div>
-                        <div className="relative z-10">
-                            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Low Stock Alerts</p>
-                            <h4 className="text-2xl font-black text-slate-900 dark:text-white leading-none mt-1 drop-shadow-md">{stats.lowStock + stats.outOfStock}</h4>
-                        </div>
-                    </div>
 
-                    <div className="order-glass-card p-5 rounded-2xl flex items-center gap-4 group hover:-translate-y-1 hover:rotate-x-2 transition-all duration-300 cursor-default relative overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 group-hover:scale-110 group-hover:shadow-[0_0_15px_rgba(56,187,248,0.4)] transition-all">
-                            <LayoutList className="w-6 h-6" />
-                        </div>
-                        <div className="relative z-10">
-                            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Top Category</p>
-                            <h4 className="text-lg font-bold text-slate-900 dark:text-white leading-tight mt-1 truncate max-w-[120px] drop-shadow-md">{stats.topCategory}</h4>
-                        </div>
-                    </div>
+                        <div className="h-6 w-px bg-white/10 hidden sm:block"></div>
 
-                    <div className="order-glass-card p-5 rounded-2xl flex items-center gap-4 group hover:-translate-y-1 hover:rotate-x-2 transition-all duration-300 cursor-default relative overflow-hidden sm:col-span-2 lg:col-span-1">
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500/20 to-green-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-110 group-hover:shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all">
-                            <TrendingUp className="w-6 h-6" />
-                        </div>
-                        <div className="relative z-10">
-                            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Menu Status</p>
-                            <h4 className="text-lg font-bold text-emerald-500 leading-tight mt-1 drop-shadow-md">90% Complete</h4>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => navigate('/dashboard/settings')}
+                                className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all"
+                            >
+                                <Globe className="w-5 h-5" />
+                            </Button>
                         </div>
                     </div>
                 </div>
+            </header>
 
-                {/* Tabs & Content */}
-                <div ref={menuRef} id="menu-export-container" className="pt-4">
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-8">
-                        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-transparent">
-                            <TabsList className="order-glass-panel border-white/10 p-1.5 flex h-auto w-full md:w-auto overflow-x-auto hide-scrollbar">
-                                <TabsTrigger value="all" className="flex-1 md:flex-none gap-2 px-6 py-2.5 rounded-xl text-sm font-bold text-slate-400 data-[state=active]:bg-white/10 data-[state=active]:text-amber-500 data-[state=active]:shadow-[0_0_15px_rgba(245,158,11,0.2)] transition-all">
-                                    <Utensils className="w-4 h-4" /> All Items
-                                </TabsTrigger>
-                                <TabsTrigger value="deals" className="flex-1 md:flex-none gap-2 px-6 py-2.5 rounded-xl text-sm font-bold text-slate-400 data-[state=active]:bg-white/10 data-[state=active]:text-purple-400 data-[state=active]:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all">
-                                    <Package className="w-4 h-4" /> Deals
-                                </TabsTrigger>
-                                <TabsTrigger value="ai" className="flex-1 md:flex-none gap-2 px-6 py-2.5 rounded-xl text-sm font-bold text-slate-400 data-[state=active]:bg-white/10 data-[state=active]:text-blue-400 data-[state=active]:shadow-[0_0_15px_rgba(56,187,248,0.2)] transition-all">
-                                    <Sparkles className="w-4 h-4" /> AI Import
-                                </TabsTrigger>
-                            </TabsList>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-8 pb-32 lg:pb-8">
+                <div className="max-w-7xl mx-auto space-y-6 relative z-10">
 
-                            <div className="relative w-full md:w-80 group">
-                                <Label htmlFor="global-dish-search" className="sr-only">Search dishes</Label>
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-amber-500 transition-colors" />
-                                <input
-                                    id="global-dish-search"
-                                    name="dishSearch"
-                                    placeholder="Search dishes or categories..."
-                                    className="order-glass-panel border-white/10 w-full h-12 pl-11 pr-4 rounded-xl text-slate-200 placeholder:text-slate-500 focus:bg-white/5 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 focus:outline-none transition-all"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    autoComplete="off"
-                                />
+                    {/* Compact Actions Bar */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500 bg-white/5 border border-white/5 p-4 rounded-3xl backdrop-blur-md">
+                        <div className="hidden lg:block text-slate-400 font-bold text-sm">
+                            Last synced: <span className="text-slate-200">Just now</span>
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-3">
+                                Menu Manager
+                                <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 dark:text-amber-500 px-2.5 py-0.5 rounded-full border border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.2)]">
+                                    v2.0
+                                </Badge>
+                            </h1>
+                            <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your 3D digital menu experiences.</p>
+                        </div>
+
+                        <div className="flex items-center gap-3 w-full md:w-auto">
+                            <Button
+                                variant="ghost"
+                                onClick={() => navigate('/restaurant-setup?step=3&from=menu')}
+                                className="order-glass-card hover:bg-white/10 dark:text-slate-200 gap-2 hidden sm:flex font-bold shadow-sm transition-all duration-300"
+                            >
+                                <Wand2 className="w-4 h-4 text-purple-500" /> Wizard
+                            </Button>
+
+                            <Button
+                                variant="ghost"
+                                onClick={() => setIsExportDialogOpen(true)}
+                                className="order-glass-card hover:bg-white/10 dark:text-slate-200 gap-2 hidden sm:flex font-bold shadow-sm transition-all duration-300"
+                            >
+                                <FileDown className="w-4 h-4 text-amber-500" /> Export
+                            </Button>
+
+                            <Button
+                                variant={isSelectionMode ? "default" : "ghost"}
+                                onClick={() => {
+                                    setIsSelectionMode(!isSelectionMode);
+                                    setSelectedItems([]);
+                                }}
+                                className={`gap-2 hidden sm:flex font-bold shadow-sm transition-all duration-300 ${isSelectionMode ? 'bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-[0_0_20px_rgba(245,158,11,0.3)]' : 'order-glass-card hover:bg-white/10 dark:text-slate-200'}`}
+                            >
+                                {isSelectionMode ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4 text-blue-400" />}
+                                {isSelectionMode ? 'Exit Selection' : 'Select Items'}
+                            </Button>
+
+                            <Button
+                                onClick={autoFillMissingImages}
+                                disabled={isAutoFilling}
+                                variant="ghost"
+                                className="hidden lg:flex gap-2 font-bold order-glass-card hover:bg-white/10 dark:text-slate-200 transition-all duration-300"
+                            >
+                                {isAutoFilling ? <Loader2 className="w-4 h-4 animate-spin text-purple-500" /> : <Sparkles className="w-4 h-4 text-purple-400" />}
+                                {isAutoFilling ? 'Processing...' : 'Auto-Fill Images'}
+                            </Button>
+
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-black gap-2 shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:shadow-[0_0_30px_rgba(245,158,11,0.5)] flex-1 sm:flex-none transition-all duration-300 rounded-xl">
+                                        <Plus className="w-4 h-4" /> Add New
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="order-glass-panel border-white/10 backdrop-blur-2xl bg-black/40">
+                                    <DropdownMenuItem onClick={openAddModal} className="gap-2 cursor-pointer text-slate-200 hover:bg-white/10 focus:bg-white/10">
+                                        <Utensils className="w-4 h-4 text-amber-500" /> Add Single Dish
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={openAddDealModal} className="gap-2 cursor-pointer text-slate-200 hover:bg-white/10 focus:bg-white/10">
+                                        <Package className="w-4 h-4 text-purple-500" /> Create Deal
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    </div>
+
+                    {/* Analytics Snapshot */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 perspective-[2000px] animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
+                        <div className="order-glass-card p-5 rounded-2xl flex items-center gap-4 group hover:-translate-y-1 hover:rotate-x-2 transition-all duration-300 cursor-default relative overflow-hidden">
+                            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 group-hover:scale-110 group-hover:shadow-[0_0_15px_rgba(245,158,11,0.4)] transition-all">
+                                <Utensils className="w-6 h-6" />
+                            </div>
+                            <div className="relative z-10">
+                                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Total Dishes</p>
+                                <h4 className="text-2xl font-black text-slate-900 dark:text-white leading-none mt-1 drop-shadow-md">{stats.totalItems}</h4>
                             </div>
                         </div>
 
-                        {/* Tab 1: All Items (Grouped) */}
-                        <TabsContent value="all" className="m-0 focus-visible:ring-0">
-                            {filteredItems.filter(i => i.item_type !== 'deal').length === 0 ? (
-                                <div className="text-center py-24 order-glass-card border-dashed border-white/20 rounded-3xl animate-in fade-in zoom-in-95 duration-500">
-                                    <div className="order-glass-panel p-5 rounded-3xl inline-flex mb-6 text-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.2)]">
-                                        <Utensils className="w-10 h-10" />
-                                    </div>
-                                    <h3 className="text-2xl font-black text-slate-100 mb-3 drop-shadow-md">No dishes found</h3>
-                                    <p className="text-slate-400 mb-8 max-w-md mx-auto text-lg leading-relaxed">
-                                        Your 3D menu is waiting. Start by adding your first dish or try the AI importer.
-                                    </p>
-                                    <Button onClick={openAddModal} className="bg-amber-500 hover:bg-amber-400 text-slate-900 px-6 h-12 rounded-xl font-bold gap-2 shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:shadow-[0_0_30px_rgba(245,158,11,0.5)] transition-all">
-                                        <Plus className="w-5 h-5" /> Add First Dish
-                                    </Button>
-                                </div>
-                            ) : (
-                                <div className="space-y-8 pt-4">
-                                    {Object.entries(groupedItems).map(([cuisine, categories], index) => {
-                                        const isCuisineExpanded = expandedCuisines.includes(cuisine);
-                                        return (
-                                            <div key={cuisine} className="order-glass-card rounded-3xl overflow-hidden transition-all duration-500 border border-white/5 animate-in fade-in slide-in-from-bottom-8" style={{ animationDelay: `${index * 100}ms` }}>
-                                                {/* Cuisine Header */}
-                                                <div
-                                                    onClick={() => toggleCuisine(cuisine)}
-                                                    className={`flex items-center justify-between p-6 cursor-pointer transition-colors relative group ${isCuisineExpanded ? 'bg-white/5 border-b border-white/10' : 'hover:bg-white/5'}`}
-                                                >
-                                                    <div className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent via-amber-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                                    <div className="flex items-center gap-5">
-                                                        <div className={`p-4 rounded-2xl transition-all duration-300 relative ${isCuisineExpanded ? 'bg-amber-500/20 text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.2)] scale-110' : 'bg-white/5 text-slate-400 group-hover:bg-white/10'}`}>
-                                                            <Utensils className="w-6 h-6" />
-                                                        </div>
-                                                        <div className="flex flex-col">
-                                                            <h2 className="text-3xl font-black text-slate-100 tracking-tight leading-none drop-shadow-md">
-                                                                {cuisine}
-                                                            </h2>
-                                                            <span className="text-xs uppercase tracking-[0.2em] font-bold text-amber-500/70 mt-2">
-                                                                {Object.keys(categories).length} Categories <span className="mx-2 opacity-50">•</span> {Object.values(categories).flat().length} Items
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-4">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={(e) => { e.stopPropagation(); openQuickAddModal(e, cuisine, ""); }}
-                                                            className="h-10 px-4 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 gap-2 font-bold rounded-xl"
-                                                        >
-                                                            <Plus className="w-4 h-4" />
-                                                            Add Dish
-                                                        </Button>
-                                                        <div onClick={(e) => e.stopPropagation()}>
-                                                            <CategoryOfferDialog
-                                                                category="Entire Cuisine"
-                                                                cuisine={cuisine}
-                                                                onApply={(cat, cuis, disc, name) => handleApplyCuisineOffer(cuis, disc, name)}
-                                                            />
-                                                        </div>
-                                                        <div className={`p-3 rounded-full transition-all duration-500 order-glass-panel ${isCuisineExpanded ? 'rotate-180 bg-white/10 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : ''}`}>
-                                                            <ChevronDown className="w-5 h-5 text-slate-300" />
-                                                        </div>
-                                                    </div>
-                                                </div>
+                        <div className="order-glass-card p-5 rounded-2xl flex items-center gap-4 group hover:-translate-y-1 hover:rotate-x-2 transition-all duration-300 cursor-default relative overflow-hidden">
+                            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500/20 to-rose-500/10 border border-red-500/30 flex items-center justify-center text-red-500 group-hover:scale-110 group-hover:shadow-[0_0_15px_rgba(239,68,68,0.4)] transition-all">
+                                <AlertTriangle className="w-6 h-6" />
+                            </div>
+                            <div className="relative z-10">
+                                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Low Stock Alerts</p>
+                                <h4 className="text-2xl font-black text-slate-900 dark:text-white leading-none mt-1 drop-shadow-md">{stats.lowStock + stats.outOfStock}</h4>
+                            </div>
+                        </div>
 
-                                                {/* Cuisine Content (Categories) */}
-                                                {isCuisineExpanded && (
-                                                    <div className="p-6 md:p-8 space-y-8 animate-in fade-in slide-in-from-top-4 duration-500 bg-black/20">
-                                                        {Object.entries(categories).map(([category, catItems]) => {
-                                                            const isCategoryExpanded = expandedCategories.includes(`${cuisine}-${category}`);
-                                                            return (
-                                                                <div key={category} className={`border rounded-3xl transition-all duration-300 overflow-hidden ${isCategoryExpanded ? 'border-amber-500/30 bg-amber-500/5 shadow-[0_0_30px_rgba(245,158,11,0.05)]' : 'border-white/5 bg-transparent'}`}>
-                                                                    {/* Category Header */}
-                                                                    <div
-                                                                        onClick={() => toggleCategory(`${cuisine}-${category}`)}
-                                                                        className="flex items-center justify-between p-5 cursor-pointer hover:bg-white/5 transition-colors relative overflow-hidden"
-                                                                    >
-                                                                        <div className="flex items-center gap-4 z-10">
-                                                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black transition-all ${isCategoryExpanded ? 'bg-amber-500 text-slate-900 shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 'order-glass-panel text-slate-300'}`}>
-                                                                                {catItems.length}
-                                                                            </div>
-                                                                            <h3 className="text-xl font-bold text-slate-100">{category}</h3>
-                                                                        </div>
-                                                                        <div className="flex items-center gap-3 z-10">
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                onClick={(e) => { e.stopPropagation(); openQuickAddModal(e, cuisine, category); }}
-                                                                                className="h-9 px-3 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 gap-1.5 font-bold rounded-lg"
-                                                                            >
-                                                                                <Plus className="w-3.5 h-3.5" />
-                                                                                Add
-                                                                            </Button>
-                                                                            <div onClick={(e) => e.stopPropagation()}>
-                                                                                <CategoryOfferDialog
-                                                                                    category={category}
-                                                                                    cuisine={cuisine}
-                                                                                    onApply={handleApplyCategoryOffer}
-                                                                                />
-                                                                            </div>
-                                                                            <div className={`transition-transform duration-300 ${isCategoryExpanded ? 'rotate-180' : ''}`}>
-                                                                                <ChevronDown className="w-5 h-5 text-slate-400" />
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
+                        <div className="order-glass-card p-5 rounded-2xl flex items-center gap-4 group hover:-translate-y-1 hover:rotate-x-2 transition-all duration-300 cursor-default relative overflow-hidden">
+                            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 group-hover:scale-110 group-hover:shadow-[0_0_15px_rgba(56,187,248,0.4)] transition-all">
+                                <LayoutList className="w-6 h-6" />
+                            </div>
+                            <div className="relative z-10">
+                                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Top Category</p>
+                                <h4 className="text-lg font-bold text-slate-900 dark:text-white leading-tight mt-1 truncate max-w-[120px] drop-shadow-md">{stats.topCategory}</h4>
+                            </div>
+                        </div>
 
-                                                                    {/* Category Content (Items) */}
-                                                                    {isCategoryExpanded && (
-                                                                        <div className="p-5 pt-0 animate-in fade-in zoom-in-95 duration-300">
-                                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 perspective-[2000px]">
-                                                                                {catItems.map(item => (
-                                                                                    <MenuItemCard
-                                                                                        key={item.id}
-                                                                                        item={item}
-                                                                                        onEdit={openEditModal}
-                                                                                        onToggleAvailability={toggleAvailability}
-                                                                                        allMenuItems={items}
-                                                                                        isSelectionMode={isSelectionMode}
-                                                                                        isSelected={selectedItems.includes(item.id)}
-                                                                                        onSelect={toggleItemSelection}
-                                                                                        onClearOffer={handleClearOffer}
-                                                                                        formatPrice={formatPriceDisplay}
-                                                                                        onDelete={(id) => {
-                                                                                            setItemToDelete(id);
-                                                                                            setIsDeleteConfirmOpen(true);
-                                                                                        }}
-                                                                                        onApplyOffer={(it) => {
-                                                                                            setItemForDirectOffer(it);
-                                                                                            setDirectOfferDiscount(it.discount_percentage || 10);
-                                                                                            setDirectOfferName(it.offer_name || "");
-                                                                                        }}
-                                                                                    />
-                                                                                ))}
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </TabsContent>
+                        <div className="order-glass-card p-5 rounded-2xl flex items-center gap-4 group hover:-translate-y-1 hover:rotate-x-2 transition-all duration-300 cursor-default relative overflow-hidden sm:col-span-2 lg:col-span-1">
+                            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500/20 to-green-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-110 group-hover:shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all">
+                                <TrendingUp className="w-6 h-6" />
+                            </div>
+                            <div className="relative z-10">
+                                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Menu Status</p>
+                                <h4 className="text-lg font-bold text-emerald-500 leading-tight mt-1 drop-shadow-md">90% Complete</h4>
+                            </div>
+                        </div>
+                    </div>
 
-                        {/* Tab 2: Deals */}
-                        <TabsContent value="deals">
-                            {filteredItems.filter(i => i.item_type === 'deal').length === 0 ? (
-                                <div className="text-center py-24 order-glass-card border-dashed border-white/20 rounded-3xl animate-in fade-in zoom-in-95 duration-500 mt-4">
-                                    <div className="order-glass-panel p-5 rounded-3xl inline-flex mb-6 text-purple-400 shadow-[0_0_30px_rgba(168,85,247,0.2)]">
-                                        <Package className="w-10 h-10" />
-                                    </div>
-                                    <h3 className="text-2xl font-black text-slate-100 mb-3 drop-shadow-md">No active deals</h3>
-                                    <p className="text-slate-400 mb-8 max-w-md mx-auto text-lg leading-relaxed">
-                                        Create attractive bundles (e.g. Burger + Fries + Drink) to boost your average order value.
-                                    </p>
-                                    <Button onClick={openAddDealModal} className="bg-purple-600 hover:bg-purple-500 text-white px-6 h-12 rounded-xl font-bold gap-2 shadow-[0_0_20px_rgba(168,85,247,0.3)] hover:shadow-[0_0_30px_rgba(168,85,247,0.5)] transition-all">
-                                        <Plus className="w-5 h-5" /> Create First Deal
-                                    </Button>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pt-4 perspective-[2000px] animate-in slide-in-from-bottom-8 duration-500">
-                                    {filteredItems.filter(i => i.item_type === 'deal').map(item => (
-                                        <MenuItemCard
-                                            key={item.id}
-                                            item={item}
-                                            onEdit={openEditModal}
-                                            onToggleAvailability={toggleAvailability}
-                                            allMenuItems={items}
-                                            isSelectionMode={isSelectionMode}
-                                            isSelected={selectedItems.includes(item.id)}
-                                            onSelect={toggleItemSelection}
-                                            onClearOffer={handleClearOffer}
-                                            formatPrice={formatPriceDisplay}
-                                            onDelete={(id) => {
-                                                setItemToDelete(id);
-                                                setIsDeleteConfirmOpen(true);
-                                            }}
-                                            onApplyOffer={(it) => {
-                                                setItemForDirectOffer(it);
-                                                setDirectOfferDiscount(it.discount_percentage || 10);
-                                                setDirectOfferName(it.offer_name || "");
-                                            }}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-                        </TabsContent>
+                    {/* Tabs & Content */}
+                    <div ref={menuRef} id="menu-export-container" className="pt-4">
+                        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-8">
+                            <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-transparent">
+                                <TabsList className="order-glass-panel border-white/10 p-1.5 flex h-auto w-full md:w-auto overflow-x-auto hide-scrollbar">
+                                    <TabsTrigger value="all" className="flex-1 md:flex-none gap-2 px-6 py-2.5 rounded-xl text-sm font-bold text-slate-400 data-[state=active]:bg-white/10 data-[state=active]:text-amber-500 data-[state=active]:shadow-[0_0_15px_rgba(245,158,11,0.2)] transition-all">
+                                        <Utensils className="w-4 h-4" /> All Items
+                                    </TabsTrigger>
+                                    <TabsTrigger value="deals" className="flex-1 md:flex-none gap-2 px-6 py-2.5 rounded-xl text-sm font-bold text-slate-400 data-[state=active]:bg-white/10 data-[state=active]:text-purple-400 data-[state=active]:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all">
+                                        <Package className="w-4 h-4" /> Deals
+                                    </TabsTrigger>
+                                    <TabsTrigger value="ai" className="flex-1 md:flex-none gap-2 px-6 py-2.5 rounded-xl text-sm font-bold text-slate-400 data-[state=active]:bg-white/10 data-[state=active]:text-blue-400 data-[state=active]:shadow-[0_0_15px_rgba(56,187,248,0.2)] transition-all">
+                                        <Sparkles className="w-4 h-4" /> AI Import
+                                    </TabsTrigger>
+                                </TabsList>
 
-                        {/* Tab 3: AI Import */}
-                        <TabsContent value="ai" className="focus-visible:ring-0">
-                            {!scannedItems.length ? (
-                                <div className="space-y-6 pt-4 animate-in fade-in slide-in-from-bottom-8 duration-500">
-                                    <div className="order-glass-card rounded-3xl border border-blue-500/20 p-8 md:p-12 text-center relative overflow-hidden group">
-                                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-blue-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-                                        <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent"></div>
-                                        <div className="order-glass-panel p-5 rounded-3xl inline-flex mb-6 shadow-[0_0_30px_rgba(59,130,246,0.2)] relative z-10 transition-transform duration-500 group-hover:scale-110">
-                                            <Sparkles className="w-10 h-10 text-blue-400" />
+                                <div className="relative w-full md:w-80 group">
+                                    <Label htmlFor="global-dish-search" className="sr-only">Search dishes</Label>
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-amber-500 transition-colors" />
+                                    <input
+                                        id="global-dish-search"
+                                        name="dishSearch"
+                                        placeholder="Search dishes or categories..."
+                                        className="order-glass-panel border-white/10 w-full h-12 pl-11 pr-4 rounded-xl text-slate-200 placeholder:text-slate-500 focus:bg-white/5 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 focus:outline-none transition-all"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        autoComplete="off"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Tab 1: All Items (Grouped) */}
+                            <TabsContent value="all" className="m-0 focus-visible:ring-0">
+                                {filteredItems.filter(i => i.item_type !== 'deal').length === 0 ? (
+                                    <div className="text-center py-24 order-glass-card border-dashed border-white/20 rounded-3xl animate-in fade-in zoom-in-95 duration-500">
+                                        <div className="order-glass-panel p-5 rounded-3xl inline-flex mb-6 text-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.2)]">
+                                            <Utensils className="w-10 h-10" />
                                         </div>
-                                        <h3 className="text-3xl font-black text-slate-100 mb-4 drop-shadow-md relative z-10">AI Menu Scanner</h3>
-                                        <p className="text-slate-400 mb-8 max-w-lg mx-auto text-lg leading-relaxed relative z-10">
-                                            Upload a photo of your paper menu and let our AI digitize it instantly.
-                                            We'll extract item names, prices, and categories for you.
+                                        <h3 className="text-2xl font-black text-slate-100 mb-3 drop-shadow-md">No dishes found</h3>
+                                        <p className="text-slate-400 mb-8 max-w-md mx-auto text-lg leading-relaxed">
+                                            Your 3D menu is waiting. Start by adding your first dish or try the AI importer.
                                         </p>
-
-                                        <div className="max-w-2xl mx-auto relative z-10">
-                                            {scanPreview ? (
-                                                <div className="relative rounded-3xl overflow-hidden border border-blue-500/50 shadow-[0_0_30px_rgba(59,130,246,0.2)] mb-8 glass-card">
-                                                    <img src={scanPreview} alt="Scan Preview" className="w-full h-auto max-h-96 object-contain bg-black/50 backdrop-blur-sm" />
-                                                    <button
-                                                        onClick={() => { setScanFile(null); setScanPreview(null); }}
-                                                        className="absolute top-4 right-4 bg-red-500/20 hover:bg-red-500/40 text-red-400 backdrop-blur-md p-3 rounded-full transition-colors shadow-lg border border-red-500/30"
+                                        <Button onClick={openAddModal} className="bg-amber-500 hover:bg-amber-400 text-slate-900 px-6 h-12 rounded-xl font-bold gap-2 shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:shadow-[0_0_30px_rgba(245,158,11,0.5)] transition-all">
+                                            <Plus className="w-5 h-5" /> Add First Dish
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-8 pt-4">
+                                        {Object.entries(groupedItems).map(([cuisine, categories], index) => {
+                                            const isCuisineExpanded = expandedCuisines.includes(cuisine);
+                                            return (
+                                                <div key={cuisine} className="order-glass-card rounded-3xl overflow-hidden transition-all duration-500 border border-white/5 animate-in fade-in slide-in-from-bottom-8" style={{ animationDelay: `${index * 100}ms` }}>
+                                                    {/* Cuisine Header */}
+                                                    <div
+                                                        onClick={() => toggleCuisine(cuisine)}
+                                                        className={`flex items-center justify-between p-6 cursor-pointer transition-colors relative group ${isCuisineExpanded ? 'bg-white/5 border-b border-white/10' : 'hover:bg-white/5'}`}
                                                     >
-                                                        <X className="w-5 h-5" />
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <label className="flex flex-col items-center justify-center w-full h-72 border-2 border-dashed border-white/20 rounded-3xl cursor-pointer hover:border-blue-500/50 hover:bg-blue-500/5 transition-all group order-glass-panel relative overflow-hidden mb-8">
-                                                    <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                                                    <div className="flex flex-col items-center justify-center pt-5 pb-6 relative z-10 transition-transform duration-500 group-hover:-translate-y-2">
-                                                        <div className="w-20 h-20 rounded-2xl order-glass-panel flex items-center justify-center mb-6 group-hover:shadow-[0_0_30px_rgba(59,130,246,0.3)] transition-all">
-                                                            <UploadCloud className="w-10 h-10 text-slate-400 group-hover:text-blue-400 transition-colors" />
-                                                        </div>
-                                                        <p className="text-xl font-bold text-slate-200 mb-2 group-hover:text-blue-300 transition-colors">Click to upload menu image</p>
-                                                        <p className="text-sm font-medium text-slate-500 uppercase tracking-widest">PNG, JPG or WEBP (Max 10MB)</p>
-                                                    </div>
-                                                    <input
-                                                        type="file"
-                                                        className="hidden"
-                                                        accept="image/*"
-                                                        onChange={(e) => {
-                                                            const file = e.target.files?.[0];
-                                                            if (file) {
-                                                                setScanFile(file);
-                                                                const reader = new FileReader();
-                                                                reader.onloadend = () => setScanPreview(reader.result as string);
-                                                                reader.readAsDataURL(file);
-                                                            }
-                                                        }}
-                                                    />
-                                                </label>
-                                            )}
-
-                                            <Button
-                                                onClick={handleScan}
-                                                disabled={!scanFile || isScanning}
-                                                className="w-full h-14 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)] gap-3 text-lg transform transition-all hover:-translate-y-0.5 relative overflow-hidden group disabled:opacity-50 disabled:hover:translate-y-0"
-                                            >
-                                                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
-                                                <span className="relative z-10 flex items-center justify-center w-full">
-                                                    {isScanning ? (
-                                                        <div className="flex items-center">
-                                                            <Loader2 className="mr-3 h-6 w-6 animate-spin text-white" />
-                                                            {scanStatus || "AI is Analyzing..."}
-                                                        </div>
-                                                    ) : (
-                                                        <>
-                                                            <Sparkles className="w-6 h-6 mr-2" />
-                                                            Start Smart Scan
-                                                        </>
-                                                    )}
-                                                </span>
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        <div className="order-glass-card rounded-2xl p-6 border border-white/5 hover:border-green-500/30 transition-colors group">
-                                            <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                                <Zap className="w-6 h-6 text-green-400" />
-                                            </div>
-                                            <h4 className="font-bold text-slate-100 text-lg mb-2">Instant Digitization</h4>
-                                            <p className="text-sm text-slate-400 leading-relaxed">Convert hours of manual entry into seconds. Our AI accurately interprets varied formats.</p>
-                                        </div>
-                                        <div className="order-glass-card rounded-2xl p-6 border border-white/5 hover:border-purple-500/30 transition-colors group">
-                                            <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                                <Percent className="w-6 h-6 text-purple-400" />
-                                            </div>
-                                            <h4 className="font-bold text-slate-100 text-lg mb-2">Precise Prices</h4>
-                                            <p className="text-sm text-slate-400 leading-relaxed">Accurately extracts currency, numerics, and distinguishes sizes seamlessly.</p>
-                                        </div>
-                                        <div className="order-glass-card rounded-2xl p-6 border border-white/5 hover:border-amber-500/30 transition-colors group">
-                                            <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                                <CheckSquare className="w-6 h-6 text-amber-400" />
-                                            </div>
-                                            <h4 className="font-bold text-slate-100 text-lg mb-2">Smart Categorization</h4>
-                                            <p className="text-sm text-slate-400 leading-relaxed">AI automatically groups items by cuisine and category, arranging your menu intelligently.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="space-y-6 animate-in slide-in-from-bottom-8 opacity-100 duration-500 pt-4 cursor-default">
-                                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 order-glass-panel p-6 rounded-3xl">
-                                        <div>
-                                            <h3 className="text-2xl font-black text-slate-100 drop-shadow-md">Scan Results</h3>
-                                            <p className="text-amber-500/80 font-medium">Review your digitally extracted menu structure before importing.</p>
-                                        </div>
-                                        <div className="flex gap-3 w-full md:w-auto">
-                                            <Button
-                                                variant="outline"
-                                                onClick={() => { setScannedItems([]); setScanFile(null); setScanPreview(null); }}
-                                                className="border-white/10 text-slate-300 hover:bg-white/5 hover:text-white flex-1 md:flex-none glass-card"
-                                            >
-                                                Discard
-                                            </Button>
-                                            <Button
-                                                onClick={handleImportScannedItems}
-                                                disabled={isImporting}
-                                                className="bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 font-bold gap-2 px-6 disabled:opacity-50 flex-1 md:flex-none shadow-[0_0_15px_rgba(34,197,94,0.2)]"
-                                            >
-                                                {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                                                {isImporting ? 'Importing...' : 'Import Full Menu'}
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-8">
-                                        {scannedItems.map((mainCat, mainIdx) => (
-                                            <div key={mainIdx} className="order-glass-card rounded-3xl border border-white/10 shadow-xl overflow-hidden group">
-                                                <div className="order-glass-panel px-6 py-5 flex items-center justify-between border-b border-white/5 relative overflow-hidden">
-                                                    <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 to-transparent"></div>
-                                                    <div className="relative z-10">
-                                                        <h4 className="text-xl font-black text-slate-100 group-hover:text-amber-400 transition-colors">{mainCat.main_category}</h4>
-                                                        <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-1">Cuisine: <span className="text-amber-500/70">{mainCat.cuisine_type || 'N/A'}</span></p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="p-6 md:p-8 space-y-10 bg-black/20">
-                                                    {mainCat.sub_categories?.map((subCat, subIdx) => (
-                                                        <div key={subIdx} className="space-y-6">
-                                                            <div className="flex items-center gap-4">
-                                                                <h5 className="font-bold text-slate-200 text-lg uppercase tracking-wider">{subCat.name}</h5>
-                                                                <div className="h-px bg-gradient-to-r from-white/10 to-transparent flex-1"></div>
+                                                        <div className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent via-amber-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                                        <div className="flex items-center gap-5">
+                                                            <div className={`p-4 rounded-2xl transition-all duration-300 relative ${isCuisineExpanded ? 'bg-amber-500/20 text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.2)] scale-110' : 'bg-white/5 text-slate-400 group-hover:bg-white/10'}`}>
+                                                                <Utensils className="w-6 h-6" />
                                                             </div>
+                                                            <div className="flex flex-col">
+                                                                <h2 className="text-3xl font-black text-slate-100 tracking-tight leading-none drop-shadow-md">
+                                                                    {cuisine}
+                                                                </h2>
+                                                                <span className="text-xs uppercase tracking-[0.2em] font-bold text-amber-500/70 mt-2">
+                                                                    {Object.keys(categories).length} Categories <span className="mx-2 opacity-50">•</span> {Object.values(categories).flat().length} Items
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-4">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={(e) => { e.stopPropagation(); openQuickAddModal(e, cuisine, ""); }}
+                                                                    className="h-10 px-4 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 gap-2 font-bold rounded-xl"
+                                                                >
+                                                                    <Plus className="w-4 h-4" />
+                                                                    Add Dish
+                                                                </Button>
+                                                                <div onClick={(e) => e.stopPropagation()}>
+                                                                    <CategoryOfferDialog
+                                                                        category="Entire Cuisine"
+                                                                        cuisine={cuisine}
+                                                                        onApply={(cat, cuis, disc, name) => handleApplyCuisineOffer(cuis, disc, name)}
+                                                                    />
+                                                                </div>
+                                                                <div className={`p-3 rounded-full transition-all duration-500 order-glass-panel ${isCuisineExpanded ? 'rotate-180 bg-white/10 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : ''}`}>
+                                                                    <ChevronDown className="w-5 h-5 text-slate-300" />
+                                                                </div>
+                                                            </div>
+                                                        </div>
 
-                                                            <div className="grid gap-4">
-                                                                {subCat.items?.map((item, itemIdx) => (
-                                                                    <div key={itemIdx} className="flex flex-col md:flex-row gap-4 p-5 rounded-3xl border border-white/5 bg-white/5 hover:bg-white/10 transition-colors group/item">
-                                                                        <div className="relative w-20 h-20 rounded-2xl overflow-hidden bg-black/50 border border-white/10 shadow-[0_0_15px_rgba(0,0,0,0.5)] flex-shrink-0 cursor-pointer"
-                                                                            onClick={() => {
-                                                                                setScannedItemImageUpdateIndex({ mainIdx, subIdx, itemIdx });
-                                                                                scannedImageInputRef.current?.click();
-                                                                            }}
-                                                                        >
-                                                                            <DynamicFoodImage
-                                                                                name={item.item_name}
-                                                                                category={subCat.name}
-                                                                                cuisine={mainCat.cuisine_type}
-                                                                                manualImage={item.manualImage}
-                                                                                className="w-full h-full object-cover"
-                                                                            />
-                                                                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-opacity backdrop-blur-sm">
-                                                                                <UploadCloud className="w-6 h-6 text-white" />
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div className="flex-1 space-y-3 shrink min-w-0">
-                                                                            <div className="flex items-start justify-between gap-4">
-                                                                                <div className="space-y-2 flex-1 shrink min-w-0">
-                                                                                    <Input
-                                                                                        value={item.item_name}
-                                                                                        name="item_name"
-                                                                                        onChange={(e) => {
-                                                                                            const next = [...scannedItems];
-                                                                                            next[mainIdx].sub_categories[subIdx].items[itemIdx].item_name = e.target.value;
-                                                                                            setScannedItems(next);
-                                                                                        }}
-                                                                                        className="h-10 font-bold text-slate-100 border-white/5 bg-black/20 hover:bg-black/40 focus:bg-black/60 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 w-full transition-colors rounded-xl truncate"
-                                                                                    />
-                                                                                    <Input
-                                                                                        value={item.description || ''}
-                                                                                        name="item_description"
-                                                                                        placeholder="Description..."
-                                                                                        onChange={(e) => {
-                                                                                            const next = [...scannedItems];
-                                                                                            next[mainIdx].sub_categories[subIdx].items[itemIdx].description = e.target.value;
-                                                                                            setScannedItems(next);
-                                                                                        }}
-                                                                                        className="h-8 text-sm text-slate-400 border-transparent bg-transparent hover:bg-white/5 focus:bg-white/5 focus:border-white/10 w-full rounded-lg transition-colors truncate"
-                                                                                    />
+                                                        {/* Cuisine Content (Categories) */}
+                                                        {isCuisineExpanded && (
+                                                            <div className="p-6 md:p-8 space-y-8 animate-in fade-in slide-in-from-top-4 duration-500 bg-black/20">
+                                                                {Object.entries(categories).map(([category, catItems]) => {
+                                                                    const isCategoryExpanded = expandedCategories.includes(`${cuisine}-${category}`);
+                                                                    return (
+                                                                        <div key={category} className={`border rounded-3xl transition-all duration-300 overflow-hidden ${isCategoryExpanded ? 'border-amber-500/30 bg-amber-500/5 shadow-[0_0_30px_rgba(245,158,11,0.05)]' : 'border-white/5 bg-transparent'}`}>
+                                                                            {/* Category Header */}
+                                                                            <div
+                                                                                onClick={() => toggleCategory(`${cuisine}-${category}`)}
+                                                                                className="flex items-center justify-between p-5 cursor-pointer hover:bg-white/5 transition-colors relative overflow-hidden"
+                                                                            >
+                                                                                <div className="flex items-center gap-4 z-10">
+                                                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black transition-all ${isCategoryExpanded ? 'bg-amber-500 text-slate-900 shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 'order-glass-panel text-slate-300'}`}>
+                                                                                        {catItems.length}
+                                                                                    </div>
+                                                                                    <h3 className="text-xl font-bold text-slate-100">{category}</h3>
                                                                                 </div>
-
-                                                                                <div className="flex gap-2 shrink-0">
+                                                                                <div className="flex items-center gap-3 z-10">
                                                                                     <Button
                                                                                         variant="ghost"
-                                                                                        size="icon"
-                                                                                        className="h-10 w-10 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
-                                                                                        onClick={() => {
-                                                                                            const next = [...scannedItems];
-                                                                                            next[mainIdx].sub_categories[subIdx].items.splice(itemIdx, 1);
-                                                                                            setScannedItems(next);
-                                                                                        }}
+                                                                                        size="sm"
+                                                                                        onClick={(e) => { e.stopPropagation(); openQuickAddModal(e, cuisine, category); }}
+                                                                                        className="h-9 px-3 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 gap-1.5 font-bold rounded-lg"
                                                                                     >
-                                                                                        <Trash2 className="w-5 h-5" />
+                                                                                        <Plus className="w-3.5 h-3.5" />
+                                                                                        Add
                                                                                     </Button>
+                                                                                    <div onClick={(e) => e.stopPropagation()}>
+                                                                                        <CategoryOfferDialog
+                                                                                            category={category}
+                                                                                            cuisine={cuisine}
+                                                                                            onApply={handleApplyCategoryOffer}
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div className={`transition-transform duration-300 ${isCategoryExpanded ? 'rotate-180' : ''}`}>
+                                                                                        <ChevronDown className="w-5 h-5 text-slate-400" />
+                                                                                    </div>
                                                                                 </div>
                                                                             </div>
 
-                                                                            {/* Variants */}
-                                                                            <div className="flex flex-wrap gap-3 pt-3 border-t border-white/5 mt-3">
-                                                                                {item.variants?.map((v, vIdx) => (
-                                                                                    <div key={vIdx} className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-xl p-1.5 pr-3 shadow-inner">
-                                                                                        <Input
-                                                                                            value={v.size_or_type}
-                                                                                            name="variant_size"
-                                                                                            onChange={(e) => {
-                                                                                                const next = [...scannedItems];
-                                                                                                next[mainIdx].sub_categories[subIdx].items[itemIdx].variants[vIdx].size_or_type = e.target.value;
-                                                                                                setScannedItems(next);
-                                                                                            }}
-                                                                                            className="h-8 w-24 text-xs font-bold border-transparent bg-white/5 hover:bg-white/10 focus:bg-white/10 text-slate-300 rounded-lg text-center"
-                                                                                        />
-                                                                                        <span className="text-xs font-bold text-amber-500/70">{restaurantInfo?.currency?.symbol || 'Rs.'}</span>
-                                                                                        <Input
-                                                                                            type="number"
-                                                                                            value={v.price}
-                                                                                            name="variant_price"
-                                                                                            onChange={(e) => {
-                                                                                                const next = [...scannedItems];
-                                                                                                next[mainIdx].sub_categories[subIdx].items[itemIdx].variants[vIdx].price = Number(e.target.value);
-                                                                                                setScannedItems(next);
-                                                                                            }}
-                                                                                            className="h-8 w-20 text-sm font-black text-slate-100 border-transparent bg-white/5 hover:bg-white/10 focus:bg-white/10 rounded-lg text-center remove-arrow"
-                                                                                        />
+                                                                            {/* Category Content (Items) */}
+                                                                            {isCategoryExpanded && (
+                                                                                <div className="p-5 pt-0 animate-in fade-in zoom-in-95 duration-300">
+                                                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 perspective-[2000px]">
+                                                                                        {catItems.map(item => (
+                                                                                            <MenuItemCard
+                                                                                                key={item.id}
+                                                                                                item={item}
+                                                                                                onEdit={openEditModal}
+                                                                                                onToggleAvailability={toggleAvailability}
+                                                                                                allMenuItems={items}
+                                                                                                isSelectionMode={isSelectionMode}
+                                                                                                isSelected={selectedItems.includes(item.id)}
+                                                                                                onSelect={toggleItemSelection}
+                                                                                                onClearOffer={handleClearOffer}
+                                                                                                formatPrice={formatPriceDisplay}
+                                                                                                onDelete={(id) => {
+                                                                                                    setItemToDelete(id);
+                                                                                                    setIsDeleteConfirmOpen(true);
+                                                                                                }}
+                                                                                                onApplyOffer={(it) => {
+                                                                                                    setItemForDirectOffer(it);
+                                                                                                    setDirectOfferDiscount(it.discount_percentage || 10);
+                                                                                                    setDirectOfferName(it.offer_name || "");
+                                                                                                }}
+                                                                                            />
+                                                                                        ))}
                                                                                     </div>
-                                                                                ))}
-                                                                            </div>
+                                                                                </div>
+                                                                            )}
                                                                         </div>
-                                                                    </div>
-                                                                ))}
+                                                                    );
+                                                                })}
                                                             </div>
-                                                        </div>
-                                                    ))}
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
-
-                                        <input
-                                            type="file"
-                                            ref={scannedImageInputRef}
-                                            className="hidden"
-                                            accept="image/*"
-                                            onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file && scannedItemImageUpdateIndex !== null) {
-                                                    const { mainIdx, subIdx, itemIdx } = scannedItemImageUpdateIndex;
-                                                    const next = [...scannedItems];
-                                                    next[mainIdx].sub_categories[subIdx].items[itemIdx].manualImage = file;
-                                                    setScannedItems(next);
-                                                    toast.success(`Image added!`);
-                                                }
-                                            }}
-                                        />
+                                            );
+                                        })}
                                     </div>
-                                </div>
-                            )}
-                        </TabsContent>
-                    </Tabs>
-                </div>
+                                )}
+                            </TabsContent>
 
-                {/* Delete Confirmation Dialog */}
-                <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
-                    <AlertDialogContent className="sm:max-w-[420px] bg-black/90 backdrop-blur-2xl border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.7)] rounded-3xl overflow-hidden p-0 gap-0">
-                        <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-red-500/50 to-transparent"></div>
-                        <div className="bg-gradient-to-br from-red-500/10 to-black p-8 flex flex-col items-center text-center">
-                            <div className="relative mb-6">
-                                <div className="absolute inset-0 bg-red-500 blur-2xl opacity-30 animate-pulse"></div>
-                                <div className="relative w-20 h-20 bg-gradient-to-br from-red-500/20 to-red-600/20 border border-red-500/30 rounded-3xl flex items-center justify-center shadow-[0_0_30px_rgba(244,63,94,0.3)] transform hover:rotate-6 transition-transform duration-300">
-                                    <Trash2 className="w-10 h-10 text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
-                                </div>
-                            </div>
-
-                            <AlertDialogHeader className="space-y-3">
-                                <AlertDialogTitle className="text-2xl font-black text-white tracking-tight">
-                                    Confirm Deletion
-                                </AlertDialogTitle>
-                                <AlertDialogDescription className="text-slate-400 font-medium leading-relaxed">
-                                    Are you sure you want to remove this dish? This action is permanent and cannot be undone.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                        </div>
-
-                        <div className="px-8 py-6 bg-white/5 border-t border-white/10 flex flex-col sm:flex-row gap-3">
-                            <AlertDialogCancel className="flex-1 h-12 rounded-2xl border-white/10 text-slate-300 font-bold hover:bg-white/10 hover:text-white transition-all duration-200 border glass-card">
-                                Keep Dish
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    handleDelete();
-                                }}
-                                className="flex-1 h-12 rounded-2xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 font-bold shadow-[0_0_15px_rgba(239,68,68,0.2)] active:scale-[0.98] transition-all duration-200"
-                            >
-                                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Yes, Delete"}
-                            </AlertDialogAction>
-                        </div>
-                    </AlertDialogContent>
-                </AlertDialog>
-
-                {/* Bulk Delete Confirmation Dialog */}
-                <AlertDialog open={isBulkDeleteConfirmOpen} onOpenChange={setIsBulkDeleteConfirmOpen}>
-                    <AlertDialogContent className="sm:max-w-[420px] bg-black/90 backdrop-blur-2xl border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.7)] rounded-3xl overflow-hidden p-0 gap-0">
-                        <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-red-500/50 to-transparent"></div>
-                        <div className="bg-gradient-to-br from-red-500/10 to-black p-8 flex flex-col items-center text-center">
-                            <div className="relative mb-6">
-                                <div className="absolute inset-0 bg-red-500 blur-2xl opacity-30 animate-pulse"></div>
-                                <div className="relative w-20 h-20 bg-gradient-to-br from-red-500/20 to-red-600/20 border border-red-500/30 rounded-3xl flex items-center justify-center shadow-[0_0_30px_rgba(244,63,94,0.3)] transform hover:rotate-6 transition-transform duration-300">
-                                    <Trash2 className="w-10 h-10 text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
-                                </div>
-                            </div>
-
-                            <AlertDialogHeader className="space-y-3">
-                                <AlertDialogTitle className="text-2xl font-black text-white tracking-tight">
-                                    Bulk Delete Items
-                                </AlertDialogTitle>
-                                <AlertDialogDescription className="text-slate-400 font-medium leading-relaxed">
-                                    Are you sure you want to delete {selectedItems.length} selected item(s)? This action is permanent and cannot be undone.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                        </div>
-
-                        <div className="px-8 py-6 bg-white/5 border-t border-white/10 flex flex-col sm:flex-row gap-3">
-                            <AlertDialogCancel className="flex-1 h-12 rounded-2xl border-white/10 text-slate-300 font-bold hover:bg-white/10 hover:text-white transition-all duration-200 border glass-card">
-                                Keep Items
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    confirmBulkDelete();
-                                }}
-                                className="flex-1 h-12 rounded-2xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 font-bold shadow-[0_0_15px_rgba(239,68,68,0.2)] active:scale-[0.98] transition-all duration-200"
-                            >
-                                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Yes, Delete All"}
-                            </AlertDialogAction>
-                        </div>
-                    </AlertDialogContent>
-                </AlertDialog>
-
-                {/* Individual Item Offer Dialog */}
-                <Dialog open={!!itemForDirectOffer} onOpenChange={(open) => !open && setItemForDirectOffer(null)}>
-                    <DialogContent className="sm:max-w-[400px] bg-black/90 backdrop-blur-2xl border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-3xl">
-                        <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-green-500/50 to-transparent"></div>
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-3 text-2xl font-black text-slate-100">
-                                <Tag className="w-6 h-6 text-green-500 drop-shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
-                                Apply Offer: <span className="text-green-400 ml-1">{itemForDirectOffer?.name}</span>
-                            </DialogTitle>
-                            <DialogDescription className="text-slate-400 font-medium text-base">
-                                Set a discount and optional promotion name for this specific item.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-5 py-6">
-                            <div className="space-y-2">
-                                <Label htmlFor="direct-offer-discount" className="text-slate-300 font-medium">Discount Percentage (%)</Label>
-                                <div className="relative">
-                                    <Input
-                                        id="direct-offer-discount"
-                                        type="number"
-                                        value={directOfferDiscount || ''}
-                                        onChange={(e) => {
-                                            const val = Number(e.target.value);
-                                            setDirectOfferDiscount(isNaN(val) ? 0 : val);
-                                        }}
-                                        className="pl-10 h-12 bg-black/40 border-white/10 text-slate-100 placeholder:text-slate-600 focus:border-green-500/50 focus:ring-green-500/50 rounded-xl text-lg font-black"
-                                    />
-                                    <Percent className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500 drop-shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="direct-offer-name" className="text-slate-300 font-medium">Offer Name (Optional)</Label>
-                                <Input
-                                    id="direct-offer-name"
-                                    placeholder="e.g. Daily Deal, Flash Sale"
-                                    value={directOfferName}
-                                    onChange={(e) => setDirectOfferName(e.target.value)}
-                                    className="h-12 bg-black/40 border-white/10 text-slate-100 placeholder:text-slate-600 focus:border-green-500/50 focus:ring-green-500/50 rounded-xl"
-                                />
-                            </div>
-                        </div>
-                        <DialogFooter className="border-t border-white/5 pt-4 mt-2">
-                            <Button variant="outline" onClick={() => setItemForDirectOffer(null)} className="border-white/10 text-slate-300 hover:bg-white/5 hover:text-white glass-card font-bold">Cancel</Button>
-                            <Button
-                                className="bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.2)] font-bold px-6"
-                                onClick={handleApplyIndividualOffer}
-                            >
-                                Apply Discount
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-
-                <Sheet open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                    <SheetContent
-                        side="right"
-                        onOpenAutoFocus={(e) => e.preventDefault()}
-                        className="sm:max-w-6xl w-[95vw] bg-slate-950 border-slate-900 shadow-[20px_0_90px_rgba(0,0,0,0.6)] p-0 overflow-hidden flex flex-col h-full transition-all duration-500 border-l border-white/5"
-                    >
-                        <div className="absolute inset-x-0 -top-px h-1.5 bg-gradient-to-r from-transparent via-amber-500/40 to-transparent z-50"></div>
-
-                        {/* Sheet Header - Fixed */}
-                        <div className="p-8 pb-5 shrink-0 border-b border-slate-900 bg-slate-950/80 backdrop-blur-xl z-20">
-                            <SheetHeader>
-                                <SheetTitle className="flex items-center gap-4 text-3xl font-black text-white">
-                                    {selectionMode ? (
-                                        <>
-                                            <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center border border-amber-500/20">
-                                                <Sparkles className="w-7 h-7 text-amber-600 drop-shadow-[0_0_10px_rgba(251,191,36,0.3)]" />
-                                            </div>
-                                            What would you like to add?
-                                        </>
-                                    ) : (
-                                        <>
-                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${currentItem.item_type === 'deal' ? 'bg-purple-500/10 border-purple-500/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
-                                                {currentItem.item_type === 'deal'
-                                                    ? <Package className="w-7 h-7 text-purple-600" />
-                                                    : <Utensils className="w-7 h-7 text-amber-600" />
-                                                }
-                                            </div>
-                                            <span className="tracking-tight">{isEditing ? 'Edit' : 'Add New'} {currentItem.item_type === 'deal' ? 'Deal' : 'Dish'}</span>
-                                        </>
-                                    )}
-                                </SheetTitle>
-                                <SheetDescription className="text-slate-400 font-bold text-base mt-2 ml-16">
-                                    {selectionMode ? "Choose the type of menu item you want to create." : (
-                                        currentItem.item_type === 'deal'
-                                            ? "Bundle items together to create a value meal."
-                                            : "Configure dish details, pricing, and variants."
-                                    )}
-                                </SheetDescription>
-                            </SheetHeader>
-                        </div>
-
-                        {/* Modal Body - Two Column Side-by-Side Preview */}
-                        <div className="flex-1 overflow-hidden flex flex-col lg:flex-row bg-slate-950">
-                            {/* Left Column: Form Content */}
-                            <div className="flex-1 overflow-y-auto custom-scrollbar px-8 pb-10 touch-pan-y border-r border-white/5">
-                                {selectionMode && (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-10">
-                                        <div
-                                            onClick={() => {
-                                                setCurrentItem(prev => ({ ...prev, item_type: 'single' }));
-                                                setSelectionMode(false);
-                                            }}
-                                            className="flex flex-col items-center justify-center p-10 bg-slate-900 border border-slate-800 rounded-[2.5rem] cursor-pointer hover:border-amber-500/50 hover:shadow-[0_20px_40px_rgba(245,158,11,0.2)] hover:-translate-y-1.5 transition-all group"
-                                        >
-                                            <div className="bg-amber-500/10 border border-amber-500/20 text-amber-500 p-6 rounded-3xl mb-6 group-hover:bg-amber-500 group-hover:text-white transition-all transform group-hover:rotate-6">
-                                                <Utensils className="w-10 h-10" />
-                                            </div>
-                                            <h3 className="text-2xl font-black text-white group-hover:text-amber-500 transition-colors">Add Single Dish</h3>
-                                            <p className="text-slate-400 text-center text-sm mt-3 leading-relaxed font-bold max-w-[200px]">
-                                                Create a standalone menu item with variants and add-ons.
-                                            </p>
-                                        </div>
-
-                                        <div
-                                            onClick={() => {
-                                                setCurrentItem(prev => ({ ...prev, item_type: 'deal' }));
-                                                setSelectionMode(false);
-                                            }}
-                                            className="flex flex-col items-center justify-center p-10 bg-slate-900 border border-slate-800 rounded-[2.5rem] cursor-pointer hover:border-purple-500/50 hover:shadow-[0_20px_40px_rgba(168,85,247,0.2)] hover:-translate-y-1.5 transition-all group"
-                                        >
-                                            <div className="bg-purple-500/10 border border-purple-500/20 text-purple-400 p-6 rounded-3xl mb-6 group-hover:bg-purple-500 group-hover:text-white transition-all transform group-hover:-rotate-6">
+                            {/* Tab 2: Deals */}
+                                <TabsContent value="deals">
+                                    {filteredItems.filter(i => i.item_type === 'deal').length === 0 ? (
+                                        <div className="text-center py-24 order-glass-card border-dashed border-white/20 rounded-3xl animate-in fade-in zoom-in-95 duration-500 mt-4">
+                                            <div className="order-glass-panel p-5 rounded-3xl inline-flex mb-6 text-purple-400 shadow-[0_0_30px_rgba(168,85,247,0.2)]">
                                                 <Package className="w-10 h-10" />
                                             </div>
-                                            <h3 className="text-2xl font-black text-white group-hover:text-purple-400 transition-colors">Create Deal Bundle</h3>
-                                            <p className="text-slate-400 text-center text-sm mt-3 leading-relaxed font-bold max-w-[200px]">
-                                                Combine multiple items into a discounted value meal.
+                                            <h3 className="text-2xl font-black text-slate-100 mb-3 drop-shadow-md">No active deals</h3>
+                                            <p className="text-slate-400 mb-8 max-w-md mx-auto text-lg leading-relaxed">
+                                                Create attractive bundles (e.g. Burger + Fries + Drink) to boost your average order value.
                                             </p>
+                                            <Button onClick={openAddDealModal} className="bg-purple-600 hover:bg-purple-500 text-white px-6 h-12 rounded-xl font-bold gap-2 shadow-[0_0_20px_rgba(168,85,247,0.3)] hover:shadow-[0_0_30px_rgba(168,85,247,0.5)] transition-all">
+                                                <Plus className="w-5 h-5" /> Create First Deal
+                                            </Button>
                                         </div>
-                                    </div>
-                                )}
-
-                                {!selectionMode && (
-                                    <div className="sticky top-0 z-[30] bg-slate-950/80 backdrop-blur-md border-b border-white/5 mx-[-2rem] px-8 py-4 mb-6 flex items-center justify-between">
-                                        <div className="flex gap-6">
-                                            {[
-                                                { id: 'section-basic', label: 'Pricing', icon: LayoutList },
-                                                { id: 'section-media', label: 'Media', icon: ImageIcon },
-                                                { id: 'section-inventory', label: 'Stock', icon: Box },
-                                                { id: 'section-variants', label: 'Variants', icon: Sparkles }
-                                            ].map((tab) => (
-                                                <button
-                                                    key={tab.id}
-                                                    onClick={() => document.getElementById(tab.id)?.scrollIntoView({ behavior: 'smooth' })}
-                                                    className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-amber-500 transition-colors group"
-                                                >
-                                                    <tab.icon className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
-                                                    {tab.label}
-                                                </button>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pt-4 perspective-[2000px] animate-in slide-in-from-bottom-8 duration-500">
+                                            {filteredItems.filter(i => i.item_type === 'deal').map(item => (
+                                                <MenuItemCard
+                                                    key={item.id}
+                                                    item={item}
+                                                    onEdit={openEditModal}
+                                                    onToggleAvailability={toggleAvailability}
+                                                    allMenuItems={items}
+                                                    isSelectionMode={isSelectionMode}
+                                                    isSelected={selectedItems.includes(item.id)}
+                                                    onSelect={toggleItemSelection}
+                                                    onClearOffer={handleClearOffer}
+                                                    formatPrice={formatPriceDisplay}
+                                                    onDelete={(id) => {
+                                                        setItemToDelete(id);
+                                                        setIsDeleteConfirmOpen(true);
+                                                    }}
+                                                    onApplyOffer={(it) => {
+                                                        setItemForDirectOffer(it);
+                                                        setDirectOfferDiscount(it.discount_percentage || 10);
+                                                        setDirectOfferName(it.offer_name || "");
+                                                    }}
+                                                />
                                             ))}
                                         </div>
-                                        <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 font-black text-[9px] px-3 py-1 rounded-full uppercase tracking-widest">
-                                            LIVE SYNC ON
-                                        </Badge>
-                                    </div>
-                                )}
+                                    )}
+                                </TabsContent>
 
-                                {!selectionMode && (
-                                    <div className="space-y-12 py-10">
-                                        {/* 1. Basic Details & Pricing Section */}
-                                        <div id="section-basic" className="space-y-8 scroll-mt-20">
-                                            <div className="flex items-center gap-4 mb-2">
-                                                <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center border border-amber-500/20">
-                                                    <LayoutList className="w-5 h-5 text-amber-500" />
+                                {/* Tab 3: AI Import */}
+                                <TabsContent value="ai" className="focus-visible:ring-0">
+                                    {!scannedItems.length ? (
+                                        <div className="space-y-6 pt-4 animate-in fade-in slide-in-from-bottom-8 duration-500">
+                                            <div className="order-glass-card rounded-3xl border border-blue-500/20 p-8 md:p-12 text-center relative overflow-hidden group">
+                                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-blue-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                                                <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent"></div>
+                                                <div className="order-glass-panel p-5 rounded-3xl inline-flex mb-6 shadow-[0_0_30px_rgba(59,130,246,0.2)] relative z-10 transition-transform duration-500 group-hover:scale-110">
+                                                    <Sparkles className="w-10 h-10 text-blue-400" />
                                                 </div>
-                                                <h4 className="text-xl font-black text-white uppercase tracking-tight">Basic Details & Pricing</h4>
+                                                <h3 className="text-3xl font-black text-slate-100 mb-4 drop-shadow-md relative z-10">AI Menu Scanner</h3>
+                                                <p className="text-slate-400 mb-8 max-w-lg mx-auto text-lg leading-relaxed relative z-10">
+                                                    Upload a photo of your paper menu and let our AI digitize it instantly.
+                                                    We'll extract item names, prices, and categories for you.
+                                                </p>
+
+                                                <div className="max-w-2xl mx-auto relative z-10">
+                                                    {scanPreview ? (
+                                                        <div className="relative rounded-3xl overflow-hidden border border-blue-500/50 shadow-[0_0_30px_rgba(59,130,246,0.2)] mb-8 glass-card">
+                                                            <img src={scanPreview} alt="Scan Preview" className="w-full h-auto max-h-96 object-contain bg-black/50 backdrop-blur-sm" />
+                                                            <button
+                                                                onClick={() => { setScanFile(null); setScanPreview(null); }}
+                                                                className="absolute top-4 right-4 bg-red-500/20 hover:bg-red-500/40 text-red-400 backdrop-blur-md p-3 rounded-full transition-colors shadow-lg border border-red-500/30"
+                                                            >
+                                                                <X className="w-5 h-5" />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <label className="flex flex-col items-center justify-center w-full h-72 border-2 border-dashed border-white/20 rounded-3xl cursor-pointer hover:border-blue-500/50 hover:bg-blue-500/5 transition-all group order-glass-panel relative overflow-hidden mb-8">
+                                                            <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                                            <div className="flex flex-col items-center justify-center pt-5 pb-6 relative z-10 transition-transform duration-500 group-hover:-translate-y-2">
+                                                                <div className="w-20 h-20 rounded-2xl order-glass-panel flex items-center justify-center mb-6 group-hover:shadow-[0_0_30px_rgba(59,130,246,0.3)] transition-all">
+                                                                    <UploadCloud className="w-10 h-10 text-slate-400 group-hover:text-blue-400 transition-colors" />
+                                                                </div>
+                                                                <p className="text-xl font-bold text-slate-200 mb-2 group-hover:text-blue-300 transition-colors">Click to upload menu image</p>
+                                                                <p className="text-sm font-medium text-slate-500 uppercase tracking-widest">PNG, JPG or WEBP (Max 10MB)</p>
+                                                            </div>
+                                                            <input
+                                                                type="file"
+                                                                className="hidden"
+                                                                accept="image/*"
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0];
+                                                                    if (file) {
+                                                                        setScanFile(file);
+                                                                        const reader = new FileReader();
+                                                                        reader.onloadend = () => setScanPreview(reader.result as string);
+                                                                        reader.readAsDataURL(file);
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </label>
+                                                    )}
+
+                                                    <Button
+                                                        onClick={handleScan}
+                                                        disabled={!scanFile || isScanning}
+                                                        className="w-full h-14 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)] gap-3 text-lg transform transition-all hover:-translate-y-0.5 relative overflow-hidden group disabled:opacity-50 disabled:hover:translate-y-0"
+                                                    >
+                                                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                                        <span className="relative z-10 flex items-center justify-center w-full">
+                                                            {isScanning ? (
+                                                                <div className="flex items-center">
+                                                                    <Loader2 className="mr-3 h-6 w-6 animate-spin text-white" />
+                                                                    {scanStatus || "AI is Analyzing..."}
+                                                                </div>
+                                                            ) : (
+                                                                <>
+                                                                    <Sparkles className="w-6 h-6 mr-2" />
+                                                                    Start Smart Scan
+                                                                </>
+                                                            )}
+                                                        </span>
+                                                    </Button>
+                                                </div>
                                             </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                                <div className="space-y-3 relative group">
-                                                    <Label htmlFor="name" className="text-slate-400 font-bold text-sm tracking-wide ml-1">{currentItem.item_type === 'deal' ? 'Deal Name' : 'Dish Name'}</Label>
-                                                    <Input
-                                                        id="name"
-                                                        name="dish-name"
-                                                        value={currentItem.name}
-                                                        onChange={(e) => setCurrentItem(prev => ({ ...prev, name: e.target.value }))}
-                                                        onBlur={async (e) => {
-                                                            const val = e.target.value.trim();
-                                                            if (val && !currentItem.image_url) {
-                                                                const matchedUrl = await findBestPresetImage(val, currentItem.category || currentItem.cuisine || "");
-                                                                if (matchedUrl) {
-                                                                    setCurrentItem(prev => ({ ...prev, image_url: matchedUrl }));
-                                                                    toast.success(`Auto-assigned matching image for "${val}"`);
-                                                                }
-                                                            }
-                                                        }}
-                                                        placeholder={currentItem.item_type === 'deal' ? "e.g. Zinger Combo" : "e.g. Zinger Burger"}
-                                                        className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-2xl h-14 px-5 text-lg font-semibold shadow-sm transition-all group-hover:border-slate-600"
-                                                        autoComplete="off"
-                                                    />
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                <div className="order-glass-card rounded-2xl p-6 border border-white/5 hover:border-green-500/30 transition-colors group">
+                                                    <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                                        <Zap className="w-6 h-6 text-green-400" />
+                                                    </div>
+                                                    <h4 className="font-bold text-slate-100 text-lg mb-2">Instant Digitization</h4>
+                                                    <p className="text-sm text-slate-400 leading-relaxed">Convert hours of manual entry into seconds. Our AI accurately interprets varied formats.</p>
                                                 </div>
+                                                <div className="order-glass-card rounded-2xl p-6 border border-white/5 hover:border-purple-500/30 transition-colors group">
+                                                    <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                                        <Percent className="w-6 h-6 text-purple-400" />
+                                                    </div>
+                                                    <h4 className="font-bold text-slate-100 text-lg mb-2">Precise Prices</h4>
+                                                    <p className="text-sm text-slate-400 leading-relaxed">Accurately extracts currency, numerics, and distinguishes sizes seamlessly.</p>
+                                                </div>
+                                                <div className="order-glass-card rounded-2xl p-6 border border-white/5 hover:border-amber-500/30 transition-colors group">
+                                                    <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                                        <CheckSquare className="w-6 h-6 text-amber-400" />
+                                                    </div>
+                                                    <h4 className="font-bold text-slate-100 text-lg mb-2">Smart Categorization</h4>
+                                                    <p className="text-sm text-slate-400 leading-relaxed">AI automatically groups items by cuisine and category, arranging your menu intelligently.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-6 animate-in slide-in-from-bottom-8 opacity-100 duration-500 pt-4 cursor-default">
+                                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 order-glass-panel p-6 rounded-3xl">
+                                                <div>
+                                                    <h3 className="text-2xl font-black text-slate-100 drop-shadow-md">Scan Results</h3>
+                                                    <p className="text-amber-500/80 font-medium">Review your digitally extracted menu structure before importing.</p>
+                                                </div>
+                                                <div className="flex gap-3 w-full md:w-auto">
+                                                    <Button
+                                                        variant="outline"
+                                                        onClick={() => { setScannedItems([]); setScanFile(null); setScanPreview(null); }}
+                                                        className="border-white/10 text-slate-300 hover:bg-white/5 hover:text-white flex-1 md:flex-none glass-card"
+                                                    >
+                                                        Discard
+                                                    </Button>
+                                                    <Button
+                                                        onClick={handleImportScannedItems}
+                                                        disabled={isImporting}
+                                                        className="bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 font-bold gap-2 px-6 disabled:opacity-50 flex-1 md:flex-none shadow-[0_0_15px_rgba(34,197,94,0.2)]"
+                                                    >
+                                                        {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                                        {isImporting ? 'Importing...' : 'Import Full Menu'}
+                                                    </Button>
+                                                </div>
+                                            </div>
 
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div className="space-y-3 relative group text-blue-400">
-                                                        <Label htmlFor="price" className="text-slate-400 font-bold text-sm tracking-wide ml-1">
-                                                            Base Price (Rs)
-                                                        </Label>
+                                            <div className="space-y-8">
+                                                {scannedItems.map((mainCat, mainIdx) => (
+                                                    <div key={mainIdx} className="order-glass-card rounded-3xl border border-white/10 shadow-xl overflow-hidden group">
+                                                        <div className="order-glass-panel px-6 py-5 flex items-center justify-between border-b border-white/5 relative overflow-hidden">
+                                                            <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 to-transparent"></div>
+                                                            <div className="relative z-10">
+                                                                <h4 className="text-xl font-black text-slate-100 group-hover:text-amber-400 transition-colors">{mainCat.main_category}</h4>
+                                                                <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-1">Cuisine: <span className="text-amber-500/70">{mainCat.cuisine_type || 'N/A'}</span></p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="p-6 md:p-8 space-y-10 bg-black/20">
+                                                            {mainCat.sub_categories?.map((subCat, subIdx) => (
+                                                                <div key={subIdx} className="space-y-6">
+                                                                    <div className="flex items-center gap-4">
+                                                                        <h5 className="font-bold text-slate-200 text-lg uppercase tracking-wider">{subCat.name}</h5>
+                                                                        <div className="h-px bg-gradient-to-r from-white/10 to-transparent flex-1"></div>
+                                                                    </div>
+
+                                                                    <div className="grid gap-4">
+                                                                        {subCat.items?.map((item, itemIdx) => (
+                                                                            <div key={itemIdx} className="flex flex-col md:flex-row gap-4 p-5 rounded-3xl border border-white/5 bg-white/5 hover:bg-white/10 transition-colors group/item">
+                                                                                <div className="relative w-20 h-20 rounded-2xl overflow-hidden bg-black/50 border border-white/10 shadow-[0_0_15px_rgba(0,0,0,0.5)] flex-shrink-0 cursor-pointer"
+                                                                                    onClick={() => {
+                                                                                        setScannedItemImageUpdateIndex({ mainIdx, subIdx, itemIdx });
+                                                                                        scannedImageInputRef.current?.click();
+                                                                                    }}
+                                                                                >
+                                                                                    <DynamicFoodImage
+                                                                                        name={item.item_name}
+                                                                                        category={subCat.name}
+                                                                                        cuisine={mainCat.cuisine_type}
+                                                                                        manualImage={item.manualImage}
+                                                                                        className="w-full h-full object-cover"
+                                                                                    />
+                                                                                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-opacity backdrop-blur-sm">
+                                                                                        <UploadCloud className="w-6 h-6 text-white" />
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                <div className="flex-1 space-y-3 shrink min-w-0">
+                                                                                    <div className="flex items-start justify-between gap-4">
+                                                                                        <div className="space-y-2 flex-1 shrink min-w-0">
+                                                                                            <Input
+                                                                                                value={item.item_name}
+                                                                                                name="item_name"
+                                                                                                onChange={(e) => {
+                                                                                                    const next = [...scannedItems];
+                                                                                                    next[mainIdx].sub_categories[subIdx].items[itemIdx].item_name = e.target.value;
+                                                                                                    setScannedItems(next);
+                                                                                                }}
+                                                                                                className="h-10 font-bold text-slate-100 border-white/5 bg-black/20 hover:bg-black/40 focus:bg-black/60 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 w-full transition-colors rounded-xl truncate"
+                                                                                            />
+                                                                                            <Input
+                                                                                                value={item.description || ''}
+                                                                                                name="item_description"
+                                                                                                placeholder="Description..."
+                                                                                                onChange={(e) => {
+                                                                                                    const next = [...scannedItems];
+                                                                                                    next[mainIdx].sub_categories[subIdx].items[itemIdx].description = e.target.value;
+                                                                                                    setScannedItems(next);
+                                                                                                }}
+                                                                                                className="h-8 text-sm text-slate-400 border-transparent bg-transparent hover:bg-white/5 focus:bg-white/5 focus:border-white/10 w-full rounded-lg transition-colors truncate"
+                                                                                            />
+                                                                                        </div>
+
+                                                                                        <div className="flex gap-2 shrink-0">
+                                                                                            <Button
+                                                                                                variant="ghost"
+                                                                                                size="icon"
+                                                                                                className="h-10 w-10 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
+                                                                                                onClick={() => {
+                                                                                                    const next = [...scannedItems];
+                                                                                                    next[mainIdx].sub_categories[subIdx].items.splice(itemIdx, 1);
+                                                                                                    setScannedItems(next);
+                                                                                                }}
+                                                                                            >
+                                                                                                <Trash2 className="w-5 h-5" />
+                                                                                            </Button>
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    {/* Variants */}
+                                                                                    <div className="flex flex-wrap gap-3 pt-3 border-t border-white/5 mt-3">
+                                                                                        {item.variants?.map((v, vIdx) => (
+                                                                                            <div key={vIdx} className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-xl p-1.5 pr-3 shadow-inner">
+                                                                                                <Input
+                                                                                                    value={v.size_or_type}
+                                                                                                    name="variant_size"
+                                                                                                    onChange={(e) => {
+                                                                                                        const next = [...scannedItems];
+                                                                                                        next[mainIdx].sub_categories[subIdx].items[itemIdx].variants[vIdx].size_or_type = e.target.value;
+                                                                                                        setScannedItems(next);
+                                                                                                    }}
+                                                                                                    className="h-8 w-24 text-xs font-bold border-transparent bg-white/5 hover:bg-white/10 focus:bg-white/10 text-slate-300 rounded-lg text-center"
+                                                                                                />
+                                                                                                <span className="text-xs font-bold text-amber-500/70">{restaurantInfo?.currency?.symbol || 'Rs.'}</span>
+                                                                                                <Input
+                                                                                                    type="number"
+                                                                                                    value={v.price}
+                                                                                                    name="variant_price"
+                                                                                                    onChange={(e) => {
+                                                                                                        const next = [...scannedItems];
+                                                                                                        next[mainIdx].sub_categories[subIdx].items[itemIdx].variants[vIdx].price = Number(e.target.value);
+                                                                                                        setScannedItems(next);
+                                                                                                    }}
+                                                                                                    className="h-8 w-20 text-sm font-black text-slate-100 border-transparent bg-white/5 hover:bg-white/10 focus:bg-white/10 rounded-lg text-center remove-arrow"
+                                                                                                />
+                                                                                            </div>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ))}
+
+                                                <input
+                                                    type="file"
+                                                    ref={scannedImageInputRef}
+                                                    className="hidden"
+                                                    accept="image/*"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file && scannedItemImageUpdateIndex !== null) {
+                                                            const { mainIdx, subIdx, itemIdx } = scannedItemImageUpdateIndex;
+                                                            const next = [...scannedItems];
+                                                            next[mainIdx].sub_categories[subIdx].items[itemIdx].manualImage = file;
+                                                            setScannedItems(next);
+                                                            toast.success(`Image added!`);
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </TabsContent>
+                        </Tabs>
+                    </div>
+                </div>
+            </div>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+                <AlertDialogContent className="sm:max-w-[420px] bg-black/90 backdrop-blur-2xl border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.7)] rounded-3xl overflow-hidden p-0 gap-0">
+                    <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-red-500/50 to-transparent"></div>
+                    <div className="bg-gradient-to-br from-red-500/10 to-black p-8 flex flex-col items-center text-center">
+                        <div className="relative mb-6">
+                            <div className="absolute inset-0 bg-red-500 blur-2xl opacity-30 animate-pulse"></div>
+                            <div className="relative w-20 h-20 bg-gradient-to-br from-red-500/20 to-red-600/20 border border-red-500/30 rounded-3xl flex items-center justify-center shadow-[0_0_30px_rgba(244,63,94,0.3)] transform hover:rotate-6 transition-transform duration-300">
+                                <Trash2 className="w-10 h-10 text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
+                            </div>
+                        </div>
+
+                        <AlertDialogHeader className="space-y-3">
+                            <AlertDialogTitle className="text-2xl font-black text-white tracking-tight">
+                                Confirm Deletion
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="text-slate-400 font-medium leading-relaxed">
+                                Are you sure you want to remove this dish? This action is permanent and cannot be undone.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                    </div>
+
+                    <div className="px-8 py-6 bg-white/5 border-t border-white/10 flex flex-col sm:flex-row gap-3">
+                        <AlertDialogCancel className="flex-1 h-12 rounded-2xl border-white/10 text-slate-300 font-bold hover:bg-white/10 hover:text-white transition-all duration-200 border glass-card">
+                            Keep Dish
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={(e) => {
+                                e.preventDefault();
+                                handleDelete();
+                            }}
+                            className="flex-1 h-12 rounded-2xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 font-bold shadow-[0_0_15px_rgba(239,68,68,0.2)] active:scale-[0.98] transition-all duration-200"
+                        >
+                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Yes, Delete"}
+                        </AlertDialogAction>
+                    </div>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Bulk Delete Confirmation Dialog */}
+            <AlertDialog open={isBulkDeleteConfirmOpen} onOpenChange={setIsBulkDeleteConfirmOpen}>
+                <AlertDialogContent className="sm:max-w-[420px] bg-black/90 backdrop-blur-2xl border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.7)] rounded-3xl overflow-hidden p-0 gap-0">
+                    <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-red-500/50 to-transparent"></div>
+                    <div className="bg-gradient-to-br from-red-500/10 to-black p-8 flex flex-col items-center text-center">
+                        <div className="relative mb-6">
+                            <div className="absolute inset-0 bg-red-500 blur-2xl opacity-30 animate-pulse"></div>
+                            <div className="relative w-20 h-20 bg-gradient-to-br from-red-500/20 to-red-600/20 border border-red-500/30 rounded-3xl flex items-center justify-center shadow-[0_0_30px_rgba(244,63,94,0.3)] transform hover:rotate-6 transition-transform duration-300">
+                                <Trash2 className="w-10 h-10 text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
+                            </div>
+                        </div>
+
+                        <AlertDialogHeader className="space-y-3">
+                            <AlertDialogTitle className="text-2xl font-black text-white tracking-tight">
+                                Bulk Delete Items
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="text-slate-400 font-medium leading-relaxed">
+                                Are you sure you want to delete {selectedItems.length} selected item(s)? This action is permanent and cannot be undone.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                    </div>
+
+                    <div className="px-8 py-6 bg-white/5 border-t border-white/10 flex flex-col sm:flex-row gap-3">
+                        <AlertDialogCancel className="flex-1 h-12 rounded-2xl border-white/10 text-slate-300 font-bold hover:bg-white/10 hover:text-white transition-all duration-200 border glass-card">
+                            Keep Items
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={(e) => {
+                                e.preventDefault();
+                                confirmBulkDelete();
+                            }}
+                            className="flex-1 h-12 rounded-2xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 font-bold shadow-[0_0_15px_rgba(239,68,68,0.2)] active:scale-[0.98] transition-all duration-200"
+                        >
+                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Yes, Delete All"}
+                        </AlertDialogAction>
+                    </div>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Individual Item Offer Dialog */}
+            <Dialog open={!!itemForDirectOffer} onOpenChange={(open) => !open && setItemForDirectOffer(null)}>
+                <DialogContent className="sm:max-w-[400px] bg-black/90 backdrop-blur-2xl border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-3xl">
+                    <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-green-500/50 to-transparent"></div>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-3 text-2xl font-black text-slate-100">
+                            <Tag className="w-6 h-6 text-green-500 drop-shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
+                            Apply Offer: <span className="text-green-400 ml-1">{itemForDirectOffer?.name}</span>
+                        </DialogTitle>
+                        <DialogDescription className="text-slate-400 font-medium text-base">
+                            Set a discount and optional promotion name for this specific item.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-5 py-6">
+                        <div className="space-y-2">
+                            <Label htmlFor="direct-offer-discount" className="text-slate-300 font-medium">Discount Percentage (%)</Label>
+                            <div className="relative">
+                                <Input
+                                    id="direct-offer-discount"
+                                    type="number"
+                                    value={directOfferDiscount || ''}
+                                    onChange={(e) => {
+                                        const val = Number(e.target.value);
+                                        setDirectOfferDiscount(isNaN(val) ? 0 : val);
+                                    }}
+                                    className="pl-10 h-12 bg-black/40 border-white/10 text-slate-100 placeholder:text-slate-600 focus:border-green-500/50 focus:ring-green-500/50 rounded-xl text-lg font-black"
+                                />
+                                <Percent className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500 drop-shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="direct-offer-name" className="text-slate-300 font-medium">Offer Name (Optional)</Label>
+                            <Input
+                                id="direct-offer-name"
+                                placeholder="e.g. Daily Deal, Flash Sale"
+                                value={directOfferName}
+                                onChange={(e) => setDirectOfferName(e.target.value)}
+                                className="h-12 bg-black/40 border-white/10 text-slate-100 placeholder:text-slate-600 focus:border-green-500/50 focus:ring-green-500/50 rounded-xl"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter className="border-t border-white/5 pt-4 mt-2">
+                        <Button variant="outline" onClick={() => setItemForDirectOffer(null)} className="border-white/10 text-slate-300 hover:bg-white/5 hover:text-white glass-card font-bold">Cancel</Button>
+                        <Button
+                            className="bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.2)] font-bold px-6"
+                            onClick={handleApplyIndividualOffer}
+                        >
+                            Apply Discount
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                    onPointerDownOutside={(e) => e.preventDefault()}
+                    onEscapeKeyDown={(e) => e.preventDefault()}
+                    className="sm:max-w-2xl w-[95vw] h-[90vh] max-h-[850px] bg-[#0b1224] border border-slate-800/60 shadow-[0_0_100px_rgba(0,0,0,0.8)] p-0 overflow-hidden !flex !flex-col rounded-[2.5rem] transition-all duration-500"
+                >
+                    <div className="absolute inset-x-0 -top-px h-1.5 bg-gradient-to-r from-transparent via-amber-500/40 to-transparent z-50"></div>
+
+                    {/* Dialog Header - Fixed */}
+                    <div className="shrink-0 z-20">
+                        <DialogHeader className="space-y-1 relative z-10 px-8 pt-8 pb-6 bg-[#0b1224]/50 backdrop-blur-3xl rounded-t-[2.5rem] border-b border-slate-800/60">
+                            <div className="flex items-center gap-6">
+                                {selectionMode ? (
+                                    <div className="w-16 h-16 rounded-[1.75rem] bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20 transform rotate-3 scale-105 transition-all duration-500">
+                                        <Sparkles className="w-8 h-8 text-white" />
+                                    </div>
+                                ) : (
+                                    <div className={`w-16 h-16 rounded-[1.75rem] flex items-center justify-center shadow-lg transform -rotate-2 hover:rotate-0 transition-all duration-500 border ${currentItem.item_type === 'deal' ? 'bg-purple-600 border-purple-400/50 shadow-purple-500/20' : 'bg-amber-500 border-amber-400/50 shadow-amber-500/20'}`}>
+                                        {currentItem.item_type === 'deal' ? <Package className="w-8 h-8 text-white" /> : <Utensils className="w-8 h-8 text-white" />}
+                                    </div>
+                                )}
+                                <div className="flex-1">
+                                    <DialogTitle className="text-3xl font-black text-white tracking-tight flex items-center justify-between">
+                                        <span>{selectionMode ? "What would you like to add?" : `${isEditing ? 'Edit' : 'Add New'} ${currentItem.item_type === 'deal' ? 'Deal' : 'Dish'}`}</span>
+                                        <div className="flex items-center gap-3">
+                                            {saveStatus === 'saving' && (
+                                                <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-4 py-2 rounded-2xl text-amber-500 text-[10px] font-black animate-pulse shadow-sm">
+                                                    <Loader2 className="w-3 h-3 animate-spin" /> SYNCING...
+                                                </div>
+                                            )}
+                                            {saveStatus === 'saved' && (
+                                                <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 px-4 py-2 rounded-2xl text-green-500 text-[10px] font-black shadow-sm">
+                                                    <Cloud className="w-3 h-3" /> SYNCED
+                                                </div>
+                                            )}
+                                            <button
+                                                onClick={() => setIsDialogOpen(false)}
+                                                className="w-10 h-10 rounded-xl bg-slate-900/80 border border-slate-700/60 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-xl"
+                                            >
+                                                <X className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    </DialogTitle>
+                                    <DialogDescription className="text-slate-400 font-bold text-base mt-1.5 flex items-center">
+                                        {selectionMode ? "Choose the type of menu item you want to create." : (
+                                            currentItem.item_type === 'deal'
+                                                ? "Bundle items together to create a value meal."
+                                                : "Configure dish details, pricing, and variants."
+                                        )}
+                                    </DialogDescription>
+                                </div>
+                            </div>
+                        </DialogHeader>
+                    </div>
+
+                    {/* Modal Body - Scrollable */}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#0b1224] px-6 py-8 space-y-8 overscroll-contain touch-pan-y">
+                        {selectionMode && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-10">
+                                <div
+                                    onClick={() => {
+                                        setCurrentItem(prev => ({ ...prev, item_type: 'single' }));
+                                        setSelectionMode(false);
+                                    }}
+                                    className="flex flex-col items-center justify-center p-10 bg-slate-900/50 border border-slate-800 rounded-[2.5rem] cursor-pointer hover:border-amber-500/50 hover:shadow-[0_20px_40px_rgba(245,158,11,0.2)] hover:-translate-y-1.5 transition-all group"
+                                >
+                                    <div className="bg-amber-500/10 border border-amber-500/20 text-amber-500 p-6 rounded-3xl mb-6 group-hover:bg-amber-500 group-hover:text-white transition-all transform group-hover:rotate-6">
+                                        <Utensils className="w-10 h-10" />
+                                    </div>
+                                    <h3 className="text-2xl font-black text-white group-hover:text-amber-500 transition-colors">Add Single Dish</h3>
+                                    <p className="text-slate-400 text-center text-sm mt-3 leading-relaxed font-bold max-w-[200px]">
+                                        Create a standalone menu item with variants and add-ons.
+                                    </p>
+                                </div>
+
+                                <div
+                                    onClick={() => {
+                                        setCurrentItem(prev => ({ ...prev, item_type: 'deal' }));
+                                        setSelectionMode(false);
+                                    }}
+                                    className="flex flex-col items-center justify-center p-10 bg-slate-900/50 border border-slate-800 rounded-[2.5rem] cursor-pointer hover:border-purple-500/50 hover:shadow-[0_20px_40px_rgba(168,85,247,0.2)] hover:-translate-y-1.5 transition-all group"
+                                >
+                                    <div className="bg-purple-500/10 border border-purple-500/20 text-purple-400 p-6 rounded-3xl mb-6 group-hover:bg-purple-500 group-hover:text-white transition-all transform group-hover:-rotate-6">
+                                        <Package className="w-10 h-10" />
+                                    </div>
+                                    <h3 className="text-2xl font-black text-white group-hover:text-purple-400 transition-colors">Create Deal Bundle</h3>
+                                    <p className="text-slate-400 text-center text-sm mt-3 leading-relaxed font-bold max-w-[200px]">
+                                        Combine multiple items into a discounted value meal.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {!selectionMode && (
+                            <>
+                                {/* 1. Basic Details & Pricing */}
+                                <div className="bg-slate-900/40 rounded-[2.5rem] border border-slate-800/60 shadow-xl overflow-hidden group/section hover:border-amber-500/20 transition-all duration-300">
+                                    <div className="flex items-center gap-3 px-8 py-5 bg-slate-900/80 border-b border-slate-800/60">
+                                        <div className="w-8 h-8 bg-amber-500/10 rounded-xl flex items-center justify-center border border-amber-500/20">
+                                            <LayoutList className="w-4 h-4 text-amber-500" />
+                                        </div>
+                                        <h4 className="text-sm font-black text-white uppercase tracking-widest select-none">Basic Details &amp; Pricing</h4>
+                                    </div>
+                                    <div className="p-8 space-y-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="space-y-2 relative group">
+                                                <Label htmlFor="name" className="text-slate-400 font-bold text-sm tracking-wide ml-1">{currentItem.item_type === 'deal' ? 'Deal Name' : 'Dish Name'}</Label>
+                                                <Input
+                                                    id="name"
+                                                    value={currentItem.name}
+                                                    onChange={(e) => setCurrentItem(prev => ({ ...prev, name: e.target.value }))}
+                                                    onBlur={async (e) => {
+                                                        const val = e.target.value.trim();
+                                                        if (val && !currentItem.image_url) {
+                                                            const matchedUrl = await findBestPresetImage(val, currentItem.category || currentItem.cuisine || "");
+                                                            if (matchedUrl) {
+                                                                setCurrentItem(prev => ({ ...prev, image_url: matchedUrl }));
+                                                                toast.success(`Auto-assigned matching image for "${val}"`);
+                                                            }
+                                                        }
+                                                    }}
+                                                    placeholder={currentItem.item_type === 'deal' ? "e.g. Zinger Combo" : "e.g. Zinger Burger"}
+                                                    className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-700 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-2xl h-14 px-6 text-lg font-bold transition-all shadow-inner"
+                                                    autoComplete="off"
+                                                />
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-2 group">
+                                                    <Label htmlFor="price" className="text-slate-400 font-bold text-sm tracking-wide ml-1">Base Price</Label>
+                                                    <div className="relative">
                                                         <Input
                                                             id="price"
                                                             type="number"
@@ -2744,653 +2928,544 @@ const MenuManager = () => {
                                                                 const val = parseFloat(e.target.value);
                                                                 setCurrentItem(prev => ({ ...prev, price: isNaN(val) ? 0 : val }));
                                                             }}
-                                                            placeholder="0"
-                                                            className="bg-slate-800 border-slate-700 text-amber-500 placeholder:text-slate-500 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-2xl h-14 px-5 text-xl font-black shadow-sm transition-all group-hover:border-slate-600 remove-arrow"
+                                                            className="bg-slate-950 border-slate-800 text-amber-500 placeholder:text-slate-700 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-2xl h-14 px-6 text-xl font-black transition-all shadow-inner remove-arrow"
                                                         />
                                                     </div>
-                                                    <div className="space-y-3 relative group">
-                                                        <Label htmlFor="item-discount" className="text-slate-400 font-bold text-sm tracking-wide ml-1">Discount (%)</Label>
-                                                        <div className="relative">
-                                                            <Input
-                                                                id="item-discount"
-                                                                type="number"
-                                                                value={currentItem.discount_percentage || ''}
-                                                                onChange={(e) => {
-                                                                    const pct = parseFloat(e.target.value);
-                                                                    setCurrentItem(prev => ({ ...prev, discount_percentage: isNaN(pct) ? null : pct }));
-                                                                }}
-                                                                placeholder="0"
-                                                                className="pl-12 bg-slate-800 border-slate-700 text-green-500 placeholder:text-slate-500 focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 rounded-2xl h-14 text-xl font-black shadow-sm transition-all group-hover:border-slate-600 remove-arrow"
-                                                            />
-                                                            <Percent className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500/50" />
-                                                        </div>
+                                                </div>
+                                                <div className="space-y-2 group">
+                                                    <Label htmlFor="item-discount" className="text-slate-400 font-bold text-sm tracking-wide ml-1">Discount %</Label>
+                                                    <div className="relative">
+                                                        <Input
+                                                            id="item-discount"
+                                                            type="number"
+                                                            value={currentItem.discount_percentage || ''}
+                                                            onChange={(e) => {
+                                                                const pct = parseFloat(e.target.value);
+                                                                setCurrentItem(prev => ({ ...prev, discount_percentage: isNaN(pct) ? null : pct }));
+                                                            }}
+                                                            className="pl-14 bg-slate-950 border-slate-800 text-green-500 placeholder:text-slate-700 focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 rounded-2xl h-14 text-xl font-black transition-all shadow-inner remove-arrow"
+                                                        />
+                                                        <Percent className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500/50" />
                                                     </div>
                                                 </div>
                                             </div>
+                                        </div>
 
-                                            {/* Final Price Preview Nudge */}
-                                            {currentItem.price && currentItem.price > 0 && (
-                                                <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 flex items-center justify-between group/nudge hover:border-amber-500/30 transition-all duration-300 shadow-inner">
-                                                    <div className="flex items-center gap-5">
-                                                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/5 flex items-center justify-center border border-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.1)]">
-                                                            <Zap className="w-7 h-7 text-amber-500 animate-pulse" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Live Sale Price</p>
-                                                            <p className="text-3xl font-black text-white tracking-tight">
-                                                                {formatPriceDisplay(finalPrice)}
-                                                                <span className="text-sm font-bold text-slate-500 ml-3 line-through opacity-50">{formatPriceDisplay(currentItem.price)}</span>
-                                                            </p>
-                                                        </div>
+                                        {currentItem.price && currentItem.price > 0 && (
+                                            <div className="p-6 rounded-3xl bg-slate-950/50 border border-slate-800/80 flex items-center justify-between group/nudge hover:border-amber-500/20 transition-all duration-300">
+                                                <div className="flex items-center gap-5">
+                                                    <div className="w-14 h-14 rounded-2xl bg-amber-500/5 flex items-center justify-center border border-amber-500/10 shadow-inner">
+                                                        <Zap className="w-7 h-7 text-amber-500" />
                                                     </div>
-                                                    {currentItem.discount_percentage && currentItem.discount_percentage > 0 && (
-                                                        <Badge className="bg-green-500/10 text-green-400 border-green-500/20 px-4 py-2 rounded-xl font-black text-sm">
-                                                            SAVE {currentItem.discount_percentage}%
-                                                        </Badge>
-                                                    )}
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Live Sale Price</p>
+                                                        <p className="text-3xl font-black text-white tracking-tight">
+                                                            {formatPriceDisplay(finalPrice)}
+                                                            {currentItem.discount_percentage && currentItem.discount_percentage > 0 && (
+                                                                <span className="text-sm font-bold text-slate-600 ml-3 line-through">{formatPriceDisplay(currentItem.price)}</span>
+                                                            )}
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                            )}
-
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                                <div className="space-y-3">
-                                                    <Label htmlFor="item-category" className="text-slate-400 font-bold text-sm tracking-wide">Category</Label>
-                                                    <CreatableSelect
-                                                        id="item-category"
-                                                        options={existingCategories}
-                                                        value={currentItem.category}
-                                                        onChange={(val) => setCurrentItem(prev => ({ ...prev, category: val }))}
-                                                        onCreate={(val) => {
-                                                            setCurrentItem(prev => ({ ...prev, category: val }));
-                                                            setExistingCategories(prev => [...prev, { value: val, label: val }]);
-                                                        }}
-                                                        placeholder="Select or type..."
-                                                    />
-                                                </div>
-
-                                                <div className="space-y-3">
-                                                    <Label htmlFor="item-cuisine" className="text-slate-400 font-bold text-sm tracking-wide">Cuisine</Label>
-                                                    <CreatableSelect
-                                                        id="item-cuisine"
-                                                        options={existingCuisines}
-                                                        value={currentItem.cuisine}
-                                                        onChange={(val) => setCurrentItem(prev => ({ ...prev, cuisine: val }))}
-                                                        onCreate={(val) => {
-                                                            setCurrentItem(prev => ({ ...prev, cuisine: val }));
-                                                            setExistingCuisines(prev => [...prev, { value: val, label: val }]);
-                                                        }}
-                                                        placeholder="Select or type..."
-                                                    />
-                                                </div>
+                                                {currentItem.discount_percentage && currentItem.discount_percentage > 0 && (
+                                                    <Badge className="bg-green-500/10 text-green-400 border-green-500/20 px-4 py-2 rounded-xl font-black">
+                                                        -{currentItem.discount_percentage}% OFF
+                                                    </Badge>
+                                                )}
                                             </div>
+                                        )}
 
-                                            <div className="space-y-4 relative group">
-                                                <div className="flex justify-between items-center ml-1">
-                                                    <Label htmlFor="description" className="text-slate-400 font-bold text-sm tracking-wide tracking-tight">Dish Description</Label>
-                                                    <button
-                                                        onClick={handleAIGenerate}
-                                                        type="button"
-                                                        className="text-[10px] flex items-center gap-2 text-amber-500 font-black hover:text-amber-400 tracking-widest transition-all bg-amber-500/10 px-3 py-1.5 rounded-full border border-amber-500/20"
-                                                    >
-                                                        <Sparkles className="w-3.5 h-3.5" /> AI ENHANCE
-                                                    </button>
-                                                </div>
-                                                <Textarea
-                                                    id="description"
-                                                    value={currentItem.description || ''}
-                                                    onChange={(e) => setCurrentItem(prev => ({ ...prev, description: e.target.value }))}
-                                                    placeholder="Enter a mouth-watering description..."
-                                                    className="resize-none h-32 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-2xl p-4 text-base shadow-sm transition-all group-hover:border-slate-600 custom-scrollbar font-medium leading-relaxed"
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="space-y-2">
+                                                <Label className="text-slate-400 font-bold text-sm tracking-wide ml-1">Category</Label>
+                                                <CreatableSelect
+                                                    options={existingCategories}
+                                                    value={currentItem.category}
+                                                    onChange={(val) => setCurrentItem(prev => ({ ...prev, category: val }))}
+                                                    onCreate={(val) => {
+                                                        setCurrentItem(prev => ({ ...prev, category: val }));
+                                                        setExistingCategories(prev => [...prev, { value: val, label: val }]);
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="text-slate-400 font-bold text-sm tracking-wide ml-1">Cuisine</Label>
+                                                <CreatableSelect
+                                                    options={existingCuisines}
+                                                    value={currentItem.cuisine}
+                                                    onChange={(val) => setCurrentItem(prev => ({ ...prev, cuisine: val }))}
+                                                    onCreate={(val) => {
+                                                        setCurrentItem(prev => ({ ...prev, cuisine: val }));
+                                                        setExistingCuisines(prev => [...prev, { value: val, label: val }]);
+                                                    }}
                                                 />
                                             </div>
                                         </div>
 
-                                        {/* 2. Media Section */}
-                                        <div id="section-media" className="space-y-6 scroll-mt-20">
-                                            <div className="flex items-center gap-4 mb-2">
-                                                <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center border border-blue-500/20">
-                                                    <ImageIcon className="w-5 h-5 text-blue-500" />
-                                                </div>
-                                                <h4 className="text-xl font-black text-white uppercase tracking-tight">Dish Media</h4>
-                                            </div>
-
-                                            <div className="border border-slate-800 rounded-[2.5rem] p-8 space-y-8 bg-slate-900/50">
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <h4 className="text-lg font-black text-white">Upload Photograph</h4>
-                                                        <p className="text-slate-400 text-xs font-bold leading-tight">High quality images sell 2x more!</p>
-                                                    </div>
-                                                    {(currentItem.image_url || imagePreview) && (
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="text-red-400 hover:text-red-300 hover:bg-red-500/10 gap-2 h-10 px-4 rounded-xl font-bold transition-all border border-transparent hover:border-red-500/20"
-                                                            onClick={() => {
-                                                                setCurrentItem(prev => ({ ...prev, image_url: '' }));
-                                                                setImageFile(null);
-                                                                setImagePreview(null);
-                                                            }}
-                                                        >
-                                                            <Trash2 className="w-4 h-4" /> Remove Image
-                                                        </Button>
-                                                    )}
-                                                </div>
-
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                                                    <div className="relative aspect-video rounded-[2rem] overflow-hidden border-2 border-slate-800 bg-slate-800 shadow-2xl group/img flex items-center justify-center">
-                                                        {(imagePreview || currentItem.image_url) ? (
-                                                            <>
-                                                                <img src={imagePreview || currentItem.image_url} alt="Preview" className="w-full h-full object-cover transition-transform duration-700 group-hover/img:scale-110" />
-                                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
-                                                                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-white">
-                                                                        <Sparkles className="w-6 h-6 animate-pulse" />
-                                                                    </div>
-                                                                </div>
-                                                            </>
-                                                        ) : (
-                                                            <div className="flex flex-col items-center gap-3 text-slate-500">
-                                                                <ImageIcon className="w-12 h-12 opacity-20" />
-                                                                <p className="text-xs font-black uppercase tracking-widest opacity-40">No Image Uploaded</p>
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="space-y-4">
-                                                        <div
-                                                            className="border-2 border-dashed border-slate-700 rounded-[2rem] p-8 text-center bg-slate-800 hover:bg-slate-700/50 hover:border-amber-500/40 transition-all cursor-pointer group/upload relative overflow-hidden"
-                                                            onClick={() => document.getElementById('dish-image')?.click()}
-                                                        >
-                                                            <div className="relative z-10 flex flex-col items-center gap-3">
-                                                                <div className="w-14 h-14 bg-amber-500/10 rounded-2xl flex items-center justify-center border border-amber-500/20 group-hover/upload:scale-110 group-hover/upload:rotate-3 transition-transform">
-                                                                    <UploadCloud className="w-7 h-7 text-amber-500" />
-                                                                </div>
-                                                                <div className="space-y-1">
-                                                                    <p className="text-white font-black text-sm">Upload Photo</p>
-                                                                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">PNG, JPG up to 5MB</p>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <input
-                                                            type="file"
-                                                            id="dish-image"
-                                                            className="hidden"
-                                                            accept="image/*"
-                                                            onChange={(e) => {
-                                                                const file = e.target.files?.[0];
-                                                                if (file) handleImageUpload(file);
-                                                            }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-slate-400 font-bold text-sm tracking-wide ml-1">Description</Label>
+                                            <Textarea
+                                                value={currentItem.description || ''}
+                                                onChange={(e) => setCurrentItem(prev => ({ ...prev, description: e.target.value }))}
+                                                placeholder="Enter a mouth-watering description..."
+                                                className="h-28 bg-slate-950 border-slate-800 text-white placeholder:text-slate-700 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-2xl p-6 text-base font-medium transition-all shadow-inner"
+                                            />
                                         </div>
+                                    </div>
+                                </div>
 
-                                        {/* 3. Description Section (Already merged into Basic in my mental model, but keeping it separate for clarity in scroll if needed) */}
-                                        {/* Actually, I already moved Description into Basic section above. So I'll delete this duplication. */}
-
-                                        {/* 3. Stock Management Section */}
-                                        <div id="section-inventory" className="space-y-6 scroll-mt-20">
-                                            <div className="flex items-center gap-4 mb-2">
-                                                <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20">
-                                                    <Box className="w-5 h-5 text-emerald-500" />
-                                                </div>
-                                                <h4 className="text-xl font-black text-white uppercase tracking-tight">Inventory Tracking</h4>
-                                            </div>
-
-                                            <div className="border border-slate-800 rounded-[2.5rem] p-8 bg-gradient-to-br from-slate-900 to-slate-800 shadow-xl overflow-hidden relative">
-                                                <div className="flex items-center justify-between mb-8 relative z-10">
-                                                    <div>
-                                                        <h4 className="text-lg font-black text-white">Stock Management</h4>
-                                                        <p className="text-slate-400 text-xs font-bold leading-tight">Track availability automatically</p>
-                                                    </div>
-                                                    <div className="flex items-center gap-3 bg-slate-800 px-4 py-2 rounded-2xl border border-slate-700">
-                                                        <span className="text-xs font-black text-slate-300 uppercase tracking-widest">{currentItem.is_stock_managed ? 'ON' : 'OFF'}</span>
-                                                        <Switch
-                                                            checked={currentItem.is_stock_managed}
-                                                            onCheckedChange={(val) => setCurrentItem(prev => ({ ...prev, is_stock_managed: val }))}
-                                                            className="data-[state=checked]:bg-emerald-500"
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                {currentItem.is_stock_managed && (
-                                                    <div className="grid grid-cols-2 gap-8 animate-in zoom-in-95 duration-300 relative z-10">
-                                                        <div className="space-y-3 group">
-                                                            <Label className="text-slate-400 font-bold text-sm tracking-wide ml-1">Current Stock</Label>
-                                                            <Input
-                                                                type="number"
-                                                                value={currentItem.stock_count ?? ''}
-                                                                onChange={(e) => setCurrentItem(prev => ({ ...prev, stock_count: parseInt(e.target.value) }))}
-                                                                placeholder="0"
-                                                                className="bg-slate-800 border-slate-700 text-white h-14 rounded-2xl font-black text-xl group-hover:border-slate-600 transition-all text-center"
-                                                            />
+                                {/* 2. Media Section */}
+                                <div className="bg-slate-900/40 rounded-[2.5rem] border border-slate-800/60 shadow-xl overflow-hidden group/section hover:border-blue-500/20 transition-all duration-300">
+                                    <div className="flex items-center gap-3 px-8 py-5 bg-slate-900/80 border-b border-slate-800/60">
+                                        <div className="w-8 h-8 bg-blue-500/10 rounded-xl flex items-center justify-center border border-blue-500/20">
+                                            <ImageIcon className="w-4 h-4 text-blue-400" />
+                                        </div>
+                                        <h4 className="text-sm font-black text-white uppercase tracking-widest select-none">Dish Media</h4>
+                                    </div>
+                                    <div className="p-8 space-y-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                                            <div className="relative aspect-video rounded-[2rem] overflow-hidden border-2 border-slate-800 bg-slate-950 shadow-2xl flex items-center justify-center group/img">
+                                                {(imagePreview || currentItem.image_url) ? (
+                                                    <>
+                                                        <img src={imagePreview || currentItem.image_url} alt="Preview" className="w-full h-full object-cover transition-transform duration-700 group-hover/img:scale-105" />
+                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
+                                                            <Button
+                                                                variant="ghost"
+                                                                className="text-red-400 hover:text-red-300 bg-black/60 backdrop-blur-md rounded-xl"
+                                                                onClick={() => {
+                                                                    setCurrentItem(prev => ({ ...prev, image_url: '' }));
+                                                                    setImageFile(null);
+                                                                    setImagePreview(null);
+                                                                }}
+                                                            >
+                                                                <Trash2 className="w-4 h-4 mr-2" /> Remove
+                                                            </Button>
                                                         </div>
-                                                        <div className="space-y-3 group">
-                                                            <Label className="text-slate-400 font-bold text-sm tracking-wide ml-1">Low Stock Alert</Label>
-                                                            <Input
-                                                                type="number"
-                                                                value={currentItem.low_stock_threshold || ''}
-                                                                onChange={(e) => setCurrentItem(prev => ({ ...prev, low_stock_threshold: parseInt(e.target.value) }))}
-                                                                placeholder="5"
-                                                                className="bg-slate-800 border-slate-700 text-rose-500 h-14 rounded-2xl font-black text-xl group-hover:border-slate-600 transition-all text-center"
-                                                            />
-                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <div className="flex flex-col items-center gap-3 opacity-20">
+                                                        <ImageIcon className="w-12 h-12 text-slate-400" />
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No Image Uploaded</p>
                                                     </div>
                                                 )}
                                             </div>
-                                        </div>
-
-                                        {/* 4. Options & Variants Section */}
-                                        <div id="section-variants" className="space-y-6 scroll-mt-20">
-                                            <div className="flex items-center gap-4 mb-2">
-                                                <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center border border-amber-500/20">
-                                                    <Sparkles className="w-5 h-5 text-amber-500" />
-                                                </div>
-                                                <h4 className="text-xl font-black text-white uppercase tracking-tight">Options & Add-ons</h4>
-                                            </div>
-
-                                            {currentItem.item_type === 'deal' ? (
-                                                <div className="space-y-8 bg-slate-900/40 p-8 rounded-[2.5rem] border border-slate-800">
-                                                    <DealBuilder
-                                                        existingItems={items}
-                                                        dealItems={dealItems}
-                                                        setDealItems={setDealItems}
-                                                        originalPrice={dealOriginalPrice}
-                                                        discountPercentage={currentItem.discount_percentage || null}
-                                                        setDiscountPercentage={(val) => setCurrentItem(prev => ({ ...prev, discount_percentage: val }))}
-                                                        offerName={currentItem.offer_name || null}
-                                                        setOfferName={(val) => setCurrentItem(prev => ({ ...prev, offer_name: val }))}
-                                                        onPriceSync={(price) => setCurrentItem(prev => ({ ...prev, price }))}
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-12">
-                                                    <div className="bg-slate-900/40 p-8 rounded-[2.5rem] border border-slate-800">
-                                                        <VariantManager
-                                                            variants={variants}
-                                                            setVariants={setVariants}
-                                                            basePrice={currentItem.price || 0}
-                                                        />
-                                                    </div>
-                                                    <div className="bg-slate-900/40 p-8 rounded-[2.5rem] border border-slate-800">
-                                                        <ModifierManager
-                                                            groups={modifierGroups}
-                                                            setGroups={setModifierGroups}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Pro-Tip Nudge */}
-                                        <div className="p-8 rounded-[2.5rem] bg-gradient-to-br from-amber-500/10 to-transparent border border-amber-500/10 relative overflow-hidden group">
-                                            <div className="absolute -right-8 -bottom-8 opacity-5 group-hover:opacity-10 transition-opacity">
-                                                <Sparkles className="w-32 h-32 text-amber-500" />
-                                            </div>
-                                            <div className="relative z-10 space-y-3">
-                                                <div className="flex items-center gap-2 text-amber-500 font-black text-xs uppercase tracking-[0.2em]">
-                                                    <Zap className="w-3.5 h-3.5" /> Pro-Tip
-                                                </div>
-                                                <h5 className="text-lg font-black text-white leading-tight">Add at least one Variant!</h5>
-                                                <p className="text-sm text-slate-400 font-medium leading-relaxed max-w-lg">
-                                                    Items with options like "Size" or "Add-ons" have a <span className="text-amber-500 font-bold">40% higher chance</span> of being ordered.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Right Column: Real-time Live Preview */}
-                            {!selectionMode && (
-                                <div className="hidden lg:flex lg:w-96 bg-black/40 backdrop-blur-md p-8 flex-col items-center justify-start gap-8 border-l border-white/5 animate-in fade-in slide-in-from-right-10 duration-700">
-                                    <div className="w-full">
-                                        <div className="flex items-center gap-3 mb-6">
-                                            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                                                <Sparkles className="w-4 h-4 text-emerald-500" />
-                                            </div>
-                                            <div>
-                                                <h4 className="text-sm font-black text-white uppercase tracking-widest">Live Preview</h4>
-                                                <p className="text-[10px] text-slate-500 font-bold">See changes in real-time</p>
-                                            </div>
-                                        </div>
-
-                                        <div className="perspective-[1000px] hover:rotate-y-2 transition-transform duration-500">
-                                            <div className="w-full max-w-[320px] mx-auto shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden scale-[1.05]">
-                                                <MenuItemCard
-                                                    item={{
-                                                        ...currentItem,
-                                                        name: currentItem.name || "Dish Name",
-                                                        price: currentItem.price || 0,
-                                                        description: currentItem.description || "Description will appear here...",
-                                                        category: currentItem.category,
-                                                        image_url: currentItem.image_url,
-                                                        item_type: currentItem.item_type,
-                                                        variants: variants,
-                                                        modifier_groups: modifierGroups,
-                                                        deal_items: dealItems
-                                                    } as MenuItem}
-                                                    onEdit={() => { }}
-                                                    onDelete={() => { }}
-                                                    onToggleAvailability={() => { }}
-                                                    allMenuItems={items}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-12 space-y-4">
-                                            <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-2">
-                                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Quick Tip</p>
-                                                <p className="text-xs text-slate-400 leading-relaxed font-medium">
-                                                    Your customers will see exactly what you see here. Make sure to add a catchy description!
-                                                </p>
+                                            <div
+                                                className="border-2 border-dashed border-slate-800 rounded-[2rem] p-8 text-center bg-slate-950/30 hover:bg-slate-950/50 hover:border-amber-500/30 transition-all cursor-pointer group/upload"
+                                                onClick={() => document.getElementById('dish-image')?.click()}
+                                            >
+                                                <UploadCloud className="w-10 h-10 text-amber-500/40 mx-auto mb-4 group-hover/upload:scale-110 transition-transform" />
+                                                <p className="text-white font-bold text-sm mb-1">Upload New Photo</p>
+                                                <p className="text-slate-600 text-[10px] font-bold uppercase tracking-widest">PNG or JPG up to 5MB</p>
+                                                <input type="file" id="dish-image" className="hidden" accept="image/*" onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) handleImageUpload(file);
+                                                }} />
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            )}
-                        </div>
 
-                        {/* Sticky Footer */}
-                        <div className="p-8 shrink-0 border-t border-slate-800 bg-slate-900/80 backdrop-blur-xl z-20 flex items-center justify-end gap-5">
+                                {/* 3. Inventory */}
+                                <div className="bg-slate-900/40 rounded-[2.5rem] border border-slate-800/60 shadow-xl overflow-hidden group/section hover:border-emerald-500/20 transition-all duration-300">
+                                    <div className="flex items-center gap-3 px-8 py-5 bg-slate-900/80 border-b border-slate-800/60">
+                                        <div className="w-8 h-8 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20">
+                                            <Box className="w-4 h-4 text-emerald-400" />
+                                        </div>
+                                        <h4 className="text-sm font-black text-white uppercase tracking-widest select-none">Inventory Tracking</h4>
+                                    </div>
+                                    <div className="p-8 space-y-8">
+                                        <div className="flex items-center justify-between p-6 bg-slate-950/50 rounded-3xl border border-slate-800/80">
+                                            <div>
+                                                <h4 className="text-base font-bold text-white">Stock Management</h4>
+                                                <p className="text-slate-500 text-xs font-medium">Track availability automatically</p>
+                                            </div>
+                                            <Switch
+                                                checked={currentItem.is_stock_managed}
+                                                onCheckedChange={(val) => setCurrentItem(prev => ({ ...prev, is_stock_managed: val }))}
+                                                className="data-[state=checked]:bg-emerald-500"
+                                            />
+                                        </div>
+
+                                        {currentItem.is_stock_managed && (
+                                            <div className="grid grid-cols-2 gap-6 animate-in zoom-in-95 duration-300">
+                                                <div className="space-y-2">
+                                                    <Label className="text-slate-400 font-bold text-sm tracking-wide ml-1">Current Stock</Label>
+                                                    <Input
+                                                        type="number"
+                                                        value={currentItem.stock_count ?? ''}
+                                                        onChange={(e) => setCurrentItem(prev => ({ ...prev, stock_count: parseInt(e.target.value) }))}
+                                                        className="bg-slate-950 border-slate-800 text-white h-14 rounded-2xl font-black text-xl text-center"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label className="text-slate-400 font-bold text-sm tracking-wide ml-1">Low Stock Alert</Label>
+                                                    <Input
+                                                        type="number"
+                                                        value={currentItem.low_stock_threshold || ''}
+                                                        onChange={(e) => setCurrentItem(prev => ({ ...prev, low_stock_threshold: parseInt(e.target.value) }))}
+                                                        className="bg-slate-950 border-slate-800 text-rose-500 h-14 rounded-2xl font-black text-xl text-center"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* 4. Options & Add-ons */}
+                                <div className="bg-slate-900/40 rounded-[2.5rem] border border-slate-800/60 shadow-xl overflow-hidden group/section hover:border-purple-500/20 transition-all duration-300">
+                                    <div className="flex items-center gap-3 px-8 py-5 bg-slate-900/80 border-b border-slate-800/60">
+                                        <div className="w-8 h-8 bg-purple-500/10 rounded-xl flex items-center justify-center border border-purple-500/20">
+                                            <Sparkles className="w-4 h-4 text-purple-400" />
+                                        </div>
+                                        <h4 className="text-sm font-black text-white uppercase tracking-widest select-none">Options &amp; Add-ons</h4>
+                                    </div>
+                                    <div className="p-8">
+                                        {currentItem.item_type === 'deal' ? (
+                                            <DealBuilder
+                                                existingItems={items}
+                                                dealItems={dealItems}
+                                                setDealItems={setDealItems}
+                                                originalPrice={dealOriginalPrice}
+                                                discountPercentage={currentItem.discount_percentage || null}
+                                                setDiscountPercentage={(val) => setCurrentItem(prev => ({ ...prev, discount_percentage: val }))}
+                                                offerName={currentItem.offer_name || null}
+                                                setOfferName={(val) => setCurrentItem(prev => ({ ...prev, offer_name: val }))}
+                                                onPriceSync={(price) => setCurrentItem(prev => ({ ...prev, price }))}
+                                            />
+                                        ) : (
+                                            <div className="space-y-12">
+                                                <VariantManager
+                                                    variants={variants}
+                                                    setVariants={setVariants}
+                                                    basePrice={currentItem.price || 0}
+                                                />
+                                                <ModifierManager
+                                                    groups={modifierGroups}
+                                                    setGroups={setModifierGroups}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Pro-Tip */}
+                                <div className="flex items-center gap-3 px-6 py-4 rounded-[1.5rem] border border-amber-500/10 bg-amber-500/5 mt-4">
+                                    <Zap className="w-4 h-4 text-amber-500 shrink-0" />
+                                    <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                                        Items with <span className="text-amber-500 font-bold">variants &amp; add-ons</span> have a 40% higher chance of being ordered.
+                                    </p>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                    {/* Sticky Footer */}
+                    <div className="px-8 py-6 shrink-0 border-t border-slate-800/60 bg-[#0b1224]/80 backdrop-blur-2xl z-20 flex items-center justify-between rounded-b-[2.5rem]">
+                        <div className="flex items-center gap-3">
+                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Live Sync Enabled</p>
+                        </div>
+                        <div className="flex items-center gap-4">
                             <Button
                                 variant="ghost"
                                 onClick={() => setIsDialogOpen(false)}
-                                className="h-14 px-8 rounded-2xl text-slate-400 font-bold hover:bg-slate-800 hover:text-white transition-all transform active:scale-95"
+                                className="h-12 px-8 rounded-2xl text-slate-400 font-bold hover:bg-slate-900/80 hover:text-white transition-all border border-transparent hover:border-slate-800"
                             >
                                 Cancel
                             </Button>
                             <Button
-                                onClick={handleSave}
-                                disabled={isSubmitting}
-                                className={`h-14 px-12 rounded-[1.5rem] font-black text-lg shadow-xl active:scale-[0.98] transition-all flex items-center gap-3 ${currentItem.item_type === 'deal'
-                                    ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-purple-500/20'
-                                    : 'bg-amber-500 hover:bg-amber-600 text-slate-900 shadow-amber-500/20'
+                                onClick={() => handleSave(false)}
+                                disabled={saveStatus === 'saving'}
+                                className={`h-12 px-10 rounded-2xl font-black text-base shadow-2xl active:scale-[0.98] transition-all flex items-center gap-3 border-none ${currentItem.item_type === 'deal'
+                                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:shadow-purple-500/30 text-white'
+                                    : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:shadow-amber-500/30 text-slate-900'
                                     }`}
                             >
-                                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                                {isEditing ? 'Save Changes' : (currentItem.item_type === 'deal' ? 'Launch Deal' : 'Add to Menu')}
+                                {saveStatus === 'saving' ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckSquare className="w-5 h-5" />}
+                                Finish & Close
                             </Button>
                         </div>
-                    </SheetContent>
-                </Sheet>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
-                {/* Floating Bulk Actions Bar */}
-                {
-                    isSelectionMode && (
-                        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-8 duration-300">
-                            <div className="order-glass-panel px-6 py-4 rounded-full shadow-[0_0_30px_rgba(245,158,11,0.15)] flex items-center gap-4 lg:gap-6 border border-amber-500/20 backdrop-blur-3xl bg-black/80">
-                                <div className="flex items-center gap-3 pr-4 lg:pr-6 border-r border-white/10">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm transition-all shadow-inner ${selectedItems.length > 0 ? 'bg-amber-500 text-slate-900 shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 'bg-black/50 text-slate-500 border border-white/5'}`}>
-                                        {selectedItems.length}
-                                    </div>
-                                    <span className="font-bold text-sm text-slate-100 hidden sm:inline tracking-wide uppercase">Items Selected</span>
+            {/* Floating Bulk Actions Bar */}
+            {
+                isSelectionMode && (
+                    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-8 duration-300">
+                        <div className="order-glass-panel px-6 py-4 rounded-full shadow-[0_0_30px_rgba(245,158,11,0.15)] flex items-center gap-4 lg:gap-6 border border-amber-500/20 backdrop-blur-3xl bg-black/80">
+                            <div className="flex items-center gap-3 pr-4 lg:pr-6 border-r border-white/10">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm transition-all shadow-inner ${selectedItems.length > 0 ? 'bg-amber-500 text-slate-900 shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 'bg-black/50 text-slate-500 border border-white/5'}`}>
+                                    {selectedItems.length}
                                 </div>
+                                <span className="font-bold text-sm text-slate-100 hidden sm:inline tracking-wide uppercase">Items Selected</span>
+                            </div>
 
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setSelectedItems(items.map(i => i.id))}
-                                        className="text-slate-300 hover:text-amber-400 hover:bg-white/5 gap-2 rounded-xl"
-                                    >
-                                        <CheckSquare className="w-4 h-4" /> <span className="hidden lg:inline font-bold">Select All</span>
-                                    </Button>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setSelectedItems(items.map(i => i.id))}
+                                    className="text-slate-300 hover:text-amber-400 hover:bg-white/5 gap-2 rounded-xl"
+                                >
+                                    <CheckSquare className="w-4 h-4" /> <span className="hidden lg:inline font-bold">Select All</span>
+                                </Button>
 
-                                    {/* Actions Dropdown Menu */}
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                disabled={selectedItems.length === 0}
-                                                className="bg-black/40 border-white/10 text-white hover:bg-white/10 hover:text-white gap-2 rounded-xl transition-colors"
-                                            >
-                                                Actions <ChevronDown className="w-4 h-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="center" className="w-60 p-2 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border-white/10 z-[100] bg-black/95 backdrop-blur-3xl">
-                                            <div className="flex flex-col gap-1">
-                                                <CategoryOfferDialog
-                                                    category={`${selectedItems.length} Selected Items`}
-                                                    cuisine="Bulk Selection"
-                                                    onApply={(cat, cuis, disc, name) => handleApplyBulkOffer(disc, name)}
-                                                    isDropdownItem={true}
-                                                />
-                                                <DropdownMenuItem onClick={() => setIsBulkPriceDialogOpen(true)} className="gap-2 cursor-pointer font-bold text-slate-300 focus:bg-amber-500/10 focus:text-amber-400 rounded-xl transition-colors">
-                                                    <Percent className="w-4 h-4 text-amber-500" /> Update Prices
-                                                </DropdownMenuItem>
-                                                <div className="h-px bg-white/5 my-1 rounded-full"></div>
-                                                <DropdownMenuItem onClick={() => handleBulkAvailabilityToggle(true)} className="gap-2 cursor-pointer font-bold text-slate-300 focus:bg-green-500/10 focus:text-green-400 rounded-xl transition-colors">
-                                                    <Zap className="w-4 h-4 text-green-500 drop-shadow-[0_0_5px_rgba(34,197,94,0.5)]" /> Mark Available
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => handleBulkAvailabilityToggle(false)} className="gap-2 cursor-pointer font-bold text-slate-300 focus:bg-orange-500/10 focus:text-orange-400 rounded-xl transition-colors">
-                                                    <PowerOff className="w-4 h-4 text-orange-500 drop-shadow-[0_0_5px_rgba(249,115,22,0.5)]" /> Mark Unavailable
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={handleRemoveBulkOffer} className="gap-2 cursor-pointer font-bold text-slate-300 focus:bg-white/10 focus:text-white rounded-xl transition-colors">
-                                                    <RotateCcw className="w-4 h-4 text-slate-400" /> Remove Offers
-                                                </DropdownMenuItem>
-                                                <div className="h-px bg-white/5 my-1 rounded-full"></div>
-                                                <DropdownMenuItem onClick={handleBulkDelete} className="gap-2 cursor-pointer font-black text-red-500 focus:bg-red-500/10 focus:text-red-400 rounded-xl transition-colors">
-                                                    <Trash2 className="w-4 h-4" /> Delete Selected
-                                                </DropdownMenuItem>
-                                            </div>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                {/* Actions Dropdown Menu */}
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={selectedItems.length === 0}
+                                            className="bg-black/40 border-white/10 text-white hover:bg-white/10 hover:text-white gap-2 rounded-xl transition-colors"
+                                        >
+                                            Actions <ChevronDown className="w-4 h-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="center" className="w-60 p-2 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border-white/10 z-[100] bg-black/95 backdrop-blur-3xl">
+                                        <div className="flex flex-col gap-1">
+                                            <CategoryOfferDialog
+                                                category={`${selectedItems.length} Selected Items`}
+                                                cuisine="Bulk Selection"
+                                                onApply={(cat, cuis, disc, name) => handleApplyBulkOffer(disc, name)}
+                                                isDropdownItem={true}
+                                            />
+                                            <DropdownMenuItem onClick={() => setIsBulkPriceDialogOpen(true)} className="gap-2 cursor-pointer font-bold text-slate-300 focus:bg-amber-500/10 focus:text-amber-400 rounded-xl transition-colors">
+                                                <Percent className="w-4 h-4 text-amber-500" /> Update Prices
+                                            </DropdownMenuItem>
+                                            <div className="h-px bg-white/5 my-1 rounded-full"></div>
+                                            <DropdownMenuItem onClick={() => handleBulkAvailabilityToggle(true)} className="gap-2 cursor-pointer font-bold text-slate-300 focus:bg-green-500/10 focus:text-green-400 rounded-xl transition-colors">
+                                                <Zap className="w-4 h-4 text-green-500 drop-shadow-[0_0_5px_rgba(34,197,94,0.5)]" /> Mark Available
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleBulkAvailabilityToggle(false)} className="gap-2 cursor-pointer font-bold text-slate-300 focus:bg-orange-500/10 focus:text-orange-400 rounded-xl transition-colors">
+                                                <PowerOff className="w-4 h-4 text-orange-500 drop-shadow-[0_0_5px_rgba(249,115,22,0.5)]" /> Mark Unavailable
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={handleRemoveBulkOffer} className="gap-2 cursor-pointer font-bold text-slate-300 focus:bg-white/10 focus:text-white rounded-xl transition-colors">
+                                                <RotateCcw className="w-4 h-4 text-slate-400" /> Remove Offers
+                                            </DropdownMenuItem>
+                                            <div className="h-px bg-white/5 my-1 rounded-full"></div>
+                                            <DropdownMenuItem onClick={handleBulkDelete} className="gap-2 cursor-pointer font-black text-red-500 focus:bg-red-500/10 focus:text-red-400 rounded-xl transition-colors">
+                                                <Trash2 className="w-4 h-4" /> Delete Selected
+                                            </DropdownMenuItem>
+                                        </div>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
 
-                                    <div className="w-px h-6 bg-white/10 mx-2"></div>
+                                <div className="w-px h-6 bg-white/10 mx-2"></div>
 
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setSelectedItems([])}
-                                        className="text-slate-400 hover:text-white hover:bg-white/5 gap-2 rounded-xl"
-                                        disabled={selectedItems.length === 0}
-                                    >
-                                        Clear
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setIsSelectionMode(false)}
-                                        className="text-slate-400 hover:text-red-400 hover:bg-red-500/10 px-2 rounded-xl transition-colors"
-                                    >
-                                        <X className="w-5 h-5" />
-                                    </Button>
-                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setSelectedItems([])}
+                                    className="text-slate-400 hover:text-white hover:bg-white/5 gap-2 rounded-xl"
+                                    disabled={selectedItems.length === 0}
+                                >
+                                    Clear
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setIsSelectionMode(false)}
+                                    className="text-slate-400 hover:text-red-400 hover:bg-red-500/10 px-2 rounded-xl transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                </Button>
                             </div>
                         </div>
-                    )
-                }
+                    </div>
+                )
+            }
 
-                {/* Bulk Price Update Dialog */}
-                <Dialog open={isBulkPriceDialogOpen} onOpenChange={setIsBulkPriceDialogOpen}>
-                    <DialogContent className="sm:max-w-[400px] bg-black/90 backdrop-blur-2xl border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-3xl">
-                        <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-amber-500/50 to-transparent"></div>
+            {/* Bulk Price Update Dialog */}
+            <Dialog open={isBulkPriceDialogOpen} onOpenChange={setIsBulkPriceDialogOpen}>
+                <DialogContent className="sm:max-w-[400px] bg-black/90 backdrop-blur-2xl border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-3xl">
+                    <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-amber-500/50 to-transparent"></div>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-3 text-2xl font-black text-slate-100">
+                            <Percent className="w-6 h-6 text-amber-500 drop-shadow-[0_0_10px_rgba(245,158,11,0.5)]" />
+                            Bulk Price Update
+                        </DialogTitle>
+                        <DialogDescription className="text-slate-400 font-medium text-base">
+                            Change the price of {selectedItems.length} selected items by a percentage.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-6 space-y-5">
+                        <div className="space-y-2">
+                            <Label htmlFor="bulk-price-input" className="text-slate-300 font-medium">Percentage Change (%)</Label>
+                            <div className="relative">
+                                <Input
+                                    id="bulk-price-input"
+                                    type="number"
+                                    value={bulkPriceChange || ''}
+                                    onChange={(e) => setBulkPriceChange(Number(e.target.value))}
+                                    placeholder="e.g. 10 for increase, -10 for decrease"
+                                    className="pr-10 bg-black/40 border-white/10 text-slate-100 placeholder:text-slate-600 focus:border-amber-500/50 focus:ring-amber-500/50 rounded-xl h-12 text-lg font-black"
+                                />
+                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-amber-500 font-black text-lg drop-shadow-[0_0_5px_rgba(245,158,11,0.5)]">%</span>
+                            </div>
+                            <p className="text-xs text-slate-500 font-medium tracking-wide">
+                                <span className="text-amber-500/70">Examples:</span> 10 = 10% Increase, -5 = 5% Decrease.
+                            </p>
+                        </div>
+
+                        {bulkPriceChange !== 0 && (
+                            <div className={`p-4 rounded-xl text-sm font-bold border flex items-center gap-3 shadow-[0_0_15px_rgba(0,0,0,0.2)] inset-0 ${bulkPriceChange > 0 ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-orange-500/10 border-orange-500/20 text-orange-400'}`}>
+                                {bulkPriceChange > 0 ? <TrendingUp className="w-5 h-5 text-green-500 drop-shadow-[0_0_5px_rgba(34,197,94,0.5)]" /> : <TrendingDown className="w-5 h-5 text-orange-500 drop-shadow-[0_0_5px_rgba(249,115,22,0.5)]" />}
+                                {bulkPriceChange > 0
+                                    ? `Prices will be increased by ${bulkPriceChange}%.`
+                                    : `Prices will be decreased by ${Math.abs(bulkPriceChange)}%.`}
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter className="border-t border-white/5 pt-4 mt-2">
+                        <Button variant="outline" onClick={() => setIsBulkPriceDialogOpen(false)} className="border-white/10 text-slate-300 hover:bg-white/5 hover:text-white glass-card">Cancel</Button>
+                        <Button
+                            className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-500 border border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)] font-bold px-6"
+                            onClick={handleBulkPriceUpdate}
+                            disabled={bulkPriceChange === 0 || loading}
+                        >
+                            {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : 'Update All Prices'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* --- 5. Export Settings Dialog --- */}
+            <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+                <DialogContent className="sm:max-w-[700px] w-[95vw] h-[90vh] max-h-[850px] flex flex-col bg-black/95 backdrop-blur-3xl border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.7)] p-0 overflow-hidden rounded-[2.5rem]">
+                    <div className="bg-gradient-to-br from-amber-500/20 to-black p-8 text-white relative overflow-hidden flex-shrink-0 border-b border-white/10">
+                        <div className="absolute top-0 right-0 p-8 opacity-10">
+                            <FileDown className="w-32 h-32 rotate-12 text-amber-500" />
+                        </div>
+                        <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl"></div>
+
                         <DialogHeader>
-                            <DialogTitle className="flex items-center gap-3 text-2xl font-black text-slate-100">
-                                <Percent className="w-6 h-6 text-amber-500 drop-shadow-[0_0_10px_rgba(245,158,11,0.5)]" />
-                                Bulk Price Update
+                            <DialogTitle className="text-4xl font-black tracking-tighter text-white flex items-center gap-3">
+                                <Sparkles className="w-10 h-10 text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.5)]" />
+                                Menu Designer <span className="text-[10px] bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full font-black uppercase tracking-widest ml-2 border border-amber-500/30">v2.1 Pro</span>
                             </DialogTitle>
-                            <DialogDescription className="text-slate-400 font-medium text-base">
-                                Change the price of {selectedItems.length} selected items by a percentage.
+                            <DialogDescription className="text-slate-400 text-xl font-medium mt-2">
+                                Craft a wide, professional brochure spread.
                             </DialogDescription>
                         </DialogHeader>
-                        <div className="py-6 space-y-5">
-                            <div className="space-y-2">
-                                <Label htmlFor="bulk-price-input" className="text-slate-300 font-medium">Percentage Change (%)</Label>
-                                <div className="relative">
-                                    <Input
-                                        id="bulk-price-input"
-                                        type="number"
-                                        value={bulkPriceChange || ''}
-                                        onChange={(e) => setBulkPriceChange(Number(e.target.value))}
-                                        placeholder="e.g. 10 for increase, -10 for decrease"
-                                        className="pr-10 bg-black/40 border-white/10 text-slate-100 placeholder:text-slate-600 focus:border-amber-500/50 focus:ring-amber-500/50 rounded-xl h-12 text-lg font-black"
-                                    />
-                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-amber-500 font-black text-lg drop-shadow-[0_0_5px_rgba(245,158,11,0.5)]">%</span>
-                                </div>
-                                <p className="text-xs text-slate-500 font-medium tracking-wide">
-                                    <span className="text-amber-500/70">Examples:</span> 10 = 10% Increase, -5 = 5% Decrease.
-                                </p>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-10 space-y-12">
+                        {/* Theme Selection */}
+                        <div className="space-y-6">
+                            <Label className="text-sm font-black text-slate-300 uppercase tracking-[0.2em] flex items-center gap-2">
+                                <Utensils className="w-4 h-4 text-amber-500" /> 1. Select Design Template
+                            </Label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-2">
+                                {[
+                                    { id: 'noir', name: 'Cinematic Noir', colors: ['#1a1a1a', '#f59e0b', '#262626'], desc: 'Dark Premium' },
+                                    { id: 'minimal', name: 'Elegant Minimal', colors: ['#ffffff', '#0f172a', '#f8fafc'], desc: 'Clean Modern' },
+                                    { id: 'royal', name: 'Royal Palace', colors: ['#4c0519', '#fbbf24', '#700320'], desc: 'Lux Burgundy' },
+                                    { id: 'cream', name: 'Cream Vintage', colors: ['#fffbf0', '#7c2d12', '#fdf4da'], desc: 'Serif Classic' },
+                                    { id: 'teal', name: 'Midnight Teal', colors: ['#042f2e', '#fbbf24', '#0f766e'], desc: 'Teal & Gold' }
+                                ].map(theme => (
+                                    <div
+                                        key={theme.id}
+                                        onClick={() => setExportOptions(prev => ({ ...prev, theme: theme.id as any }))}
+                                        className={`group relative cursor-pointer rounded-[1.5rem] border-4 p-4 transition-all duration-300 hover:shadow-[0_0_30px_rgba(245,158,11,0.15)] active:scale-95 ${exportOptions.theme === theme.id ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_20px_rgba(245,158,11,0.2)]' : 'border-white/5 bg-white/5 hover:border-white/20 hover:bg-white/10'}`}
+                                    >
+                                        <div className="flex gap-1.5 mb-3">
+                                            {theme.colors.map((c, i) => (
+                                                <div key={i} className="flex-1 h-8 rounded-lg shadow-inner ring-1 ring-white/10" style={{ backgroundColor: c }} />
+                                            ))}
+                                        </div>
+                                        <p className="font-black text-base text-slate-100 flex items-center justify-between">
+                                            {theme.name}
+                                            {exportOptions.theme === theme.id && <Zap className="w-4 h-4 text-amber-500 fill-amber-500 animate-pulse drop-shadow-[0_0_5px_rgba(245,158,11,0.8)]" />}
+                                        </p>
+                                        <p className="text-[10px] text-slate-500 uppercase font-black tracking-wider mt-1">{theme.desc}</p>
+                                    </div>
+                                ))}
                             </div>
-
-                            {bulkPriceChange !== 0 && (
-                                <div className={`p-4 rounded-xl text-sm font-bold border flex items-center gap-3 shadow-[0_0_15px_rgba(0,0,0,0.2)] inset-0 ${bulkPriceChange > 0 ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-orange-500/10 border-orange-500/20 text-orange-400'}`}>
-                                    {bulkPriceChange > 0 ? <TrendingUp className="w-5 h-5 text-green-500 drop-shadow-[0_0_5px_rgba(34,197,94,0.5)]" /> : <TrendingDown className="w-5 h-5 text-orange-500 drop-shadow-[0_0_5px_rgba(249,115,22,0.5)]" />}
-                                    {bulkPriceChange > 0
-                                        ? `Prices will be increased by ${bulkPriceChange}%.`
-                                        : `Prices will be decreased by ${Math.abs(bulkPriceChange)}%.`}
-                                </div>
-                            )}
-                        </div>
-                        <DialogFooter className="border-t border-white/5 pt-4 mt-2">
-                            <Button variant="outline" onClick={() => setIsBulkPriceDialogOpen(false)} className="border-white/10 text-slate-300 hover:bg-white/5 hover:text-white glass-card">Cancel</Button>
-                            <Button
-                                className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-500 border border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)] font-bold px-6"
-                                onClick={handleBulkPriceUpdate}
-                                disabled={bulkPriceChange === 0 || loading}
-                            >
-                                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : 'Update All Prices'}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-
-                {/* --- 5. Export Settings Dialog --- */}
-                <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
-                    <DialogContent className="sm:max-w-[700px] h-[90vh] flex flex-col bg-black/95 backdrop-blur-3xl border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.7)] p-0 overflow-hidden rounded-[2.5rem]">
-                        <div className="bg-gradient-to-br from-amber-500/20 to-black p-8 text-white relative overflow-hidden flex-shrink-0 border-b border-white/10">
-                            <div className="absolute top-0 right-0 p-8 opacity-10">
-                                <FileDown className="w-32 h-32 rotate-12 text-amber-500" />
-                            </div>
-                            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl"></div>
-
-                            <DialogHeader>
-                                <DialogTitle className="text-4xl font-black tracking-tighter text-white flex items-center gap-3">
-                                    <Sparkles className="w-10 h-10 text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.5)]" />
-                                    Menu Designer <span className="text-[10px] bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full font-black uppercase tracking-widest ml-2 border border-amber-500/30">v2.1 Pro</span>
-                                </DialogTitle>
-                                <DialogDescription className="text-slate-400 text-xl font-medium mt-2">
-                                    Craft a wide, professional brochure spread.
-                                </DialogDescription>
-                            </DialogHeader>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-10 space-y-12">
-                            {/* Theme Selection */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-4 border-t border-white/10">
+                            {/* Format Selection */}
                             <div className="space-y-6">
-                                <Label className="text-sm font-black text-slate-300 uppercase tracking-[0.2em] flex items-center gap-2">
-                                    <Utensils className="w-4 h-4 text-amber-500" /> 1. Select Design Template
-                                </Label>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-2">
+                                <Label className="text-sm font-black text-slate-300 uppercase tracking-[0.2em]">2. Image Format</Label>
+                                <div className="flex gap-4">
                                     {[
-                                        { id: 'noir', name: 'Cinematic Noir', colors: ['#1a1a1a', '#f59e0b', '#262626'], desc: 'Dark Premium' },
-                                        { id: 'minimal', name: 'Elegant Minimal', colors: ['#ffffff', '#0f172a', '#f8fafc'], desc: 'Clean Modern' },
-                                        { id: 'royal', name: 'Royal Palace', colors: ['#4c0519', '#fbbf24', '#700320'], desc: 'Lux Burgundy' },
-                                        { id: 'cream', name: 'Cream Vintage', colors: ['#fffbf0', '#7c2d12', '#fdf4da'], desc: 'Serif Classic' },
-                                        { id: 'teal', name: 'Midnight Teal', colors: ['#042f2e', '#fbbf24', '#0f766e'], desc: 'Teal & Gold' }
-                                    ].map(theme => (
+                                        { id: 'png', label: 'Ultra High Res', sub: 'Best for Printing', ext: 'PNG' },
+                                        { id: 'jpg', label: 'Social Share', sub: 'Best for Sharing', ext: 'JPG' }
+                                    ].map(fmt => (
                                         <div
-                                            key={theme.id}
-                                            onClick={() => setExportOptions(prev => ({ ...prev, theme: theme.id as any }))}
-                                            className={`group relative cursor-pointer rounded-[1.5rem] border-4 p-4 transition-all duration-300 hover:shadow-[0_0_30px_rgba(245,158,11,0.15)] active:scale-95 ${exportOptions.theme === theme.id ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_20px_rgba(245,158,11,0.2)]' : 'border-white/5 bg-white/5 hover:border-white/20 hover:bg-white/10'}`}
+                                            key={fmt.id}
+                                            onClick={() => setExportOptions(prev => ({ ...prev, format: fmt.id as any }))}
+                                            className={`flex-1 cursor-pointer rounded-2xl border-4 p-5 text-center transition-all duration-300 ${exportOptions.format === fmt.id ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_20px_rgba(245,158,11,0.2)] scale-105' : 'border-white/5 bg-white/5 text-slate-400 hover:border-white/20 hover:bg-white/10'}`}
                                         >
-                                            <div className="flex gap-1.5 mb-3">
-                                                {theme.colors.map((c, i) => (
-                                                    <div key={i} className="flex-1 h-8 rounded-lg shadow-inner ring-1 ring-white/10" style={{ backgroundColor: c }} />
-                                                ))}
+                                            <div className={`text-[10px] uppercase font-black tracking-widest mb-1 ${exportOptions.format === fmt.id ? 'text-amber-400' : 'text-slate-500'}`}>
+                                                {fmt.label}
                                             </div>
-                                            <p className="font-black text-base text-slate-100 flex items-center justify-between">
-                                                {theme.name}
-                                                {exportOptions.theme === theme.id && <Zap className="w-4 h-4 text-amber-500 fill-amber-500 animate-pulse drop-shadow-[0_0_5px_rgba(245,158,11,0.8)]" />}
-                                            </p>
-                                            <p className="text-[10px] text-slate-500 uppercase font-black tracking-wider mt-1">{theme.desc}</p>
+                                            <div className={`font-black text-2xl mb-1 ${exportOptions.format === fmt.id ? 'text-white' : 'text-slate-300'}`}>{fmt.ext}</div>
+                                            <div className={`text-[10px] font-bold ${exportOptions.format === fmt.id ? 'text-amber-200/50' : 'text-slate-600'}`}>{fmt.sub}</div>
                                         </div>
                                     ))}
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-4 border-t border-white/10">
-                                {/* Format Selection */}
-                                <div className="space-y-6">
-                                    <Label className="text-sm font-black text-slate-300 uppercase tracking-[0.2em]">2. Image Format</Label>
-                                    <div className="flex gap-4">
-                                        {[
-                                            { id: 'png', label: 'Ultra High Res', sub: 'Best for Printing', ext: 'PNG' },
-                                            { id: 'jpg', label: 'Social Share', sub: 'Best for Sharing', ext: 'JPG' }
-                                        ].map(fmt => (
-                                            <div
-                                                key={fmt.id}
-                                                onClick={() => setExportOptions(prev => ({ ...prev, format: fmt.id as any }))}
-                                                className={`flex-1 cursor-pointer rounded-2xl border-4 p-5 text-center transition-all duration-300 ${exportOptions.format === fmt.id ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_20px_rgba(245,158,11,0.2)] scale-105' : 'border-white/5 bg-white/5 text-slate-400 hover:border-white/20 hover:bg-white/10'}`}
-                                            >
-                                                <div className={`text-[10px] uppercase font-black tracking-widest mb-1 ${exportOptions.format === fmt.id ? 'text-amber-400' : 'text-slate-500'}`}>
-                                                    {fmt.label}
-                                                </div>
-                                                <div className={`font-black text-2xl mb-1 ${exportOptions.format === fmt.id ? 'text-white' : 'text-slate-300'}`}>{fmt.ext}</div>
-                                                <div className={`text-[10px] font-bold ${exportOptions.format === fmt.id ? 'text-amber-200/50' : 'text-slate-600'}`}>{fmt.sub}</div>
+                            {/* Information Toggles */}
+                            <div className="space-y-6">
+                                <Label className="text-sm font-black text-slate-300 uppercase tracking-[0.2em]">3. Details to Show</Label>
+                                <div className="space-y-4 bg-white/5 p-6 rounded-3xl border border-white/10">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-2xl bg-black/40 flex items-center justify-center shadow-inner text-amber-500 ring-1 ring-white/10">
+                                                <Table className="w-5 h-5" />
                                             </div>
-                                        ))}
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-black text-slate-100">Business Info</span>
+                                                <span className="text-xs text-slate-500 font-medium italic">Address & Phone</span>
+                                            </div>
+                                        </div>
+                                        <Switch
+                                            checked={exportOptions.includeLocation}
+                                            onCheckedChange={(c) => setExportOptions(prev => ({ ...prev, includeLocation: c }))}
+                                            className="scale-125 data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-slate-700"
+                                        />
                                     </div>
-                                </div>
-
-                                {/* Information Toggles */}
-                                <div className="space-y-6">
-                                    <Label className="text-sm font-black text-slate-300 uppercase tracking-[0.2em]">3. Details to Show</Label>
-                                    <div className="space-y-4 bg-white/5 p-6 rounded-3xl border border-white/10">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-2xl bg-black/40 flex items-center justify-center shadow-inner text-amber-500 ring-1 ring-white/10">
-                                                    <Table className="w-5 h-5" />
-                                                </div>
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm font-black text-slate-100">Business Info</span>
-                                                    <span className="text-xs text-slate-500 font-medium italic">Address & Phone</span>
-                                                </div>
+                                    <div className="h-px bg-white/10 mx-2" />
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-2xl bg-black/40 flex items-center justify-center shadow-inner text-amber-500 ring-1 ring-white/10">
+                                                <Percent className="w-5 h-5" />
                                             </div>
-                                            <Switch
-                                                checked={exportOptions.includeLocation}
-                                                onCheckedChange={(c) => setExportOptions(prev => ({ ...prev, includeLocation: c }))}
-                                                className="scale-125 data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-slate-700"
-                                            />
-                                        </div>
-                                        <div className="h-px bg-white/10 mx-2" />
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-2xl bg-black/40 flex items-center justify-center shadow-inner text-amber-500 ring-1 ring-white/10">
-                                                    <Percent className="w-5 h-5" />
-                                                </div>
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm font-black text-slate-100">Dish Descriptions</span>
-                                                    <span className="text-xs text-slate-500 font-medium italic">Detailed menu text</span>
-                                                </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-black text-slate-100">Dish Descriptions</span>
+                                                <span className="text-xs text-slate-500 font-medium italic">Detailed menu text</span>
                                             </div>
-                                            <Switch
-                                                checked={exportOptions.includeDescription}
-                                                onCheckedChange={(c) => setExportOptions(prev => ({ ...prev, includeDescription: c }))}
-                                                className="scale-125 data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-slate-700"
-                                            />
                                         </div>
+                                        <Switch
+                                            checked={exportOptions.includeDescription}
+                                            onCheckedChange={(c) => setExportOptions(prev => ({ ...prev, includeDescription: c }))}
+                                            className="scale-125 data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-slate-700"
+                                        />
                                     </div>
                                 </div>
                             </div>
                         </div>
+                    </div>
 
-                        <DialogFooter className="p-8 bg-black/50 border-t border-white/10 flex-shrink-0 backdrop-blur-xl">
-                            <Button variant="ghost" className="h-14 rounded-2xl px-10 text-slate-400 font-bold hover:bg-white/5 hover:text-white transition-all glass-card border border-white/5" onClick={() => setIsExportDialogOpen(false)}>Cancel</Button>
-                            <Button
-                                onClick={() => {
-                                    handleDownloadMenu();
-                                    setIsExportDialogOpen(false);
-                                }}
-                                className="h-14 rounded-[1.25rem] px-14 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-400 font-black text-xl gap-4 shadow-[0_0_20px_rgba(245,158,11,0.2)] transition-all hover:scale-[1.02] active:scale-[0.98] ring-4 ring-amber-500/10"
-                            >
-                                <FileDown className="w-7 h-7 drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]" /> Generate Spread
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            </div>
+                    <DialogFooter className="p-8 bg-black/50 border-t border-white/10 flex-shrink-0 backdrop-blur-xl">
+                        <Button variant="ghost" className="h-14 rounded-2xl px-10 text-slate-400 font-bold hover:bg-white/5 hover:text-white transition-all glass-card border border-white/5" onClick={() => setIsExportDialogOpen(false)}>Cancel</Button>
+                        <Button
+                            onClick={() => {
+                                handleDownloadMenu();
+                                setIsExportDialogOpen(false);
+                            }}
+                            className="h-14 rounded-[1.25rem] px-14 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-400 font-black text-xl gap-4 shadow-[0_0_20px_rgba(245,158,11,0.2)] transition-all hover:scale-[1.02] active:scale-[0.98] ring-4 ring-amber-500/10"
+                        >
+                            <FileDown className="w-7 h-7 drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]" /> Generate Spread
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            {/* Bottom Mobile Navigation */}
+            <MobileNav />
         </div>
     );
 };
