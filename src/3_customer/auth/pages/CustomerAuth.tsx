@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import {
     Flame, Eye, EyeOff, Loader2, ArrowLeft,
-    Phone, Mail, User, Lock, UserCheck
+    Phone, Mail, User, Lock, UserCheck, ShieldAlert, KeyRound
 } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import type { AuthView, IdentifierType } from '@/3_customer/types/customer';
@@ -123,12 +123,13 @@ const CustomerAuth: React.FC = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [otp, setOtp] = useState('');
 
     // ─── Check if already logged in ───────────────────────────
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session?.user?.user_metadata?.role === 'customer') {
-                navigate('/foodie', { replace: true });
+                navigate('/foodie/home', { replace: true });
             }
         });
     }, [navigate]);
@@ -136,35 +137,59 @@ const CustomerAuth: React.FC = () => {
     // ─── Auto-detect identifier type ──────────────────────────
     const handleIdentifierChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
-        const formatted = detectIdentifierType(val) === 'phone' ? formatPhone(val) : val;
+        // Only format phone AFTER we're confident it's a phone (starts with + or digit)
+        // Email detection: contains '@' → treat as email, no formatting
+        const type = detectIdentifierType(val);
+        const isDefinitelyPhone = /^[+\d]/.test(val) && !val.includes('@');
+        const formatted = (type === 'phone' && isDefinitelyPhone) ? formatPhone(val) : val;
         setIdentifier(formatted);
-        setIdentifierType(detectIdentifierType(val));
+        setIdentifierType(type);
     };
 
-    // ─── Step 1: Check existence ───────────────────────────────
+    // ─── Step 1: Identifier check — partner guard + route to SIGNUP/LOGIN ──
     const handleIdentifierCheck = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!identifier.trim()) return;
-        setLoading(true);
-        try {
-            const { data: exists, error } = await (supabase as any)
-                .rpc('check_customer_exists', { identifier: identifier.trim() });
+        const id = identifier.trim();
+        if (!id) return;
 
-            if (error) {
-                console.error('Check error:', error);
-                // Default to signup on error
-                setView('SIGNUP');
-            } else if (exists) {
-                toast.info('Welcome back! Please enter your password.');
-                setView('LOGIN');
-            } else {
-                toast.info('New here? Create your account!');
+        // Partner check only for email identifiers (partners always use email)
+        if (identifierType === 'email') {
+            setLoading(true);
+            try {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('role')
+                    .eq('email', id)
+                    .maybeSingle();
+
+                const existingProfile = profile as any;
+                if (existingProfile && existingProfile.role === 'partner') {
+                    toast.error('⚠️ Yeh email ek Partner account se linked hai. Partner customer nahi ho sakta.');
+                    setLoading(false);
+                    return;
+                }
+
+                // Check if customer already exists with this email
+                const { data: existing } = await (supabase as any)
+                    .from('customers')
+                    .select('id')
+                    .eq('email', id)
+                    .maybeSingle();
+
+                setLoading(false);
+                if (existing) {
+                    toast.info('Welcome back! Enter your password.');
+                    setView('LOGIN');
+                } else {
+                    setView('SIGNUP');
+                }
+            } catch {
+                setLoading(false);
                 setView('SIGNUP');
             }
-        } catch (err) {
-            toast.error('Something went wrong. Please try again.');
-        } finally {
-            setLoading(false);
+        } else {
+            // Phone users — no partner check (partners use email only)
+            setView('SIGNUP');
         }
     };
 
@@ -180,13 +205,15 @@ const CustomerAuth: React.FC = () => {
                 password,
             });
             if (error) {
-                toast.error('Incorrect password. Please try again.');
+                console.error('Login error details:', error);
+                toast.error(`Login failed: ${error.message}`);
             } else {
                 toast.success('Welcome back! 🎉');
                 navigate('/foodie/home');
             }
-        } catch {
-            toast.error('Login failed. Please try again.');
+        } catch (err) {
+            console.error('Unexpected login error:', err);
+            toast.error('An unexpected error occurred during login.');
         } finally {
             setLoading(false);
         }
@@ -195,18 +222,9 @@ const CustomerAuth: React.FC = () => {
     // ─── Step 2b: Signup ───────────────────────────────────────
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (password !== confirmPassword) {
-            toast.error("Passwords don't match!");
-            return;
-        }
-        if (password.length < 6) {
-            toast.error('Password must be at least 6 characters.');
-            return;
-        }
-        if (!name.trim()) {
-            toast.error('Please enter your name.');
-            return;
-        }
+        if (password !== confirmPassword) { toast.error("Passwords don't match!"); return; }
+        if (password.length < 6) { toast.error('Password must be at least 6 characters.'); return; }
+        if (!name.trim()) { toast.error('Please enter your name.'); return; }
         setLoading(true);
         try {
             const supabaseEmail = getSupabaseEmail(identifier, identifierType);
@@ -224,31 +242,90 @@ const CustomerAuth: React.FC = () => {
             });
 
             if (signupError) {
+                console.error('Signup error details:', signupError);
                 if (signupError.message.toLowerCase().includes('already registered')) {
                     toast.error('Account already exists! Please login.');
                     setView('LOGIN');
                 } else {
-                    toast.error(signupError.message);
+                    toast.error(`Signup failed: ${signupError.message}`);
                 }
                 return;
             }
 
-            // Insert into customers table
-            // NOTE: 'customers' table type will be added to database.types.ts after SQL migration
+            // Insert into customers table (graceful)
             if (authData.user) {
-                await (supabase as any).from('customers').insert({
-                    id: authData.user.id,
-                    phone: identifierType === 'phone' ? identifier.trim() : null,
-                    email: identifierType === 'email' ? identifier.trim() : null,
-                    name: name.trim(),
-                    points: 0,
-                });
+                try {
+                    const { error: insertError } = await (supabase as any).from('customers').insert({
+                        id: authData.user.id,
+                        phone: identifierType === 'phone' ? identifier.trim() : null,
+                        email: identifierType === 'email' ? identifier.trim() : null,
+                        name: name.trim(),
+                        points: 0,
+                    });
+                    if (insertError) {
+                        console.error('Customer profile insert failed (Expected if SQL not run):', insertError);
+                    }
+                } catch (err) {
+                    console.error('Exception during customer insert:', err);
+                }
             }
 
-            toast.success('Account created! Welcome to SaySavor 🎉');
-            navigate('/foodie');
+            // Email users → OTP verification; Phone users → direct home
+            if (identifierType === 'email') {
+                toast.success('Verification code sent to your email! 📧');
+                setView('OTP_VERIFY');
+            } else {
+                toast.success('Account created! Welcome to SaySavor 🎉');
+                navigate('/foodie/home');
+            }
         } catch {
             toast.error('Signup failed. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // ─── Step 3: OTP Verification (email users only) ───────────
+    const handleOtpVerify = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!otp.trim() || otp.length < 6) {
+            toast.error('Please enter the 6-digit code.');
+            return;
+        }
+        setLoading(true);
+        try {
+            const supabaseEmail = getSupabaseEmail(identifier, identifierType);
+            const { error } = await supabase.auth.verifyOtp({
+                email: supabaseEmail,
+                token: otp.trim(),
+                type: 'signup',
+            });
+            if (error) {
+                toast.error('Invalid or expired code. Please try again.');
+            } else {
+                toast.success('Email verified! Welcome to SaySavor 🎉');
+                navigate('/foodie/home');
+            }
+        } catch {
+            toast.error('Verification failed. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // ─── Resend OTP ────────────────────────────────────────────
+    const handleResendOtp = async () => {
+        setLoading(true);
+        try {
+            const supabaseEmail = getSupabaseEmail(identifier, identifierType);
+            await supabase.auth.signUp({
+                email: supabaseEmail,
+                password,
+                options: { data: { role: 'customer', name: name.trim() } },
+            });
+            toast.success('New code sent to your email!');
+        } catch {
+            toast.error('Failed to resend code.');
         } finally {
             setLoading(false);
         }
@@ -259,7 +336,7 @@ const CustomerAuth: React.FC = () => {
         localStorage.setItem('ss_guest_id', crypto.randomUUID());
         localStorage.setItem('ss_guest_mode', 'true');
         toast.success('Browsing as Guest 👤');
-        navigate('/foodie');
+        navigate('/foodie/home');
     };
 
     // ─── Shared Input style ────────────────────────────────────
@@ -572,6 +649,80 @@ const CustomerAuth: React.FC = () => {
                                     >
                                         <ArrowLeft className="w-4 h-4" /> Back
                                     </button>
+                                </form>
+                            </motion.div>
+                        )}
+
+                        {/* ════ VIEW 3: OTP VERIFY ════ */}
+                        {view === 'OTP_VERIFY' && (
+                            <motion.div
+                                key="otp"
+                                variants={slideVariants}
+                                initial="enter" animate="center" exit="exit"
+                                transition={{ duration: 0.3 }}
+                            >
+                                <div className="text-center mb-8">
+                                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style={{ background: 'rgba(255,107,53,0.1)' }}>
+                                        <KeyRound className="w-8 h-8" style={{ color: '#FF6B35' }} />
+                                    </div>
+                                    <h2 className="text-3xl font-bold text-gray-900">Check Your Email</h2>
+                                    <p className="text-gray-500 mt-2">
+                                        We sent a 6-digit code to<br />
+                                        <span className="font-semibold text-gray-800">{identifier}</span>
+                                    </p>
+                                </div>
+
+                                <form onSubmit={handleOtpVerify} className="space-y-4">
+                                    {/* OTP input */}
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        value={otp}
+                                        onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                                        placeholder="Enter 6-digit code"
+                                        className={`${inputClass} text-center text-2xl tracking-[0.5em] font-bold`}
+                                        required
+                                        autoFocus
+                                        maxLength={8}
+                                    />
+
+                                    <button
+                                        type="submit"
+                                        disabled={loading}
+                                        className={btnPrimary}
+                                        style={{ background: 'linear-gradient(135deg, #FF6B35 0%, #E85A24 100%)' }}
+                                    >
+                                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verify & Continue →'}
+                                    </button>
+
+                                    <div className="flex items-center justify-between text-sm pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => { setView('SIGNUP'); setOtp(''); }}
+                                            className="flex items-center gap-1 text-gray-500 hover:text-gray-700"
+                                        >
+                                            <ArrowLeft className="w-4 h-4" /> Back
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleResendOtp}
+                                            disabled={loading}
+                                            className="font-semibold hover:underline"
+                                            style={{ color: '#FF6B35' }}
+                                        >
+                                            Resend Code
+                                        </button>
+                                    </div>
+
+                                    <div
+                                        className="flex items-start gap-3 p-4 rounded-xl mt-2"
+                                        style={{ background: 'rgba(255,107,53,0.06)', border: '1px solid rgba(255,107,53,0.15)' }}
+                                    >
+                                        <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#FF6B35' }} />
+                                        <p className="text-xs text-gray-500 leading-relaxed">
+                                            Code expires in <strong>24 hours</strong>. Check your spam folder if you don't see it.
+                                        </p>
+                                    </div>
                                 </form>
                             </motion.div>
                         )}

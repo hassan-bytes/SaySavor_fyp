@@ -77,9 +77,11 @@ export const CustomerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
             if (!error && data) {
                 setCustomer(data as Customer);
                 setIsGuest(false);
+            } else if (error) {
+                console.error('Customer profile fetch failed (406 likely means table missing or RLS issue):', error);
             }
         } catch (error) {
-            console.error('Customer profile fetch error:', error);
+            console.error('Unexpected error in fetchCustomerProfile:', error);
         }
     };
 

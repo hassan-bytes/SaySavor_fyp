@@ -122,7 +122,7 @@ const RestaurantCard3D: React.FC<{
                     (e.currentTarget as HTMLElement).style.boxShadow = '0 20px 50px rgba(255,107,53,0.18)';
                     (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,107,53,0.3)';
                 }}
-                onMouseLeave2={e => {
+                onMouseLeave={e => {
                     (e.currentTarget as HTMLElement).style.boxShadow = '';
                     (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.08)';
                 }}

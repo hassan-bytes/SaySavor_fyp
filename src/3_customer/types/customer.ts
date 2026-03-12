@@ -18,7 +18,7 @@ export interface Customer {
 }
 
 // ── Auth ──────────────────────────────────────────────────────
-export type AuthView = 'IDENTIFIER_ENTRY' | 'LOGIN' | 'SIGNUP';
+export type AuthView = 'IDENTIFIER_ENTRY' | 'LOGIN' | 'SIGNUP' | 'OTP_VERIFY';
 
 export type IdentifierType = 'phone' | 'email';
 
