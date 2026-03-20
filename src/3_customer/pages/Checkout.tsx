@@ -77,6 +77,31 @@ interface DeliveryAddress {
     phone: string;
 }
 
+// ── Address validation helper ────────────────────────────────
+const validateAddress = (address: DeliveryAddress): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    
+    if (!address.fullAddress?.trim()) {
+        errors.push('Address is required');
+    } else if (address.fullAddress.trim().length < 10) {
+        errors.push('Address must be at least 10 characters');
+    }
+    
+    if (!address.phone?.trim()) {
+        errors.push('Phone number is required');
+    } else {
+        const digits = address.phone.replace(/\D/g, '');
+        if (digits.length < 10 || digits.length > 15) {
+            errors.push('Phone number must be 10-15 digits');
+        }
+    }
+    
+    return {
+        isValid: errors.length === 0,
+        errors
+    };
+};
+
 // ── Inner Stripe Form Component ──────────────────────────────
 const StripePaymentForm: React.FC<{
     onSuccess: (paymentIntentId: string) => void;

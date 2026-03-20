@@ -18,6 +18,33 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { useCustomerAuth } from '@/3_customer/context/CustomerAuthContext';
 import type { AuthView, IdentifierType } from '@/3_customer/types/customer';
 
+// ── Rate limiting helper ───────────────────────────────────────
+const createRateLimiter = (maxAttempts: number = 5, windowMs: number = 5 * 60 * 1000) => {
+    const attempts = new Map<string, { count: number; resetTime: number }>();
+    
+    return {
+        isLimited: (key: string): boolean => {
+            const now = Date.now();
+            const record = attempts.get(key);
+            
+            if (!record || now > record.resetTime) {
+                attempts.set(key, { count: 1, resetTime: now + windowMs });
+                return false;
+            }
+            
+            if (record.count >= maxAttempts) {
+                return true;
+            }
+            
+            record.count++;
+            return false;
+        },
+        reset: (key: string) => attempts.delete(key),
+    };
+};
+
+const authRateLimiter = createRateLimiter(5, 5 * 60 * 1000);
+
 // ── Helpers ───────────────────────────────────────────────────
 const detectIdentifierType = (value: string): IdentifierType =>
     value.includes('@') ? 'email' : 'phone';
@@ -32,6 +59,11 @@ const getSupabaseEmail = (identifier: string, type: IdentifierType): string =>
 
 const formatPhone = (value: string): string =>
     value.replace(/[^\d+\s\-()]/g, '');
+
+const validatePhoneFormat = (phone: string): boolean => {
+    const digits = phone.replace(/\D/g, '');
+    return digits.length >= 10 && digits.length <= 15;
+};
 
 const slideVariants = {
     enter: { opacity: 0, x: 30 },
@@ -149,6 +181,13 @@ const CustomerAuth: React.FC = () => {
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!password.trim()) return;
+
+        // Check rate limiting
+        if (authRateLimiter.isLimited(identifier)) {
+            toast.error('Too many login attempts. Please try again in 5 minutes.');
+            return;
+        }
+
         setLoading(true);
         try {
             const email = getSupabaseEmail(identifier, identifierType);
@@ -158,6 +197,7 @@ const CustomerAuth: React.FC = () => {
                     ? 'Wrong password. Try again.'
                     : error.message);
             } else {
+                authRateLimiter.reset(identifier);
                 toast.success('Welcome back! 🎉');
                 navigate('/foodie/home');
             }

@@ -33,13 +33,61 @@ const TOP_COUNTRIES = [
     { code: 'AU', name: 'Australia', dialCode: '+61', flag: '🇦🇺', pattern: /^4[0-9]{8}$/ },
 ];
 
+// Rate limiting helper
+const createRateLimiter = (maxAttempts: number = 5, windowMs: number = 5 * 60 * 1000) => {
+    const attempts = new Map<string, { count: number; resetTime: number }>();
+    
+    return {
+        isLimited: (key: string): boolean => {
+            const now = Date.now();
+            const record = attempts.get(key);
+            
+            if (!record || now > record.resetTime) {
+                attempts.set(key, { count: 1, resetTime: now + windowMs });
+                return false;
+            }
+            
+            if (record.count >= maxAttempts) {
+                return true;
+            }
+            
+            record.count++;
+            return false;
+        },
+        reset: (key: string) => attempts.delete(key),
+    };
+};
+
+const authRateLimiter = createRateLimiter(5, 5 * 60 * 1000);
+
+// Password strength validator
+const validatePasswordStrength = (password: string): { isStrong: boolean; feedback: string[] } => {
+    const feedback: string[] = [];
+    
+    if (password.length < 8) feedback.push('At least 8 characters');
+    if (!/[A-Z]/.test(password)) feedback.push('At least 1 uppercase letter');
+    if (!/[a-z]/.test(password)) feedback.push('At least 1 lowercase letter');
+    if (!/[0-9]/.test(password)) feedback.push('At least 1 number');
+    if (!/[!@#$%^&*]/.test(password)) feedback.push('At least 1 special character (!@#$%^&*)');
+    
+    return {
+        isStrong: feedback.length === 0,
+        feedback
+    };
+};
+
 // Validation Schemas
 const createSignupSchema = (phonePattern: RegExp) => z.object({
     owner_name: z.string().min(2, 'Name must be at least 2 characters'),
     restaurant_name: z.string().min(2, 'Restaurant name required'),
     phone: z.string().regex(phonePattern, 'Invalid phone number for selected country'),
     email: z.string().email('Invalid email address'),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
+    password: z.string()
+        .min(8, 'Password must be at least 8 characters')
+        .refine((pwd) => /[A-Z]/.test(pwd), 'Password must contain at least 1 uppercase letter')
+        .refine((pwd) => /[a-z]/.test(pwd), 'Password must contain at least 1 lowercase letter')
+        .refine((pwd) => /[0-9]/.test(pwd), 'Password must contain at least 1 number')
+        .refine((pwd) => /[!@#$%^&*]/.test(pwd), 'Password must contain at least 1 special character'),
     confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",
@@ -450,6 +498,13 @@ const Partner_Auth = () => {
     };
 
     const handleLogin = async (data: LoginForm) => {
+        // Check rate limiting
+        if (authRateLimiter.isLimited(data.email)) {
+            toast.error('Too many login attempts. Please try again in 5 minutes.');
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         try {
             const { error } = await supabase.auth.signInWithPassword({
@@ -460,6 +515,7 @@ const Partner_Auth = () => {
             if (error) {
                 toast.error(error.message);
             } else {
+                authRateLimiter.reset(data.email);
                 toast.success('Login successful!');
 
                 // Smart Navigation based on setup status

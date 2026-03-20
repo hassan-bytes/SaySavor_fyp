@@ -92,6 +92,7 @@ const RestaurantDetail: React.FC = () => {
     const [restaurant, setRestaurant] = useState<RestaurantInfo | null>(null);
     const [menuCategories, setMenuCategories] = useState<{name: string, items: MenuItem[]}[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -108,6 +109,7 @@ const RestaurantDetail: React.FC = () => {
 
     const fetchRestaurantData = async () => {
         setLoading(true);
+        setError(null);
         try {
             // 1. Restaurant Info
             const { data: resData, error: resError } = await supabase
@@ -167,9 +169,11 @@ const RestaurantDetail: React.FC = () => {
 
             setMenuCategories(grouped);
             if (grouped.length > 0) setActiveTab(grouped[0].name);
+            setError(null);
 
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error fetching restaurant detail:', err);
+            setError(err.message || 'Failed to load restaurant details');
         } finally {
             setLoading(false);
         }
@@ -186,7 +190,37 @@ const RestaurantDetail: React.FC = () => {
         );
     }
 
-    if (!restaurant) return <div>Restaurant not found</div>;
+    if (error) {
+        return (
+            <div className="min-h-screen bg-[#0d0500] flex flex-col items-center justify-center p-6 text-center">
+                <div className="text-6xl mb-4">⚠️</div>
+                <h2 className="text-2xl font-bold text-white mb-2">{error}</h2>
+                <p className="text-white/50 mb-6">Unable to load restaurant details</p>
+                <button
+                    onClick={() => navigate('/foodie/home')}
+                    className="px-6 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors"
+                >
+                    Back to Home
+                </button>
+            </div>
+        );
+    }
+
+    if (!restaurant) {
+        return (
+            <div className="min-h-screen bg-[#0d0500] flex flex-col items-center justify-center p-6 text-center">
+                <div className="text-6xl mb-4">🔍</div>
+                <h2 className="text-2xl font-bold text-white mb-2">Restaurant not found</h2>
+                <p className="text-white/50 mb-6">The restaurant you're looking for doesn't exist</p>
+                <button
+                    onClick={() => navigate('/foodie/home')}
+                    className="px-6 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors"
+                >
+                    Back to Home
+                </button>
+            </div>
+        );
+    }
 
     const savedCurrency = restaurant.currency || 'PKR';
     const currencyInfo = Object.values(COUNTRY_CURRENCIES).find(

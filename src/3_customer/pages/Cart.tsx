@@ -50,12 +50,24 @@ const CartPage: React.FC = () => {
     React.useEffect(() => {
         const loadCurrency = async () => {
             if (!currentRestaurantId) return;
-            const { data } = await supabase
-                .from('restaurants').select('currency').eq('id', currentRestaurantId).maybeSingle();
-            const savedCurrency = (data as any)?.currency || 'PKR';
-            const info = Object.values(COUNTRY_CURRENCIES).find(c => c.code === savedCurrency)
-                ?? Object.values(COUNTRY_CURRENCIES).find(c => c.code === 'PKR');
-            setCurrencySymbol(info?.symbol ?? 'PKR');
+            try {
+                const { data, error } = await supabase
+                    .from('restaurants').select('currency').eq('id', currentRestaurantId).maybeSingle();
+                
+                if (error) {
+                    console.error('Error loading currency:', error);
+                    setCurrencySymbol('PKR');
+                    return;
+                }
+
+                const savedCurrency = (data as any)?.currency || 'PKR';
+                const info = Object.values(COUNTRY_CURRENCIES).find(c => c.code === savedCurrency)
+                    ?? Object.values(COUNTRY_CURRENCIES).find(c => c.code === 'PKR');
+                setCurrencySymbol(info?.symbol ?? 'PKR');
+            } catch (err) {
+                console.error('Failed to load currency:', err);
+                setCurrencySymbol('PKR');
+            }
         };
         loadCurrency();
     }, [currentRestaurantId]);

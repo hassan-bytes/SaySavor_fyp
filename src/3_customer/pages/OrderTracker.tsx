@@ -19,6 +19,8 @@ const OrderTracker: React.FC = () => {
     const navigate = useNavigate();
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [isConnected, setIsConnected] = useState(true);
 
     const statuses = [
         { key: 'pending',    label: 'Order Received', desc: 'Aapka order mil gaya hai' },
@@ -29,21 +31,40 @@ const OrderTracker: React.FC = () => {
     ];
 
     useEffect(() => {
-        const fetchOrder = async () => {
-            const { data, error } = await supabase
-                .from('orders')
-                .select('*, restaurants(name, logo_url)')
-                .eq('id', id)
-                .single();
-            if (data) setOrder(data);
+        if (!id) {
+            setError('Order ID is missing');
             setLoading(false);
+            return;
+        }
+
+        const fetchOrder = async () => {
+            try {
+                const { data, error: fetchError } = await supabase
+                    .from('orders')
+                    .select('*, restaurants(name, logo_url)')
+                    .eq('id', id)
+                    .single();
+                
+                if (fetchError) {
+                    setError('Order not found');
+                    setOrder(null);
+                } else if (data) {
+                    setOrder(data);
+                    setError(null);
+                }
+            } catch (err: any) {
+                setError('Failed to load order');
+                console.error('Order fetch error:', err);
+            } finally {
+                setLoading(false);
+            }
         };
 
         fetchOrder();
 
-        // Real-time subscription
+        // Real-time subscription with error handling
         const channel = supabase
-            .channel('order_updates')
+            .channel(`order_updates_${id}`)
             .on('postgres_changes', { 
                 event: 'UPDATE', 
                 schema: 'public', 
@@ -51,10 +72,15 @@ const OrderTracker: React.FC = () => {
                 filter: `id=eq.${id}`
             }, (payload) => {
                 setOrder((prev: any) => ({ ...prev, ...payload.new }));
+                setIsConnected(true);
             })
-            .subscribe();
+            .subscribe((status) => {
+                setIsConnected(status === 'SUBSCRIBED');
+            });
 
-        return () => { supabase.removeChannel(channel); };
+        return () => { 
+            supabase.removeChannel(channel);
+        };
     }, [id]);
 
     if (loading) return (
@@ -63,7 +89,33 @@ const OrderTracker: React.FC = () => {
         </div>
     );
 
-    if (!order) return <div className="p-8 text-center text-white">Order not found</div>;
+    if (error) return (
+        <div className="min-h-screen bg-[#0d0500] flex flex-col items-center justify-center p-6 text-center">
+            <div className="text-6xl mb-4">❌</div>
+            <h2 className="text-2xl font-bold text-white mb-2">{error}</h2>
+            <p className="text-white/50 mb-6">Unable to load your order details</p>
+            <button
+                onClick={() => navigate('/foodie/home')}
+                className="px-6 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors"
+            >
+                Back to Home
+            </button>
+        </div>
+    );
+
+    if (!order) return (
+        <div className="min-h-screen bg-[#0d0500] flex flex-col items-center justify-center p-6 text-center">
+            <div className="text-6xl mb-4">🔍</div>
+            <h2 className="text-2xl font-bold text-white mb-2">Order not found</h2>
+            <p className="text-white/50 mb-6">The order you're looking for doesn't exist</p>
+            <button
+                onClick={() => navigate('/foodie/home')}
+                className="px-6 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors"
+            >
+                Back to Home
+            </button>
+        </div>
+    );
 
     const currentStatusIndex = statuses.findIndex(s => s.key === order.status);
 

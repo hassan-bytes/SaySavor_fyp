@@ -15,6 +15,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { LanguageProvider } from "@/shared/contexts/LanguageContext";
 import ScrollToTop from "@/shared/components/ScrollToTop";
 import { ProtectedRoute } from "@/shared/components/ProtectedRoute";
+import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
 
 // --- 1_public: Landing pages (koi bhi dekh sakta hai) ---
 import Index from "@/1_public/pages/Index";
@@ -104,13 +105,14 @@ const App = () => {
   }, []);
 
   return (
-    <LanguageProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <ScrollToTop />
-          <Routes>
+    <ErrorBoundary>
+      <LanguageProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <ScrollToTop />
+            <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/about" element={<About />} />
             <Route path="/features" element={<Features />} />
@@ -184,10 +186,11 @@ const App = () => {
             </Route>
 
             <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </LanguageProvider>
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </LanguageProvider>
+    </ErrorBoundary>
   );
 };
 
