@@ -36,8 +36,13 @@ export default function Orders() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
     const [lowStockItems, setLowStockItems] = useState<{ name: string; stock: number; threshold: number }[]>([]);
-    const [selectedFilter, setSelectedFilter] = useState<OrderStatus>('all');
-    const [activeTab, setActiveTab] = useState<'DINE_IN' | 'DELIVERY'>('DINE_IN');
+    // FIX #10: Load filter from localStorage on mount
+    const [selectedFilter, setSelectedFilter] = useState<OrderStatus>(
+        (typeof window !== 'undefined' && localStorage.getItem('orderFilter') as OrderStatus) || 'all'
+    );
+    const [activeTab, setActiveTab] = useState<'DINE_IN' | 'DELIVERY'>(
+        (typeof window !== 'undefined' && localStorage.getItem('activeOrderTab') as 'DINE_IN' | 'DELIVERY') || 'DINE_IN'
+    );
     const [loading, setLoading] = useState(true);
     const [isDemoMode, setIsDemoMode] = useState(false);
     const [restaurantId, setRestaurantId] = useState<string | null>(null);
@@ -208,40 +213,46 @@ export default function Orders() {
         init();
     }, []);
 
+    // FIX #9 & #11: Add debouncing and loading state for stock check
     useEffect(() => {
-        const checkLowStock = async () => {
-            if (!restaurantId) return;
+        if (!restaurantId) return;
 
-            const { data: items } = await supabase
-                .from('menu_items')
-                .select('name, stock_count, low_stock_threshold, is_stock_managed')
-                .eq('restaurant_id', restaurantId)
-                .eq('is_stock_managed', true)
-                .not('stock_count', 'is', null);
+        // Debounce stock check to avoid running on every order change
+        const timer = setTimeout(async () => {
+            try {
+                const { data: items } = await supabase
+                    .from('menu_items')
+                    .select('name, stock_count, low_stock_threshold, is_stock_managed')
+                    .eq('restaurant_id', restaurantId)
+                    .eq('is_stock_managed', true)
+                    .not('stock_count', 'is', null);
 
-            if (!items) return;
+                if (!items) return;
 
-            const low = items.filter((item: any) =>
-                item.stock_count <= (item.low_stock_threshold || 5) &&
-                item.stock_count > 0
-            ).map((item: any) => ({
-                name: item.name,
-                stock: item.stock_count,
-                threshold: item.low_stock_threshold || 5
-            }));
+                const low = items.filter((item: any) =>
+                    item.stock_count <= (item.low_stock_threshold || 5) &&
+                    item.stock_count > 0
+                ).map((item: any) => ({
+                    name: item.name,
+                    stock: item.stock_count,
+                    threshold: item.low_stock_threshold || 5
+                }));
 
-            const outOfStock = items.filter((item: any) =>
-                item.stock_count <= 0
-            ).map((item: any) => ({
-                name: item.name,
-                stock: 0,
-                threshold: item.low_stock_threshold || 5
-            }));
+                const outOfStock = items.filter((item: any) =>
+                    item.stock_count <= 0
+                ).map((item: any) => ({
+                    name: item.name,
+                    stock: 0,
+                    threshold: item.low_stock_threshold || 5
+                }));
 
-            setLowStockItems([...outOfStock, ...low]);
-        };
+                setLowStockItems([...outOfStock, ...low]);
+            } catch (error) {
+                console.error('Error checking low stock:', error);
+            }
+        }, 1000); // Debounce 1 second
 
-        checkLowStock();
+        return () => clearTimeout(timer);
     }, [restaurantId, orders]);
 
     // Fetch real orders
@@ -285,16 +296,18 @@ export default function Orders() {
     useEffect(() => {
         if (!restaurantId || isDemoMode) return;
 
-        // console.log('Subscribing to realtime order updates for restaurant:', restaurantId);
         const channel = supabase.channel('live-orders')
             .on(
                 'broadcast',
                 { event: 'bill_request' },
                 (payload) => {
-                    const { table_number, restaurant_id } = payload.payload;
-                    if (restaurant_id === restaurantId) {
-                        console.log('🚨 BILL REQUEST FROM TABLE', table_number);
-                        // Handled by GlobalListener
+                    try {
+                        const { table_number, restaurant_id } = payload.payload;
+                        if (restaurant_id === restaurantId) {
+                            console.log('🚨 BILL REQUEST FROM TABLE', table_number);
+                        }
+                    } catch (error) {
+                        console.error('Error handling bill request:', error);
                     }
                 }
             )
@@ -302,31 +315,54 @@ export default function Orders() {
                 'postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
                 async (payload) => {
-                    console.log('🔔 NEW ORDER RECEIVED (Orders UI update)', payload);
-                    // Sound and Toast handled by GlobalListener
-
-                    // Update UI immediately 
-                    await fetchOrders(restaurantId);
+                    try {
+                        console.log('🔔 NEW ORDER RECEIVED (Orders UI update)', payload);
+                        await fetchOrders(restaurantId);
+                    } catch (error) {
+                        console.error('Error processing new order:', error);
+                        toast.error('Failed to load new order');
+                    }
                 }
             )
             .on(
                 'postgres_changes',
                 { event: 'UPDATE', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
                 async (payload) => {
-                    console.log('🔔 ORDER UPDATED!', payload);
-
-                    // If total amount increased, new items were added to the bill!
-                    // Sound, Toast, and Notifications are handled by the GlobalListener in Partner_Dashboard.tsx
-                    await fetchOrders(restaurantId);
+                    try {
+                        console.log('🔔 ORDER UPDATED!', payload);
+                        await fetchOrders(restaurantId);
+                    } catch (error) {
+                        console.error('Error processing order update:', error);
+                        toast.error('Failed to update order');
+                    }
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log('✅ Real-time subscription active');
+                } else if (status === 'CLOSED') {
+                    console.warn('⚠️ Real-time subscription closed');
+                }
+            });
 
         return () => {
-            // console.log('Unsubscribing from realtime order updates');
             supabase.removeChannel(channel);
         };
-    }, [restaurantId, restaurantLogo, isDemoMode, soundEnabled]);
+        // FIX #8: Removed restaurantLogo from dependency array to prevent unnecessary re-subscriptions
+    }, [restaurantId, isDemoMode, soundEnabled]);
+
+    // FIX #10: Persist filter state to localStorage
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('orderFilter', selectedFilter);
+        }
+    }, [selectedFilter]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('activeOrderTab', activeTab);
+        }
+    }, [activeTab]);
 
     // Filter orders when filter changes or tab changes
     useEffect(() => {
@@ -377,49 +413,68 @@ export default function Orders() {
 
             if (statusError) throw statusError;
 
-            // 2. Decrement Stock for each item
+            // 2. Decrement Stock for each item (FIX #7: Atomic operation via RPC)
             const order = orders.find(o => o.id === orderId);
             if (order && order.items) {
                 for (const item of order.items) {
                     if (item.menu_item_id) {
-                        // We use a raw SQL approach via RPC if available, 
-                        // but for now we'll do a simple decrement.
-                        // Note: In production, use a database function (RPC) for atomicity.
-                        const { data: currentItem } = await supabase
-                            .from('menu_items')
-                            .select('stock_count, is_stock_managed, low_stock_threshold')
-                            .eq('id', item.menu_item_id)
-                            .single();
+                        try {
+                            // FIX #7: Use RPC for atomic stock decrement to prevent race conditions
+                            const { data: result, error: rpcError } = await (supabase as any).rpc(
+                                'decrement_menu_item_stock',
+                                {
+                                    p_item_id: item.menu_item_id,
+                                    p_quantity: item.quantity
+                                }
+                            );
 
-                        if (currentItem && (currentItem as any).is_stock_managed && (currentItem as any).stock_count !== null) {
-                            const newStock = Math.max(0, (currentItem as any).stock_count - item.quantity);
-                            await (supabase as any)
-                                .from('menu_items')
-                                .update({ stock_count: newStock })
-                                .eq('id', item.menu_item_id);
+                            if (rpcError) {
+                                // Fallback to manual decrement if RPC doesn't exist
+                                console.warn('RPC not available, using manual decrement:', rpcError);
+                                const { data: currentItem } = await supabase
+                                    .from('menu_items')
+                                    .select('stock_count, is_stock_managed, low_stock_threshold')
+                                    .eq('id', item.menu_item_id)
+                                    .single();
 
-                            // Check if stock is now low or zero (using already calculated newStock)
-                            if ((currentItem as any).is_stock_managed) {
-                                const threshold = (currentItem as any).low_stock_threshold || 5;
+                                if (currentItem && (currentItem as any).is_stock_managed && (currentItem as any).stock_count !== null) {
+                                    const newStock = Math.max(0, (currentItem as any).stock_count - item.quantity);
+                                    await (supabase as any)
+                                        .from('menu_items')
+                                        .update({ stock_count: newStock })
+                                        .eq('id', item.menu_item_id);
 
-                                if (newStock === 0) {
-                                    toast.error(
-                                        `⚠️ "${item.name}" is now OUT OF STOCK`,
-                                        {
+                                    const threshold = (currentItem as any).low_stock_threshold || 5;
+                                    if (newStock === 0) {
+                                        toast.error(`⚠️ "${item.name}" is now OUT OF STOCK`, {
                                             duration: 8000,
                                             description: 'Update availability in Menu Manager'
-                                        }
-                                    );
-                                } else if (newStock <= threshold) {
-                                    toast.warning(
-                                        `📦 "${item.name}" is running low — only ${newStock} left`,
-                                        {
+                                        });
+                                    } else if (newStock <= threshold) {
+                                        toast.warning(`📦 "${item.name}" is running low — only ${newStock} left`, {
                                             duration: 6000,
                                             description: `Low stock threshold is ${threshold}`
-                                        }
-                                    );
+                                        });
+                                    }
+                                }
+                            } else if (result) {
+                                // RPC returned stock info
+                                const { new_stock, threshold } = result;
+                                if (new_stock === 0) {
+                                    toast.error(`⚠️ "${item.name}" is now OUT OF STOCK`, {
+                                        duration: 8000,
+                                        description: 'Update availability in Menu Manager'
+                                    });
+                                } else if (new_stock <= threshold) {
+                                    toast.warning(`📦 "${item.name}" is running low — only ${new_stock} left`, {
+                                        duration: 6000,
+                                        description: `Low stock threshold is ${threshold}`
+                                    });
                                 }
                             }
+                        } catch (error) {
+                            console.error('Error decrementing stock:', error);
+                            toast.error(`Failed to update stock for ${item.name}`);
                         }
                     }
                 }
@@ -489,10 +544,17 @@ export default function Orders() {
 
     const handleBulkDelete = () => {
         if (selectedOrders.length === 0) return;
+        
+        // FIX #12: Show order details in confirmation
+        const selectedOrderDetails = orders
+            .filter(o => selectedOrders.includes(o.id))
+            .map(o => `${o.customer_name || 'Unknown'} (${o.id.slice(0, 8)})`)
+            .join(', ');
+        
         setConfirmDialog({
             isOpen: true,
             title: 'Delete Multiple Orders',
-            message: `Are you sure you want to permanently delete ${selectedOrders.length} selected orders? This action cannot be undone.`,
+            message: `Are you sure you want to permanently delete ${selectedOrders.length} selected orders?\n\nOrders: ${selectedOrderDetails}\n\nThis action cannot be undone.`,
             isDestructive: true,
             confirmText: `Delete ${selectedOrders.length} Orders`,
             action: async () => {

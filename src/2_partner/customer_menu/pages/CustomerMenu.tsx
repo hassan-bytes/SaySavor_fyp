@@ -61,26 +61,41 @@ export default function CustomerMenu() {
 
     // Live Order Status Tracking
     const [activeOrder, setActiveOrder] = useState<any>(null);
+    const [isSessionClosed, setIsSessionClosed] = useState(false);
 
+    // FIX #5: Session validation on page load
     useEffect(() => {
         if (!restaurantId || !tableNo) return;
 
         const fetchActiveOrder = async () => {
-            const { data } = await supabase
-                .from('orders')
-                .select('*')
-                .eq('restaurant_id', restaurantId)
-                .eq('table_number', parseInt(tableNo))
-                .in('status', ['pending', 'accepted', 'cooking', 'ready'])
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .single();
+            try {
+                const { data } = await supabase
+                    .from('orders')
+                    .select('*')
+                    .eq('restaurant_id', restaurantId)
+                    .eq('table_number', parseInt(tableNo))
+                    .in('status', ['pending', 'accepted', 'cooking', 'ready'])
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .single();
 
-            if (data) setActiveOrder(data);
+                // FIX #5: Check if session is closed before loading
+                if (data && data.session_status !== 'CLOSED') {
+                    setActiveOrder(data);
+                    setIsSessionClosed(false);
+                } else if (data && data.session_status === 'CLOSED') {
+                    setActiveOrder(null);
+                    setIsSessionClosed(true);
+                }
+            } catch (error) {
+                console.error('Error fetching active order:', error);
+                setActiveOrder(null);
+            }
         };
 
         fetchActiveOrder();
 
+        // FIX #2: Monitor session_status field in real-time subscription
         const channel = supabase.channel(`customer-table-${tableNo}`)
             .on(
                 'postgres_changes',
@@ -91,18 +106,25 @@ export default function CustomerMenu() {
                     setActiveOrder(prevOrder => {
                         // If an order is already active on this phone, check by its unique ID
                         if (prevOrder && prevOrder.id === newOrder.id) {
+                            // FIX #2: Check session_status FIRST - if closed, clear everything
+                            if (newOrder.session_status === 'CLOSED') {
+                                setIsSessionClosed(true);
+                                setCart([]);
+                                return null;
+                            }
+
+                            // Then check order status
                             if (['pending', 'accepted', 'cooking', 'ready'].includes(newOrder.status)) {
-                                return { ...prevOrder, ...newOrder }; // Merge updates like total_amount or status
+                                return { ...prevOrder, ...newOrder };
                             } else {
-                                // Status changed to delivered, cancelled, etc.
                                 return null;
                             }
                         }
 
                         // If there is NO active order, and a new one was just INSERTED for this table
-                        // (INSERT payloads always contain all columns including table_number)
                         if (!prevOrder && newOrder.table_number == tableNo) {
-                            if (['pending', 'accepted', 'cooking', 'ready'].includes(newOrder.status)) {
+                            if (newOrder.session_status !== 'CLOSED' && ['pending', 'accepted', 'cooking', 'ready'].includes(newOrder.status)) {
+                                setIsSessionClosed(false);
                                 return { ...newOrder };
                             }
                         }
@@ -437,7 +459,44 @@ export default function CustomerMenu() {
         return (base + variantsTotal + addonsTotal) * quantity;
     };
 
+    // FIX #3: Payment success handler - closes session and clears cart
+    const handlePaymentSuccess = async (paymentIntentId: string) => {
+        if (!activeOrder) return;
+        
+        try {
+            // Update order session_status to CLOSED
+            const { error } = await supabase
+                .from('orders')
+                .update({ 
+                    session_status: 'CLOSED',
+                    payment_status: 'PAID',
+                    stripe_payment_intent_id: paymentIntentId
+                })
+                .eq('id', activeOrder.id);
+
+            if (error) throw error;
+
+            // Clear cart and close modals
+            setCart([]);
+            setActiveOrder(null);
+            setIsSessionClosed(true);
+            setShowStripe(false);
+            setIsCartOpen(false);
+
+            toast.success('Payment successful! Thank you for your order. 🎉');
+        } catch (error) {
+            console.error('Error completing payment:', error);
+            toast.error('Payment recorded but failed to close session. Please notify staff.');
+        }
+    };
+
     const handleAddToCart = () => {
+        // FIX #4: Validate session is still active before adding items
+        if (isSessionClosed || (activeOrder && activeOrder.session_status === 'CLOSED')) {
+            toast.error('Session has ended. Please scan QR code again to start a new order.');
+            return;
+        }
+
         // Prepare cart item payload
         if (!selectedItem) return;
 
