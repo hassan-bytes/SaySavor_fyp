@@ -598,7 +598,8 @@ export default function CustomerMenu() {
                         total_amount: grandTotal,
                         session_status: 'OPEN',
                         payment_status: paymentMethod === 'ONLINE' ? 'PAID' : 'PENDING',
-                        payment_method: paymentMethod
+                        payment_method: paymentMethod,
+                        status: 'pending'
                     })
                     .select('id');
 

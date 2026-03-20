@@ -262,6 +262,7 @@ export default function Orders() {
                 .from('orders')
                 .select('*, order_items(*)')
                 .eq('restaurant_id', restId)
+                .in('status', ['pending', 'accepted', 'cooking', 'ready', 'delivered', 'cancelled'])
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
