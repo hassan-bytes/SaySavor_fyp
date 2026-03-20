@@ -5,7 +5,9 @@
 //          Puri app ka translations data yahan stored hai.
 //          useLanguage() hook se koi bhi component translations access kar sakta hai.
 // ============================================================
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { supabase } from '@/shared/lib/supabaseClient';
+import { CurrencyInfo, DEFAULT_CURRENCY, formatPrice as formatCurrencyPrice, resolveCurrency } from '@/shared/lib/currencyUtils';
 
 export type Language = 'en' | 'ur' | 'ar' | 'hi' | 'es' | 'fr' | 'zh' | 'tr';
 
@@ -23,9 +25,37 @@ export const languageLabels: Record<Language, { name: string; flag: string; nati
 interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
+  currency: CurrencyInfo;
+  setCurrencyCode: (code: string) => void;
+  formatPrice: (price: number | string) => string;
+  preferencesLoading: boolean;
+  refreshPreferences: () => Promise<void>;
   t: (key: string) => string;
   isRTL: boolean;
 }
+
+const LANGUAGE_STORAGE_KEY = 'saysavor.language';
+const CURRENCY_STORAGE_KEY = 'saysavor.currency';
+
+const isSupportedLanguage = (value: string): value is Language => {
+  return Object.prototype.hasOwnProperty.call(languageLabels, value);
+};
+
+const normalizeLanguage = (value: unknown): Language | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
+  if (isSupportedLanguage(lower)) return lower;
+  if (lower === 'urdu') return 'ur';
+  if (lower === 'arabic') return 'ar';
+  if (lower === 'hindi') return 'hi';
+  if (lower === 'spanish') return 'es';
+  if (lower === 'french') return 'fr';
+  if (lower === 'chinese') return 'zh';
+  if (lower === 'turkish') return 'tr';
+  return null;
+};
 
 const translations: Record<Language, Record<string, string>> = {
   en: {
@@ -1657,7 +1687,118 @@ const translations: Record<Language, Record<string, string>> = {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
-  const [language, setLanguage] = useState<Language>('en');
+  const [language, setLanguageState] = useState<Language>(() => {
+    const stored = localStorage.getItem('dashboard_lang');
+    return (stored as Language) || 'en';
+  });
+  const [currency, setCurrencyState] = useState<CurrencyInfo>(DEFAULT_CURRENCY);
+  const [preferencesLoading, setPreferencesLoading] = useState(true);
+
+  const setLanguage = (lang: Language) => {
+    setLanguageState(lang);
+    localStorage.setItem('dashboard_lang', lang);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
+    }
+  };
+
+  const setCurrencyCode = (code: string) => {
+    const resolved = resolveCurrency(code);
+    setCurrencyState(resolved);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(CURRENCY_STORAGE_KEY, resolved.code);
+    }
+  };
+
+  const refreshPreferences = async () => {
+    setPreferencesLoading(true);
+    try {
+      let localLanguage: Language | null = null;
+      let localCurrency: CurrencyInfo | null = null;
+
+      if (typeof window !== 'undefined') {
+        const storedLang = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+        const storedCurrency = window.localStorage.getItem(CURRENCY_STORAGE_KEY);
+        localLanguage = normalizeLanguage(storedLang);
+        if (storedCurrency) {
+          localCurrency = resolveCurrency(storedCurrency);
+        }
+      }
+
+      if (localLanguage) {
+        setLanguageState(localLanguage);
+      }
+      if (localCurrency) {
+        setCurrencyState(localCurrency);
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const metadataLanguage = normalizeLanguage(user.user_metadata?.dashboardLang);
+      if (metadataLanguage) {
+        setLanguageState(metadataLanguage);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(LANGUAGE_STORAGE_KEY, metadataLanguage);
+        }
+      }
+
+      let dbLanguage: Language | null = null;
+      let dbCurrency: CurrencyInfo | null = null;
+
+      const { data: restaurantWithLanguage, error: withLanguageError } = await supabase
+        .from('restaurants')
+        .select('dashboard_lang, currency, phone')
+        .eq('owner_id', user.id)
+        .maybeSingle() as {
+          data: { dashboard_lang?: string | null; currency?: string | null; phone?: string | null } | null;
+          error: { message?: string } | null;
+        };
+
+      if (restaurantWithLanguage) {
+        dbLanguage = normalizeLanguage(restaurantWithLanguage.dashboard_lang);
+        dbCurrency = resolveCurrency(restaurantWithLanguage.currency || restaurantWithLanguage.phone || null);
+      } else if (withLanguageError) {
+        const { data: restaurantFallback } = await supabase
+          .from('restaurants')
+          .select('currency, phone')
+          .eq('owner_id', user.id)
+          .maybeSingle() as {
+            data: { currency?: string | null; phone?: string | null } | null;
+          };
+        if (restaurantFallback) {
+          dbCurrency = resolveCurrency(restaurantFallback.currency || restaurantFallback.phone || null);
+        }
+      }
+
+      if (dbLanguage) {
+        setLanguageState(dbLanguage);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(LANGUAGE_STORAGE_KEY, dbLanguage);
+        }
+      }
+
+      if (dbCurrency) {
+        setCurrencyState(dbCurrency);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(CURRENCY_STORAGE_KEY, dbCurrency.code);
+        }
+      }
+    } finally {
+      setPreferencesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshPreferences();
+  }, []);
+
+  const formatPrice = useMemo(() => {
+    return (price: number | string) => formatCurrencyPrice(price, currency);
+  }, [currency]);
 
   const t = (key: string): string => {
     return translations[language]?.[key] || translations['en'][key] || key;
@@ -1666,7 +1807,17 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   const isRTL = language === 'ur' || language === 'ar';
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t, isRTL }}>
+    <LanguageContext.Provider value={{
+      language,
+      setLanguage,
+      currency,
+      setCurrencyCode,
+      formatPrice,
+      preferencesLoading,
+      refreshPreferences,
+      t,
+      isRTL,
+    }}>
       <div dir={isRTL ? 'rtl' : 'ltr'} className={isRTL ? 'font-urdu' : ''}>
         {children}
       </div>

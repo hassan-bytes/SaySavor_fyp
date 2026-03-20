@@ -12,8 +12,9 @@ export interface Customer {
     id: string;
     phone: string | null;
     email: string | null;
-    name: string | null;
-    points: number;
+    full_name: string | null;
+    role: 'customer' | 'partner' | 'admin';
+    avatar_url: string | null;
     created_at: string;
 }
 
@@ -36,6 +37,8 @@ export interface RestaurantCard {
     id: string;
     name: string;
     image_url: string | null;
+    logo_url: string | null;
+    currency: string | null;
     cuisine_type: string | null;
     rating: number | null;
     delivery_time_min: number | null;

@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // FILE: Partner_Auth.tsx
 // SECTION: 2_partner > auth > pages
 // PURPOSE: Partner ka login aur signup form.
@@ -285,7 +285,8 @@ const Partner_Auth = () => {
             if (status.isAuthenticated) {
                 navigate(status.redirectTo, { replace: true });
             }
-        } catch (error) {
+        } catch (error: any) {
+            if (error?.name === 'AbortError' || error?.message?.includes('AbortError')) return;
             console.error('Auth check error:', error);
             // If there's an error, just stay on the auth page
         }
@@ -339,6 +340,9 @@ const Partner_Auth = () => {
                 .rpc('check_user_exists', { email_check: data.email });
 
             if (error) {
+                // Ignore abort errors - happens if user navigates away
+                if (error?.name === 'AbortError' || error?.message?.includes('AbortError')) return;
+                
                 console.error('Profile check error:', error);
                 // On error, default to signup
                 setAuthView('SIGNUP');
@@ -358,6 +362,7 @@ const Partner_Auth = () => {
                 signupForm.setValue('email', data.email);
             }
         } catch (error: any) {
+            if (error?.name === 'AbortError' || error?.message?.includes('AbortError')) return;
             console.error('Email check failed:', error);
             toast.error('Failed to verify email. Please try again.');
         } finally {

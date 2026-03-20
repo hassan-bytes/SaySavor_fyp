@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // FILE: Orders.tsx
 // SECTION: 2_partner > dashboard > pages
 // PURPOSE: Real-time orders dekhna aur manage karna.
@@ -14,20 +14,28 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { OrderCard, Order } from '@/2_partner/dashboard/components/OrderCard';
 import { OrderFilters, OrderStatus } from '@/2_partner/dashboard/components/OrderFilters';
-import { Bell, BellRing, RefreshCw, Package, Volume2, VolumeX, Plus, Trash2 } from 'lucide-react';
+import { Bell, BellRing, RefreshCw, Package, Volume2, VolumeX, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { soundManager } from '@/shared/services/soundManager';
 import NewOrderModal from '@/2_partner/dashboard/components/NewOrderModal';
 import CheckoutModal from '@/2_partner/dashboard/components/CheckoutModal';
 import ConfirmModal from '@/2_partner/dashboard/components/ConfirmModal';
 import { useOutletContext } from 'react-router-dom';
+import { useRestaurant } from '@/shared/contexts/RestaurantContext';
 
 export default function Orders() {
     const { theme: rawTheme } = useOutletContext<any>() || {};
+    const { currencySymbol } = useRestaurant();
+    const formatOrderPrice = (amount: number): string => {
+        return `${currencySymbol}\u00A0${amount.toLocaleString('en', {
+            maximumFractionDigits: 0
+        })}`;
+    };
     const theme = rawTheme || { bg: 'bg-orange-500', text: 'text-orange-500', mainBg: 'bg-orange-500', mainText: 'text-orange-500', shadow: 'shadow-orange-500/30', gradient: 'from-orange-600 to-amber-600', gradientDeep: 'from-orange-600 to-orange-800' };
 
     const [orders, setOrders] = useState<Order[]>([]);
     const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
+    const [lowStockItems, setLowStockItems] = useState<{ name: string; stock: number; threshold: number }[]>([]);
     const [selectedFilter, setSelectedFilter] = useState<OrderStatus>('all');
     const [activeTab, setActiveTab] = useState<'DINE_IN' | 'DELIVERY'>('DINE_IN');
     const [loading, setLoading] = useState(true);
@@ -77,7 +85,7 @@ export default function Orders() {
             id: 'demo-001',
             customer_name: 'Ahmed Ali',
             customer_phone: '+92 300 1234567',
-            delivery_address: 'House 123, Street 5, DHA Phase 6, Lahore',
+            customer_address: 'House 123, Street 5, DHA Phase 6, Lahore',
             items: [
                 { name: 'Bihari Kebab', quantity: 2, unit_price: 350 },
                 { name: 'Garlic Naan', quantity: 4, unit_price: 50 }
@@ -91,7 +99,7 @@ export default function Orders() {
             id: 'demo-002',
             customer_name: 'Sara Khan',
             customer_phone: '+92 321 9876543',
-            delivery_address: 'Flat 4B, Al-Hamra Tower, Gulberg III, Lahore',
+            customer_address: 'Flat 4B, Al-Hamra Tower, Gulberg III, Lahore',
             items: [
                 { name: 'Chicken Tikka', quantity: 1, unit_price: 450 },
                 { name: 'Zinger Burger', quantity: 2, unit_price: 400 },
@@ -106,7 +114,7 @@ export default function Orders() {
             id: 'demo-003',
             customer_name: 'Hassan Raza',
             customer_phone: '+92 333 4567890',
-            delivery_address: 'Shop 7, Commercial Market, Cavalry Ground, Lahore',
+            customer_address: 'Shop 7, Commercial Market, Cavalry Ground, Lahore',
             items: [
                 { name: 'Pepperoni Pizza', quantity: 1, unit_price: 800 }
             ],
@@ -119,7 +127,7 @@ export default function Orders() {
             id: 'demo-004',
             customer_name: 'Fatima Malik',
             customer_phone: '+92 345 2468013',
-            delivery_address: 'House 456, Block J, Johar Town, Lahore',
+            customer_address: 'House 456, Block J, Johar Town, Lahore',
             items: [
                 { name: 'Chicken Karahi', quantity: 1, unit_price: 1200 },
                 { name: 'Garlic Naan', quantity: 6, unit_price: 50 },
@@ -134,7 +142,7 @@ export default function Orders() {
             id: 'demo-005',
             customer_name: 'Ali Hamza',
             customer_phone: '+92 312 8765432',
-            delivery_address: 'Apartment 12C, Eden Towers, Main Boulevard, Lahore',
+            customer_address: 'Apartment 12C, Eden Towers, Main Boulevard, Lahore',
             items: [
                 { name: 'Garlic Naan', quantity: 8, unit_price: 50 },
                 { name: 'Seekh Kebab', quantity: 3, unit_price: 250 }
@@ -148,7 +156,7 @@ export default function Orders() {
             id: 'demo-006',
             customer_name: 'Zainab Ahmed',
             customer_phone: '+92 331 5551234',
-            delivery_address: 'House 89, Street 12, Model Town, Lahore',
+            customer_address: 'House 89, Street 12, Model Town, Lahore',
             items: [
                 { name: 'Zinger Burger', quantity: 1, unit_price: 400 },
                 { name: 'Fries', quantity: 2, unit_price: 150 }
@@ -199,6 +207,42 @@ export default function Orders() {
 
         init();
     }, []);
+
+    useEffect(() => {
+        const checkLowStock = async () => {
+            if (!restaurantId) return;
+
+            const { data: items } = await supabase
+                .from('menu_items')
+                .select('name, stock_count, low_stock_threshold, is_stock_managed')
+                .eq('restaurant_id', restaurantId)
+                .eq('is_stock_managed', true)
+                .not('stock_count', 'is', null);
+
+            if (!items) return;
+
+            const low = items.filter((item: any) =>
+                item.stock_count <= (item.low_stock_threshold || 5) &&
+                item.stock_count > 0
+            ).map((item: any) => ({
+                name: item.name,
+                stock: item.stock_count,
+                threshold: item.low_stock_threshold || 5
+            }));
+
+            const outOfStock = items.filter((item: any) =>
+                item.stock_count <= 0
+            ).map((item: any) => ({
+                name: item.name,
+                stock: 0,
+                threshold: item.low_stock_threshold || 5
+            }));
+
+            setLowStockItems([...outOfStock, ...low]);
+        };
+
+        checkLowStock();
+    }, [restaurantId, orders]);
 
     // Fetch real orders
     const fetchOrders = async (restId: string) => {
@@ -343,7 +387,7 @@ export default function Orders() {
                         // Note: In production, use a database function (RPC) for atomicity.
                         const { data: currentItem } = await supabase
                             .from('menu_items')
-                            .select('stock_count, is_stock_managed')
+                            .select('stock_count, is_stock_managed, low_stock_threshold')
                             .eq('id', item.menu_item_id)
                             .single();
 
@@ -353,6 +397,29 @@ export default function Orders() {
                                 .from('menu_items')
                                 .update({ stock_count: newStock })
                                 .eq('id', item.menu_item_id);
+
+                            // Check if stock is now low or zero (using already calculated newStock)
+                            if ((currentItem as any).is_stock_managed) {
+                                const threshold = (currentItem as any).low_stock_threshold || 5;
+
+                                if (newStock === 0) {
+                                    toast.error(
+                                        `⚠️ "${item.name}" is now OUT OF STOCK`,
+                                        {
+                                            duration: 8000,
+                                            description: 'Update availability in Menu Manager'
+                                        }
+                                    );
+                                } else if (newStock <= threshold) {
+                                    toast.warning(
+                                        `📦 "${item.name}" is running low — only ${newStock} left`,
+                                        {
+                                            duration: 6000,
+                                            description: `Low stock threshold is ${threshold}`
+                                        }
+                                    );
+                                }
+                            }
                         }
                     }
                 }
@@ -581,6 +648,17 @@ export default function Orders() {
             'Older 🕰️': []
         };
 
+        const isSameDay = (d1: Date, d2: Date) =>
+            d1.getDate() === d2.getDate() &&
+            d1.getMonth() === d2.getMonth() &&
+            d1.getFullYear() === d2.getFullYear();
+
+        const isYesterday = (d1: Date, d2: Date) => {
+            const yesterday = new Date(d2);
+            yesterday.setDate(yesterday.getDate() - 1);
+            return isSameDay(d1, yesterday);
+        };
+
         ordersToGroup.forEach(order => {
             const orderDate = new Date(order.created_at);
             const diffHours = (now.getTime() - orderDate.getTime()) / (1000 * 60 * 60);
@@ -588,9 +666,9 @@ export default function Orders() {
 
             if (diffHours <= 2) {
                 grouped['Last 2 Hours ⏳'].push(order);
-            } else if (orderDate.getDate() === now.getDate() && orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear()) {
+            } else if (isSameDay(orderDate, now)) {
                 grouped['Today 📅'].push(order);
-            } else if (diffDays === 1 || (now.getDate() - orderDate.getDate() === 1)) {
+            } else if (isYesterday(orderDate, now)) {
                 grouped['Yesterday ⏪'].push(order);
             } else if (diffDays <= 7) {
                 grouped['This Week 📆'].push(order);
@@ -674,6 +752,42 @@ export default function Orders() {
                     </div>
                 </header>
 
+                {lowStockItems.length > 0 && (
+                    <div className="mb-6 order-glass-panel rounded-2xl border border-orange-500/20 p-4">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-8 h-8 rounded-xl bg-orange-500/20 flex items-center justify-center shrink-0">
+                                <AlertTriangle className="w-4 h-4 text-orange-400" />
+                            </div>
+                            <p className="text-sm font-black text-orange-400">
+                                {lowStockItems.filter(i => i.stock === 0).length > 0
+                                    ? `${lowStockItems.filter(i => i.stock === 0).length} items out of stock`
+                                    : `${lowStockItems.length} items running low`}
+                            </p>
+                            <a
+                                href="/dashboard/menu"
+                                className="ml-auto text-xs font-bold text-slate-400 hover:text-white transition-colors"
+                            >
+                                Manage Stock →
+                            </a>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {lowStockItems.slice(0, 5).map((item, i) => (
+                                <span key={i} className={`text-xs font-bold px-3 py-1 rounded-full border ${item.stock === 0
+                                    ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                                    : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                                    }`}>
+                                    {item.name}: {item.stock === 0 ? 'Out' : `${item.stock} left`}
+                                </span>
+                            ))}
+                            {lowStockItems.length > 5 && (
+                                <span className="text-xs font-bold text-slate-500 px-3 py-1">
+                                    +{lowStockItems.length - 5} more
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {/* Environment Tabs (Dine-in vs Delivery) */}
                 <div className="inline-flex p-1.5 order-glass-panel rounded-2xl mb-8 border border-white/5">
                     <button
@@ -753,7 +867,7 @@ export default function Orders() {
                                                         orderType: order.order_type || 'DINE_IN',
                                                         customerName: order.customer_name || '',
                                                         customerPhone: order.customer_phone || '',
-                                                        deliveryAddress: order.delivery_address || ''
+                                                        deliveryAddress: order.customer_address || ''
                                                     });
                                                     setIsNewOrderModalOpen(true);
                                                 }}
@@ -765,6 +879,7 @@ export default function Orders() {
                                                         prev.includes(id) ? prev.filter(oId => oId !== id) : [...prev, id]
                                                     );
                                                 }}
+                                                formatPrice={formatOrderPrice}
                                             />
                                         ))}
                                     </div>
@@ -774,18 +889,37 @@ export default function Orders() {
                     </>
                 ) : (
                     <div className="relative mb-20 mt-10">
-                        {/* 3D Empty State Card */}
-                        <div className="relative order-glass-panel rounded-2xl border border-dashed border-[var(--primary)]/30 p-16 text-center transform hover:scale-[1.01] transition-all">
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 ambient-glow-red opacity-30 pointer-events-none"></div>
+                        <div className="relative order-glass-panel rounded-2xl border border-dashed border-[var(--primary)]/30 p-16 text-center">
+                            <Package className="w-16 h-16 text-[var(--primary)]/40 mx-auto mb-6" />
 
-                            <Package className="w-16 h-16 text-[var(--primary)]/60 mx-auto mb-4 drop-shadow-2xl relative z-10" />
-                            <h3 className="text-xl font-bold text-white mb-2 relative z-10">No orders found</h3>
-                            <p className="text-slate-400 font-medium relative z-10">
+                            <h3 className="text-xl font-bold text-white mb-2">
                                 {selectedFilter === 'all'
-                                    ? 'No orders have been placed yet.'
-                                    : `No ${selectedFilter} orders at the moment.`
-                                }
+                                    ? 'No orders yet'
+                                    : `No ${selectedFilter} orders`}
+                            </h3>
+
+                            <p className="text-slate-400 font-medium mb-8 max-w-sm mx-auto">
+                                {selectedFilter === 'all'
+                                    ? 'Orders from your QR menu will appear here in real time.'
+                                    : `No orders with status "${selectedFilter}" right now.`}
                             </p>
+
+                            {selectedFilter === 'all' && (
+                                <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+                                    <button
+                                        onClick={() => setIsNewOrderModalOpen(true)}
+                                        className="bg-[var(--primary)] hover:bg-[var(--primary)]/90 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all"
+                                    >
+                                        <Plus className="w-4 h-4" /> Add Manual Order
+                                    </button>
+                                    <a
+                                        href="/dashboard/qr"
+                                        className="text-slate-400 hover:text-white px-6 py-2.5 rounded-xl font-bold border border-white/10 hover:border-white/30 transition-all"
+                                    >
+                                        View QR Code →
+                                    </a>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -840,6 +974,7 @@ export default function Orders() {
                             defaultCustomerName={editOrderInfo?.customerName}
                             defaultCustomerPhone={editOrderInfo?.customerPhone}
                             defaultDeliveryAddress={editOrderInfo?.deliveryAddress}
+                            formatPrice={formatOrderPrice}
                         />
                     )
                 }
@@ -852,6 +987,7 @@ export default function Orders() {
                     onPaymentComplete={() => {
                         if (restaurantId) fetchOrders(restaurantId);
                     }}
+                    formatPrice={formatOrderPrice}
                 />
             </main >
         </div >

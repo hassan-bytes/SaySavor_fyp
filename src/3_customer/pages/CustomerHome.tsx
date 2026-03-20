@@ -17,7 +17,10 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCustomerAuth } from '@/3_customer/context/CustomerAuthContext';
+import { useNearbyRestaurants } from '@/3_customer/hooks/useNearbyRestaurants';
 import type { RestaurantCard } from '@/3_customer/types/customer';
+import { COUNTRY_CURRENCIES } from '@/shared/lib/currencyUtils';
+import { useCart } from '@/3_customer/context/CartContext';
 
 // ── Cuisine category chips ─────────────────────────────────────
 const CUISINE_CHIPS = [
@@ -99,6 +102,15 @@ const RestaurantCard3D: React.FC<{
             ? (restaurant as any).cuisine_types[0] || 'Restaurant'
             : 'Restaurant');
 
+    const savedCurrency = restaurant.currency || 'PKR';
+    const currencyInfo = Object.values(COUNTRY_CURRENCIES).find(
+        c => c.code === savedCurrency
+    ) ?? Object.values(COUNTRY_CURRENCIES).find(
+        c => c.code === 'PKR'
+    );
+    const currencySymbol = currencyInfo?.symbol ?? 'PKR';
+    const formatPrice = (price: number): string => `${currencySymbol}\u00A0${price.toLocaleString('en', { maximumFractionDigits: 0 })}`;
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 24 }}
@@ -109,27 +121,15 @@ const RestaurantCard3D: React.FC<{
                 ref={cardRef}
                 onClick={onClick}
                 onMouseMove={handleMouseMove}
-                onMouseLeave={handleMouseLeave}
-                className="rounded-2xl overflow-hidden cursor-pointer group"
-                style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    backdropFilter: 'blur(10px)',
-                    transition: 'transform 0.15s ease, box-shadow 0.3s ease',
-                    willChange: 'transform',
-                }}
-                onMouseEnter={e => {
-                    (e.currentTarget as HTMLElement).style.boxShadow = '0 20px 50px rgba(255,107,53,0.18)';
-                    (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,107,53,0.3)';
-                }}
                 onMouseLeave={e => {
+                    handleMouseLeave();
                     (e.currentTarget as HTMLElement).style.boxShadow = '';
                     (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.08)';
                 }}
             >
                 {/* Image */}
                 <div className="relative h-40 overflow-hidden" style={{ background: 'rgba(255,107,53,0.08)' }}>
-                    {restaurant.logo_url ? (
+                    {restaurant.logo_url && typeof restaurant.logo_url === 'string' ? (
                         <img
                             src={restaurant.logo_url}
                             alt={restaurant.name}
@@ -186,7 +186,7 @@ const RestaurantCard3D: React.FC<{
                             </span>
                         )}
                         {restaurant.min_order && (
-                            <span>Min Rs.{restaurant.min_order}</span>
+                            <span>Min {formatPrice(restaurant.min_order)}</span>
                         )}
                     </div>
                 </div>
@@ -199,89 +199,14 @@ const RestaurantCard3D: React.FC<{
 const CustomerHome: React.FC = () => {
     const navigate = useNavigate();
     const { customer, isGuest, logout } = useCustomerAuth();
+    const { totalCount } = useCart();
 
-    const [restaurants, setRestaurants] = useState<RestaurantCard[]>([]);
-    const [filteredRestaurants, setFilteredRestaurants] = useState<RestaurantCard[]>([]);
-    const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeChip, setActiveChip] = useState('all');
     const [showSearch, setShowSearch] = useState(false);
 
-    // Fetch restaurants from Supabase
-    const fetchRestaurants = async () => {
-        setLoading(true);
-        try {
-            const { data, error } = await supabase
-                .from('restaurants')
-                .select('id, name, logo_url, city, cuisine_types, description, is_open, onboarding_completed')
-                .eq('onboarding_completed', true)
-                .order('created_at', { ascending: false })
-                .limit(20);
+    const { restaurants: filteredRestaurants, loading } = useNearbyRestaurants(searchQuery, activeChip);
 
-            if (error) throw error;
-
-            const mapped: RestaurantCard[] = (data || []).map((r: any) => ({
-                id: r.id,
-                name: r.name,
-                image_url: r.logo_url,
-                logo_url: r.logo_url,
-                cuisine_type: Array.isArray(r.cuisine_types) ? r.cuisine_types[0] : r.cuisine_types,
-                rating: r.rating ?? (4 + Math.random()).toFixed(1) as unknown as number,
-                delivery_time_min: r.delivery_time_min ?? Math.floor(Math.random() * 20) + 20,
-                delivery_fee: r.delivery_fee ?? 0,
-                min_order: r.min_order ?? 200,
-                is_active: r.is_open ?? true,
-                city: r.city,
-            }));
-
-            setRestaurants(mapped);
-            setFilteredRestaurants(mapped);
-        } catch (err) {
-            console.error('Error fetching restaurants:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchRestaurants();
-
-        // Real-time subscription — when partner updates is_open
-        const sub = supabase
-            .channel('restaurants-home')
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'restaurants',
-            }, () => {
-                fetchRestaurants();
-            })
-            .subscribe();
-
-        return () => { supabase.removeChannel(sub); };
-    }, []);
-
-    // Filter logic
-    useEffect(() => {
-        let result = restaurants;
-
-        if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase();
-            result = result.filter(r =>
-                r.name.toLowerCase().includes(query) ||
-                (r.cuisine_type && r.cuisine_type.toLowerCase().includes(query)) ||
-                (r.city && r.city.toLowerCase().includes(query))
-            );
-        }
-
-        if (activeChip !== 'all') {
-            result = result.filter(r =>
-                r.cuisine_type && r.cuisine_type.toLowerCase().includes(activeChip.replace('_', ' '))
-            );
-        }
-
-        setFilteredRestaurants(result);
-    }, [searchQuery, activeChip, restaurants]);
 
     const greeting = () => {
         const h = new Date().getHours();
@@ -290,7 +215,7 @@ const CustomerHome: React.FC = () => {
         return 'Good Evening';
     };
 
-    const userName = customer?.name?.split(' ')[0] || (isGuest ? 'Guest' : 'Foodie');
+    const userName = customer?.full_name?.split(' ')[0] || (isGuest ? 'Guest' : 'Foodie');
 
     return (
         <div className="min-h-screen" style={{ background: '#0d0500' }}>
@@ -329,7 +254,7 @@ const CustomerHome: React.FC = () => {
                             type="text"
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
-                            placeholder="Search restaurants, dishes..."
+                            placeholder="Hungry? Let's find you some magic..."
                             className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm text-white placeholder-gray-500 outline-none transition-all"
                             style={{
                                 background: 'rgba(255,255,255,0.07)',
@@ -371,15 +296,17 @@ const CustomerHome: React.FC = () => {
                         </div>
 
                         {/* Cart */}
-                        <button
-                            onClick={() => navigate('/foodie/cart')}
-                            className="relative p-2.5 rounded-xl transition-all"
-                            style={{
-                                background: 'rgba(255,107,53,0.12)',
-                                border: '1px solid rgba(255,107,53,0.2)',
-                            }}
-                        >
-                            <ShoppingCart className="w-4 h-4" style={{ color: '#FF6B35' }} />
+                        <button onClick={() => navigate('/foodie/cart')}
+                          className="relative p-2.5 rounded-xl transition-all"
+                          style={{ background: 'rgba(255,107,53,0.12)', border: '1px solid rgba(255,107,53,0.2)' }}>
+                          <ShoppingCart className="w-4 h-4" style={{ color: '#FF6B35' }} />
+                          {totalCount > 0 && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full
+                              bg-orange-500 text-white text-[9px] font-black
+                              flex items-center justify-center">
+                              {totalCount > 9 ? '9+' : totalCount}
+                            </span>
+                          )}
                         </button>
 
                         {/* Profile/Logout */}
@@ -501,7 +428,7 @@ const CustomerHome: React.FC = () => {
                         <div className="flex items-center justify-between mb-5">
                             <h2 className="text-white text-xl font-bold">
                                 {activeChip === 'all' ? 'Top Restaurants' : `${CUISINE_CHIPS.find(c => c.id === activeChip)?.label} Restaurants`}
-                                {restaurants.length > 0 && (
+                                {filteredRestaurants.length >= 0 && (
                                     <span className="ml-2 text-sm font-normal" style={{ color: 'rgba(255,255,255,0.35)' }}>
                                         ({filteredRestaurants.length})
                                     </span>
@@ -621,7 +548,7 @@ const CustomerHome: React.FC = () => {
                                 <div>
                                     <p className="text-white font-bold text-sm">Refer a friend</p>
                                     <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                                        Get Rs. 500 SavorPoints when your friend places their first order!
+                                        Get 500 SavorPoints when your friend places their first order!
                                     </p>
                                     <button
                                         className="mt-3 text-xs font-bold px-4 py-2 rounded-lg text-white transition-all hover:scale-105"

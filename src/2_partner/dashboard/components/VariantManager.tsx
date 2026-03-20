@@ -1,14 +1,13 @@
-﻿// ============================================================
+// ============================================================
 // FILE: VariantManager.tsx
 // SECTION: 2_partner > dashboard > components
 // PURPOSE: Menu item ke variants manage karna — Small, Medium, Large sizes.
 // ============================================================
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit2, Check, X, Sparkles, Percent, Package } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check } from 'lucide-react';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
-import { Badge } from '@/shared/ui/badge';
 import { Switch } from '@/shared/ui/switch';
 import { toast } from 'sonner';
 
@@ -22,46 +21,164 @@ interface VariantManagerProps {
     basePrice: number;
     formatPrice?: (price: number) => string;
     currencySymbol?: string;
+    itemDiscountPercent?: number;
 }
 
+interface NewVariantDraft {
+    name: string;
+    description: string;
+    original_price: number;
+    price: number;
+    discountPercent: number;
+    stock_count: number | null;
+    is_available: boolean;
+    inheritItemOffer: boolean;
+}
+
+const EMPTY_VARIANT: NewVariantDraft = {
+    name: '',
+    description: '',
+    original_price: 0,
+    price: 0,
+    discountPercent: 0,
+    stock_count: null,
+    is_available: true,
+    inheritItemOffer: false,
+};
+
+const NO_SPINNER_CLASS = 'remove-arrow [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none';
+
 const VariantManager: React.FC<VariantManagerProps> = ({
-    variants, setVariants, basePrice,
-    formatPrice = (p) => `Rs. ${p.toLocaleString()}`,
-    currencySymbol = 'Rs.'
+    variants,
+    setVariants,
+    basePrice,
+    formatPrice = (p: number) => p.toLocaleString('en', { maximumFractionDigits: 0 }),
+    currencySymbol = '$',
+    itemDiscountPercent = 0,
 }) => {
-    const [isAdding, setIsAdding] = useState(false);
+    const [isAddingVariant, setIsAddingVariant] = useState(false);
     const [editingId, setEditingId] = useState<string | number | null>(null);
-    const [newVariant, setNewVariant] = useState<MenuVariant>({
-        name: '',
-        description: '',
-        price: 0,
-        original_price: null,
-        stock_count: null,
-        is_available: true
-    });
+    const [newVariant, setNewVariant] = useState<NewVariantDraft>(EMPTY_VARIANT);
 
-    const handleAdd = () => {
-        if (!newVariant.name.trim()) {
-            toast.error("Please enter a Variant Name");
-            return;
-        }
-        if (newVariant.price <= 0) {
-            toast.error("Please enter a valid Current Price greater than 0");
-            return;
-        }
+    const suggestedBasePrice = basePrice > 0 ? Math.round(basePrice) : 0;
 
-        setVariants([...variants, { ...newVariant, name: newVariant.name.trim(), id: `temp-${Date.now()}` }]);
-        setNewVariant({ name: '', description: '', price: 0, original_price: null, stock_count: null, is_available: true });
-        setIsAdding(false);
+    const clampDiscount = (value: number) => Math.min(100, Math.max(0, value));
+
+    const calculateSellingPrice = (fullPrice: number, discountPercent: number): number => {
+        if (fullPrice <= 0) return 0;
+        return discountPercent > 0
+            ? Math.round(fullPrice * (1 - discountPercent / 100))
+            : fullPrice;
     };
 
-    const handleUpdate = (id: string | undefined, field: keyof MenuVariant, value: any) => {
-        setVariants(variants.map(v =>
-            v.id === id ? { ...v, [field]: value } : v
-        ));
+    const getVariantDiscountPercent = (variant: MenuVariant): number => {
+        if (!variant.original_price || variant.original_price <= 0) return 0;
+        if (variant.price >= variant.original_price) return 0;
+        return Math.round(((variant.original_price - variant.price) / variant.original_price) * 100);
     };
 
-    const handleDelete = (id: string | undefined) => {
+    const handleUpdate = (id: string | undefined, updates: Partial<MenuVariant>) => {
+        setVariants(variants.map(v => (v.id === id ? { ...v, ...updates } : v)));
+    };
+
+    const handleOriginalPriceChange = (variant: MenuVariant, rawValue: string) => {
+        const nextOriginal = parseFloat(rawValue);
+
+        setVariants(variants.map(v => {
+            if (v.id !== variant.id) return v;
+            if (isNaN(nextOriginal) || nextOriginal <= 0) {
+                return { ...v, original_price: null };
+            }
+
+            const discount = getVariantDiscountPercent(v);
+            return {
+                ...v,
+                original_price: nextOriginal,
+                price: calculateSellingPrice(nextOriginal, discount),
+            };
+        }));
+    };
+
+    const handleVariantDiscountChange = (variant: MenuVariant, rawValue: string) => {
+        const parsed = parseFloat(rawValue);
+        const discount = clampDiscount(isNaN(parsed) ? 0 : parsed);
+        const full = variant.original_price || variant.price || 0;
+
+        if (full <= 0) {
+            handleUpdate(variant.id, { price: 0 });
+            return;
+        }
+
+        handleUpdate(variant.id, {
+            original_price: variant.original_price ?? full,
+            price: calculateSellingPrice(full, discount),
+        });
+    };
+
+    const handleNewOriginalPriceChange = (rawValue: string) => {
+        const fullPrice = parseFloat(rawValue);
+        const normalizedFullPrice = isNaN(fullPrice) ? 0 : fullPrice;
+        const discount = newVariant.inheritItemOffer
+            ? clampDiscount(itemDiscountPercent)
+            : clampDiscount(newVariant.discountPercent || 0);
+
+        setNewVariant({
+            ...newVariant,
+            original_price: normalizedFullPrice,
+            discountPercent: discount,
+            price: calculateSellingPrice(normalizedFullPrice, discount),
+        });
+    };
+
+    const handleNewDiscountChange = (rawValue: string) => {
+        const parsed = parseFloat(rawValue);
+        const discount = clampDiscount(isNaN(parsed) ? 0 : parsed);
+        const full = newVariant.original_price || 0;
+
+        setNewVariant({
+            ...newVariant,
+            inheritItemOffer: false,
+            discountPercent: discount,
+            price: calculateSellingPrice(full, discount),
+        });
+    };
+
+    const handleToggleInheritItemOffer = (val: boolean) => {
+        const full = newVariant.original_price || 0;
+        const discount = val ? clampDiscount(itemDiscountPercent) : 0;
+
+        setNewVariant({
+            ...newVariant,
+            inheritItemOffer: val,
+            discountPercent: discount,
+            price: calculateSellingPrice(full, discount),
+        });
+    };
+
+    const handleAddVariant = () => {
+        if (!newVariant.name) return;
+        if (!newVariant.original_price || newVariant.original_price <= 0) {
+            toast.error('Please enter a valid Full Price greater than 0');
+            return;
+        }
+
+        const variantToAdd: MenuVariant = {
+            id: `temp-${Date.now()}`,
+            name: newVariant.name,
+            description: newVariant.description || '',
+            original_price: newVariant.original_price,
+            price: newVariant.price > 0 ? newVariant.price : newVariant.original_price,
+            stock_count: newVariant.stock_count,
+            is_available: true,
+        };
+
+        const updated = [...variants, variantToAdd];
+        setVariants(updated);
+        setNewVariant(EMPTY_VARIANT);
+        setIsAddingVariant(false);
+    };
+
+    const removeVariant = (id: string | undefined) => {
         setVariants(variants.filter(v => v.id !== id));
     };
 
@@ -80,101 +197,99 @@ const VariantManager: React.FC<VariantManagerProps> = ({
                 <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setIsAdding(true)}
-                    disabled={isAdding}
+                    onClick={() => setIsAddingVariant(true)}
+                    disabled={isAddingVariant}
                     className="h-10 px-4 rounded-xl gap-2 text-amber-500 border-amber-500/20 bg-amber-500/5 hover:bg-amber-500 hover:text-slate-950 transition-all font-bold shadow-sm"
                 >
                     <Plus className="w-4 h-4" /> Add Size Option
                 </Button>
             </div>
 
-            {variants.length === 0 && !isAdding && (
-                <div className="text-center p-12 border-2 border-dashed border-slate-800 rounded-[2.5rem] bg-slate-900/50 group hover:border-amber-500/20 transition-all cursor-pointer" onClick={() => setIsAdding(true)}>
+            {variants.length === 0 && !isAddingVariant && (
+                <div
+                    className="text-center p-12 border-2 border-dashed border-slate-800 rounded-[2.5rem] bg-slate-900/50 group hover:border-amber-500/20 transition-all cursor-pointer"
+                    onClick={() => setIsAddingVariant(true)}
+                >
                     <div className="w-16 h-16 bg-slate-800 rounded-3xl flex items-center justify-center border border-slate-700 mx-auto mb-5 group-hover:scale-110 group-hover:rotate-3 transition-transform">
                         <Plus className="w-8 h-8 text-slate-500 group-hover:text-amber-500 transition-colors" />
                     </div>
                     <p className="text-lg font-black text-white mb-2">No variants defined yet.</p>
-                    <p className="text-sm text-slate-400 font-bold max-w-[280px] mx-auto leading-relaxed">Add sizes like "Small", "Regular" or "Large" if this item has multiple price points.</p>
+                    <p className="text-sm text-slate-400 font-bold max-w-[280px] mx-auto leading-relaxed">
+                        Add sizes like "Small", "Regular" or "Large" if this item has multiple price points.
+                    </p>
                 </div>
             )}
 
             <div className="space-y-4">
-                {variants.map((variant, idx) => {
-                    const isEditing = editingId === (variant.id || `idx-${idx}`);
-                    const uniqueId = variant.id || `idx-${idx}`;
+                {variants.map((v, idx) => {
+                    const isEditing = editingId === (v.id || `idx-${idx}`);
+                    const uniqueId = v.id || `idx-${idx}`;
 
                     return (
-                        <div key={uniqueId} className={`group border rounded-[2rem] overflow-hidden transition-all duration-300 ${isEditing ? 'border-amber-500/30 bg-slate-900 shadow-xl' : 'border-slate-800 bg-slate-900/40 hover:border-slate-700 hover:bg-slate-900/80 shadow-sm'}`}>
+                        <div
+                            key={uniqueId}
+                            className={`group border rounded-[2rem] overflow-hidden transition-all duration-300 ${
+                                isEditing
+                                    ? 'border-blue-500/30 bg-slate-900 shadow-xl'
+                                    : 'border-slate-800 bg-slate-900/40 hover:border-slate-700 hover:bg-slate-900/80 shadow-sm'
+                            }`}
+                        >
                             {isEditing ? (
                                 <div className="p-8 space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
                                     <div className="grid grid-cols-2 gap-6">
-                                        <div className="space-y-2 group/field">
-                                            <Label htmlFor={`var-name-${uniqueId}`} className="text-xs uppercase text-slate-500 font-black tracking-widest ml-1 group-focus-within/field:text-amber-500 transition-colors">Variant Name</Label>
+                                        <div className="space-y-2">
+                                            <Label className="text-xs uppercase text-slate-500 font-black tracking-widest ml-1">Variant Name</Label>
                                             <Input
-                                                id={`var-name-${uniqueId}`}
-                                                className="bg-slate-800 border-slate-700 text-white rounded-2xl h-12 px-5 font-bold focus:border-amber-500/50 transition-all"
+                                                className="bg-slate-800 border-slate-700 text-white rounded-2xl h-12 px-5 font-bold"
                                                 placeholder="e.g. Large"
-                                                value={variant.name}
-                                                onChange={(e) => handleUpdate(variant.id, 'name', e.target.value)}
+                                                value={v.name}
+                                                onChange={(e) => handleUpdate(v.id, { name: e.target.value })}
                                             />
                                         </div>
-                                        <div className="space-y-2 group/field">
-                                            <Label htmlFor={`var-desc-${uniqueId}`} className="text-xs uppercase text-slate-500 font-black tracking-widest ml-1 group-focus-within/field:text-amber-500 transition-colors">Measurement / Note</Label>
+                                        <div className="space-y-2">
+                                            <Label className="text-xs uppercase text-slate-500 font-black tracking-widest ml-1">Measurement / Note</Label>
                                             <Input
-                                                id={`var-desc-${uniqueId}`}
-                                                className="bg-slate-800 border-slate-700 text-white rounded-2xl h-12 px-5 font-bold focus:border-amber-500/50 transition-all"
+                                                className="bg-slate-800 border-slate-700 text-white rounded-2xl h-12 px-5 font-bold"
                                                 placeholder="e.g. 12 inches"
-                                                value={variant.description || ''}
-                                                onChange={(e) => handleUpdate(variant.id, 'description', e.target.value)}
+                                                value={v.description || ''}
+                                                onChange={(e) => handleUpdate(v.id, { description: e.target.value })}
                                             />
                                         </div>
                                     </div>
+
                                     <div className="grid grid-cols-4 gap-6">
                                         <div className="space-y-2">
-                                            <Label className="text-xs uppercase text-slate-500 font-black tracking-widest ml-1">Original Price</Label>
-                                            <div className="relative">
-                                                <Input
-                                                    type="number"
-                                                    className="bg-slate-800 border-slate-700 text-white rounded-2xl h-12 px-5 font-bold remove-arrow"
-                                                    placeholder="0"
-                                                    value={variant.original_price === null ? '' : variant.original_price}
-                                                    onChange={(e) => {
-                                                        const val = parseFloat(e.target.value);
-                                                        handleUpdate(variant.id, 'original_price', isNaN(val) ? null : val);
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-xs uppercase text-slate-500 font-black tracking-widest ml-1 text-center block">Off %</Label>
-                                            <div className="relative">
-                                                <Input
-                                                    type="number"
-                                                    className="bg-green-500/10 border-green-500/20 text-green-500 rounded-2xl h-12 text-center font-black remove-arrow"
-                                                    placeholder="%"
-                                                    value={variant.original_price && variant.original_price > variant.price
-                                                        ? Math.round(((variant.original_price - variant.price) / variant.original_price) * 100)
-                                                        : ''}
-                                                    onChange={(e) => {
-                                                        const pct = parseFloat(e.target.value);
-                                                        if (!isNaN(pct) && pct > 0 && pct < 100 && variant.original_price) {
-                                                            const newPrice = Math.round(variant.original_price * (1 - pct / 100));
-                                                            handleUpdate(variant.id, 'price', newPrice);
-                                                        }
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-xs uppercase text-amber-500/80 font-black tracking-widest ml-1">Final Price</Label>
+                                            <Label className="text-xs uppercase text-slate-500 font-black tracking-widest ml-1">Full Price ({currencySymbol})</Label>
                                             <Input
                                                 type="number"
-                                                className="bg-amber-500/10 border-amber-500/30 text-amber-500 rounded-2xl h-12 px-5 font-black remove-arrow"
+                                                className={`bg-slate-800 border-slate-700 text-white rounded-2xl h-12 px-5 font-bold ${NO_SPINNER_CLASS}`}
                                                 placeholder="0"
-                                                value={variant.price || ''}
+                                                value={v.original_price === null || v.original_price === undefined ? '' : v.original_price}
+                                                onChange={(e) => handleOriginalPriceChange(v, e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-xs uppercase text-slate-500 font-black tracking-widest ml-1 text-center block">Discount %</Label>
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                className={`bg-green-500/10 border-green-500/20 text-green-500 rounded-2xl h-12 text-center font-black ${NO_SPINNER_CLASS}`}
+                                                placeholder="%"
+                                                value={getVariantDiscountPercent(v) || ''}
+                                                onChange={(e) => handleVariantDiscountChange(v, e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-xs uppercase text-amber-500/80 font-black tracking-widest ml-1">Selling Price ({currencySymbol})</Label>
+                                            <Input
+                                                type="number"
+                                                className={`bg-amber-500/10 border-amber-500/30 text-amber-500 rounded-2xl h-12 px-5 font-black ${NO_SPINNER_CLASS}`}
+                                                placeholder="0"
+                                                value={v.price || ''}
                                                 onChange={(e) => {
                                                     const val = parseFloat(e.target.value);
-                                                    handleUpdate(variant.id, 'price', isNaN(val) ? 0 : val);
+                                                    handleUpdate(v.id, { price: isNaN(val) ? 0 : val });
                                                 }}
                                             />
                                         </div>
@@ -182,75 +297,92 @@ const VariantManager: React.FC<VariantManagerProps> = ({
                                             <Label className="text-xs uppercase text-slate-500 font-black tracking-widest ml-1">Stock</Label>
                                             <Input
                                                 type="number"
-                                                className="bg-slate-800 border-slate-700 text-white rounded-2xl h-12 px-5 font-bold remove-arrow"
+                                                className={`bg-slate-800 border-slate-700 text-white rounded-2xl h-12 px-5 font-bold ${NO_SPINNER_CLASS}`}
                                                 placeholder="∞"
-                                                value={variant.stock_count === null ? '' : variant.stock_count}
+                                                value={v.stock_count === null || v.stock_count === undefined ? '' : v.stock_count}
                                                 onChange={(e) => {
-                                                    const val = parseInt(e.target.value);
-                                                    handleUpdate(variant.id, 'stock_count', isNaN(val) ? null : val);
+                                                    const val = parseInt(e.target.value, 10);
+                                                    handleUpdate(v.id, { stock_count: isNaN(val) ? null : val });
                                                 }}
                                             />
                                         </div>
                                     </div>
+
                                     <div className="flex justify-end pt-2">
-                                        <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-slate-950 px-6 h-10 rounded-xl font-black gap-2 transition-all shadow-lg shadow-amber-500/20" onClick={() => setEditingId(null)}>
+                                        <Button
+                                            size="sm"
+                                            className="bg-blue-500 hover:bg-blue-400 text-white px-6 h-10 rounded-xl font-black gap-2 transition-all shadow-lg shadow-blue-500/20"
+                                            onClick={() => setEditingId(null)}
+                                        >
                                             <Check className="w-5 h-5" /> Update Variant
                                         </Button>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="p-6 flex items-center justify-between group/v">
-                                    <div className="flex items-center gap-6">
-                                        <div className="w-14 h-14 bg-slate-800 rounded-[1.25rem] flex items-center justify-center border border-slate-700 text-slate-400 group-hover/v:scale-110 group-hover/v:rotate-3 transition-transform shadow-inner">
-                                            <Package className="w-7 h-7" />
+                                <div className="flex items-center justify-between p-4 bg-slate-800/40 rounded-2xl border border-slate-700/50 group hover:border-blue-500/30 transition-all">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center">
+                                            <span className="text-xs font-black text-slate-400">{idx + 1}</span>
                                         </div>
                                         <div>
-                                            <div className="flex items-center gap-3">
-                                                <h4 className="font-black text-white text-xl tracking-tight">{variant.name}</h4>
-                                                {variant.description && (
-                                                    <Badge variant="outline" className="bg-slate-800 border-slate-700 text-slate-400 text-[10px] font-bold py-0.5 rounded-lg px-2">
-                                                        {variant.description}
-                                                    </Badge>
-                                                )}
-                                                {variant.stock_count !== null && (
-                                                    <Badge className={`${variant.stock_count <= 5 ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-green-500/10 text-green-500 border-green-500/20'} text-[10px] uppercase font-black px-2 py-0.5 rounded-lg`}>
-                                                        {variant.stock_count} LEFT
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-3 mt-1.5">
-                                                <span className="text-amber-400 font-black text-lg">{currencySymbol} {variant.price}</span>
-                                                {variant.original_price && variant.original_price > variant.price && (
-                                                    <span className="text-sm text-slate-500 line-through font-bold opacity-60 tracking-tighter">{currencySymbol} {variant.original_price}</span>
-                                                )}
-                                            </div>
+                                            <p className="font-black text-white text-sm">{v.name}</p>
+                                            {v.description && <p className="text-[10px] text-slate-500">{v.description}</p>}
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-3">
+
+                                    <div className="flex items-center gap-6">
+                                        <div className="text-right">
+                                            <p className="text-base font-black text-white">{formatPrice(v.price)}</p>
+                                            {v.original_price && v.original_price > v.price && (
+                                                <p className="text-[10px] text-slate-500 line-through">{formatPrice(v.original_price)}</p>
+                                            )}
+                                        </div>
+
+                                        {v.original_price && v.original_price > v.price && (
+                                            <span className="text-[9px] font-black text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full">
+                                                Save {formatPrice(v.original_price - v.price)} ({getVariantDiscountPercent(v)}%)
+                                            </span>
+                                        )}
+
+                                        {v.stock_count !== null && v.stock_count !== undefined && (
+                                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
+                                                v.stock_count <= 0
+                                                    ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                                                    : v.stock_count <= 5
+                                                        ? 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                                                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                                            }`}>
+                                                {v.stock_count <= 0 ? 'Out' : `${v.stock_count} left`}
+                                            </span>
+                                        )}
+
                                         <div className="flex items-center gap-2 mr-2 px-3 py-1.5 bg-slate-800/50 rounded-xl border border-slate-700/50">
-                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{variant.is_available ? 'Active' : 'Hidden'}</span>
+                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{v.is_available ? 'Active' : 'Hidden'}</span>
                                             <Switch
-                                                checked={variant.is_available}
-                                                onCheckedChange={(c) => handleUpdate(variant.id, 'is_available', c)}
+                                                checked={v.is_available}
+                                                onCheckedChange={(checked) => handleUpdate(v.id, { is_available: checked })}
                                                 className="scale-75 data-[state=checked]:bg-green-500"
                                             />
                                         </div>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => toggleEdit(variant, idx)}
-                                            className="w-11 h-11 rounded-2xl text-slate-400 hover:text-white hover:bg-slate-800 border border-transparent hover:border-slate-700 transition-all shadow-sm"
-                                        >
-                                            <Edit2 className="w-5 h-5" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => handleDelete(variant.id)}
-                                            className="w-11 h-11 rounded-2xl text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all shadow-sm"
-                                        >
-                                            <Trash2 className="w-5 h-5" />
-                                        </Button>
+
+                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                onClick={() => toggleEdit(v, idx)}
+                                                className="h-8 w-8 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-blue-500/10"
+                                            >
+                                                <Edit2 className="w-3.5 h-3.5" />
+                                            </Button>
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                onClick={() => removeVariant(v.id)}
+                                                className="h-8 w-8 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </Button>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -258,78 +390,127 @@ const VariantManager: React.FC<VariantManagerProps> = ({
                     );
                 })}
 
-                {/* Adding New Variant Row */}
-                {isAdding && (
-                    <div className="p-8 bg-slate-800/40 border-2 border-dashed border-amber-500/20 rounded-[2.5rem] space-y-6 animate-in fade-in slide-in-from-top-4 duration-500 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-3 opacity-5">
-                            <Sparkles className="w-16 h-16 text-amber-500 rotate-12" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-6 relative z-10">
-                            <div className="space-y-2">
-                                <Label className="text-xs uppercase text-slate-500 font-black tracking-widest ml-1">New Variant Name</Label>
+                {isAddingVariant && (
+                    <div className="space-y-4 p-6 bg-slate-800/40 rounded-2xl border border-slate-700/50">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-black text-slate-400 uppercase tracking-wider">
+                                    Variant Name *
+                                </Label>
                                 <Input
-                                    className="bg-slate-900 border-slate-700 text-white rounded-2xl h-14 px-6 text-lg font-bold focus:border-amber-500 transition-all"
-                                    placeholder="e.g. Medium"
                                     value={newVariant.name}
-                                    onChange={(e) => setNewVariant({ ...newVariant, name: e.target.value })}
+                                    onChange={e => setNewVariant({ ...newVariant, name: e.target.value })}
+                                    placeholder="e.g. Medium, Large, 500ml"
+                                    className="h-11 bg-slate-900 border-slate-700 text-white rounded-xl font-bold"
                                     autoFocus
                                 />
                             </div>
-                            <div className="space-y-2">
-                                <Label className="text-xs uppercase text-slate-500 font-black tracking-widest ml-1">Measurement (Optional)</Label>
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-black text-slate-400 uppercase tracking-wider">
+                                    Description (optional)
+                                </Label>
                                 <Input
-                                    className="bg-slate-900 border-slate-700 text-white rounded-2xl h-14 px-6 text-lg font-bold focus:border-amber-500 transition-all"
-                                    placeholder="e.g. 500ml"
                                     value={newVariant.description || ''}
-                                    onChange={(e) => setNewVariant({ ...newVariant, description: e.target.value })}
+                                    onChange={e => setNewVariant({ ...newVariant, description: e.target.value })}
+                                    placeholder="e.g. 12 inches, 500ml"
+                                    className="h-11 bg-slate-900 border-slate-700 text-white rounded-xl"
                                 />
                             </div>
                         </div>
-                        <div className="grid grid-cols-3 gap-6 relative z-10">
-                            <div className="space-y-2">
-                                <Label className="text-xs uppercase text-slate-500 font-black tracking-widest ml-1">Original Price</Label>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-black text-slate-400 uppercase tracking-wider">
+                                    Full Price ({currencySymbol})
+                                </Label>
                                 <Input
                                     type="number"
-                                    className="bg-slate-900 border-slate-700 text-white rounded-2xl h-12 px-6 font-bold remove-arrow"
+                                    value={newVariant.original_price || ''}
+                                    onChange={e => handleNewOriginalPriceChange(e.target.value)}
+                                    placeholder={suggestedBasePrice > 0 ? String(suggestedBasePrice) : '0'}
+                                    className={`h-11 bg-slate-900 border-slate-700 text-white font-black rounded-xl text-center ${NO_SPINNER_CLASS}`}
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-black text-slate-400 uppercase tracking-wider">
+                                    Discount %
+                                </Label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={newVariant.discountPercent || ''}
+                                    onChange={e => handleNewDiscountChange(e.target.value)}
+                                    disabled={newVariant.inheritItemOffer}
                                     placeholder="0"
-                                    value={newVariant.original_price === null ? '' : newVariant.original_price}
-                                    onChange={(e) => {
-                                        const val = parseFloat(e.target.value);
-                                        setNewVariant({ ...newVariant, original_price: isNaN(val) ? null : val });
-                                    }}
+                                    className={`h-11 bg-slate-900 border-slate-700 text-green-400 font-black rounded-xl text-center ${NO_SPINNER_CLASS}`}
                                 />
                             </div>
-                            <div className="space-y-2">
-                                <Label className="text-xs uppercase text-amber-500/80 font-black tracking-widest ml-1">Sales Price</Label>
-                                <Input
-                                    type="number"
-                                    className="bg-amber-500/10 border-amber-500/30 text-amber-500 rounded-2xl h-12 px-6 font-black remove-arrow shadow-[0_0_15px_rgba(245,158,11,0.05)]"
-                                    placeholder="Now Rs."
-                                    value={newVariant.price || ''}
-                                    onChange={(e) => {
-                                        const val = parseFloat(e.target.value);
-                                        setNewVariant({ ...newVariant, price: isNaN(val) ? 0 : val });
-                                    }}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-xs uppercase text-slate-500 font-black tracking-widest ml-1">Initial Stock</Label>
-                                <Input
-                                    type="number"
-                                    className="bg-slate-900 border-slate-700 text-white rounded-2xl h-12 px-6 font-bold remove-arrow"
-                                    placeholder="∞"
-                                    value={newVariant.stock_count === null ? '' : newVariant.stock_count}
-                                    onChange={(e) => {
-                                        const val = parseInt(e.target.value);
-                                        setNewVariant({ ...newVariant, stock_count: isNaN(val) ? null : val });
-                                    }}
-                                />
+
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                    Selling Price ({currencySymbol})
+                                    <span className="text-[9px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded font-black ml-1">
+                                        AUTO
+                                    </span>
+                                </Label>
+                                <div className="h-11 bg-slate-800 border border-slate-600 rounded-xl flex items-center px-4 text-amber-400 font-black text-lg">
+                                    {newVariant.price > 0
+                                        ? formatPrice(newVariant.price)
+                                        : <span className="text-slate-600 text-sm font-normal">Set Full Price first</span>}
+                                </div>
                             </div>
                         </div>
-                        <div className="flex justify-end gap-4 relative z-10">
-                            <Button variant="ghost" className="h-12 px-8 rounded-2xl text-slate-400 font-bold hover:bg-slate-700 hover:text-white transition-all" onClick={() => setIsAdding(false)}>Cancel</Button>
-                            <Button className="bg-amber-500 hover:bg-amber-600 text-slate-950 h-12 px-10 rounded-2xl font-black gap-2 transition-all shadow-xl shadow-amber-500/20 active:scale-95" onClick={handleAdd}>
-                                <Plus className="w-5 h-5" /> Add to Item
+
+                        <div className="space-y-1.5">
+                            <Label className="text-xs font-black text-slate-400 uppercase tracking-wider">
+                                Stock Count
+                                <span className="text-slate-600 font-normal ml-1">(optional)</span>
+                            </Label>
+                            <Input
+                                type="number"
+                                value={newVariant.stock_count ?? ''}
+                                onChange={e => setNewVariant({ ...newVariant, stock_count: parseInt(e.target.value, 10) || null })}
+                                placeholder="Leave empty for unlimited"
+                                className={`h-11 bg-slate-900 border-slate-700 text-white rounded-xl ${NO_SPINNER_CLASS}`}
+                            />
+                        </div>
+
+                        {itemDiscountPercent > 0 && (
+                            <div className="flex items-center justify-between p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">
+                                <div>
+                                    <p className="text-xs font-black text-amber-400">
+                                        Apply item offer ({itemDiscountPercent}% OFF) to this variant?
+                                    </p>
+                                    <p className="text-[10px] text-slate-500 mt-0.5">
+                                        Automatically applies {itemDiscountPercent}% discount to the full price
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={newVariant.inheritItemOffer}
+                                    onCheckedChange={val => handleToggleInheritItemOffer(val)}
+                                />
+                            </div>
+                        )}
+
+                        <div className="flex justify-end gap-3 pt-2">
+                            <Button
+                                variant="ghost"
+                                onClick={() => {
+                                    setNewVariant(EMPTY_VARIANT);
+                                    setIsAddingVariant(false);
+                                }}
+                                className="text-slate-400 hover:text-white h-10 px-6 rounded-xl"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleAddVariant}
+                                disabled={!newVariant.name || !newVariant.original_price}
+                                className="bg-blue-500 hover:bg-blue-400 text-white font-black h-10 px-8 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed gap-2"
+                            >
+                                <Plus className="w-4 h-4" /> Add Variant
                             </Button>
                         </div>
                     </div>

@@ -2,14 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { DEFAULT_CURRENCY } from '@/shared/lib/currencyUtils';
 
 interface CheckoutFormProps {
     amount: number;
+    currencySymbol?: string;
     onSuccess: (paymentIntent: any) => void;
     onCancel: () => void;
 }
 
-export default function CheckoutForm({ amount, onSuccess, onCancel }: CheckoutFormProps) {
+export default function CheckoutForm({ amount, currencySymbol = DEFAULT_CURRENCY.symbol, onSuccess, onCancel }: CheckoutFormProps) {
     const stripe = useStripe();
     const elements = useElements();
     const [isProcessing, setIsProcessing] = useState(false);
@@ -58,7 +60,7 @@ export default function CheckoutForm({ amount, onSuccess, onCancel }: CheckoutFo
                             Processing...
                         </>
                     ) : (
-                        `Pay Rs. ${amount.toLocaleString()}`
+                        `Pay ${currencySymbol}\u00A0${amount.toLocaleString('en', { maximumFractionDigits: 0 })}`
                     )}
                 </button>
                 <button

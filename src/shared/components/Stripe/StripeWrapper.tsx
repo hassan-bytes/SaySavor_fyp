@@ -4,18 +4,21 @@ import { Elements } from '@stripe/react-stripe-js';
 import { supabase } from '@/shared/lib/supabaseClient';
 import CheckoutForm from './CheckoutForm';
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { DEFAULT_CURRENCY } from '@/shared/lib/currencyUtils';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 interface StripeWrapperProps {
     amount: number;
     restaurantId: string;
+    currencyCode?: string;
+    currencySymbol?: string;
     metadata?: any;
     onSuccess: (paymentIntent: any) => void;
     onCancel: () => void;
 }
 
-export default function StripeWrapper({ amount, restaurantId, metadata, onSuccess, onCancel }: StripeWrapperProps) {
+export default function StripeWrapper({ amount, restaurantId, currencyCode = 'PKR', currencySymbol = DEFAULT_CURRENCY.symbol, metadata, onSuccess, onCancel }: StripeWrapperProps) {
     const [clientSecret, setClientSecret] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -27,7 +30,7 @@ export default function StripeWrapper({ amount, restaurantId, metadata, onSucces
             const { data, error: functionError } = await supabase.functions.invoke('create-payment-intent', {
                 body: {
                     amount: amount,
-                    currency: 'pkr',
+                    currency: currencyCode.toLowerCase(),
                     restaurantId: restaurantId,
                     metadata: {
                         ...metadata,
@@ -115,7 +118,7 @@ export default function StripeWrapper({ amount, restaurantId, metadata, onSucces
     return (
         <div className="p-1 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <Elements stripe={stripePromise} options={options}>
-                <CheckoutForm amount={amount} onSuccess={onSuccess} onCancel={onCancel} />
+                <CheckoutForm amount={amount} currencySymbol={currencySymbol} onSuccess={onSuccess} onCancel={onCancel} />
             </Elements>
         </div>
     );

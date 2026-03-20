@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // FILE: menu.ts
 // SECTION: shared > types
 // PURPOSE: Menu se related TypeScript interfaces aur types.
@@ -40,6 +40,7 @@ export interface DealItem {
     image_url?: string | null;
     cuisine?: string | null;
     category?: string | null;
+    is_free?: boolean;
 }
 
 export interface MenuItem {
@@ -67,4 +68,6 @@ export interface MenuItem {
     available_start_time?: string | null;
     available_end_time?: string | null;
     modifier_groups?: ModifierGroup[];
+    offer_expires_at?:      string | null;
+    offer_original_price?:  number | null;
 }

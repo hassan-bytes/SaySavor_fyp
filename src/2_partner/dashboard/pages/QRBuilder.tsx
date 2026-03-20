@@ -14,8 +14,10 @@ import { Label } from '@/shared/ui/label';
 import { Download, QrCode, Grid2X2, Save, Wand2, PlusCircle, X, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import ConfirmModal from '@/2_partner/dashboard/components/ConfirmModal';
+import { useRestaurant } from '@/shared/contexts/RestaurantContext';
 
 const QRBuilder = () => {
+    const { currencySymbol, currencyCode, restaurantName } = useRestaurant();
     const [restaurantId, setRestaurantId] = useState<string>('');
     const [tables, setTables] = useState<number[]>([1]);
     const [newTableNo, setNewTableNo] = useState<number | ''>('');
@@ -125,7 +127,8 @@ const QRBuilder = () => {
         const pngUrl = canvas.toDataURL("image/png").replace("image/png", "image/octet-stream");
         const downloadLink = document.createElement("a");
         downloadLink.href = pngUrl;
-        downloadLink.download = `Table_${tableNo}_QR.png`;
+        const normalizedName = (restaurantName || 'Restaurant').replace(/[^a-zA-Z0-9]+/g, '_');
+        downloadLink.download = `${normalizedName}_Table_${tableNo}_QR.png`;
         document.body.appendChild(downloadLink);
         downloadLink.click();
         document.body.removeChild(downloadLink);
@@ -169,6 +172,15 @@ const QRBuilder = () => {
                             <div>
                                 <h3 className="text-white text-lg font-bold mb-1">Configuration</h3>
                                 <p className="text-slate-400 text-xs">Customize your luxury QR table fleet.</p>
+                            </div>
+                            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-2">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Restaurant Preview Context</p>
+                                <p className="text-sm font-bold text-white truncate">{restaurantName || 'Restaurant'}</p>
+                                <p className="text-xs text-slate-400">Currency: {currencyCode}</p>
+                                <div className="flex items-center justify-between text-xs text-slate-300 border-t border-white/10 pt-2">
+                                    <span>Sample Dish</span>
+                                    <span className="font-black text-amber-400">{currencySymbol} 499</span>
+                                </div>
                             </div>
                             <div className="space-y-4">
                                 <div className="space-y-2">
@@ -246,6 +258,11 @@ const QRBuilder = () => {
                                         </button>
 
                                         <h3 className="text-slate-100 text-xl font-bold mb-8">Table {tableNo < 10 ? `0${tableNo}` : tableNo}</h3>
+
+                                        <div className="w-full text-center mb-4">
+                                            <p className="text-xs text-slate-400 truncate">{restaurantName || 'Restaurant'}</p>
+                                            <p className="text-[11px] text-slate-500">Currency: {currencyCode} • Preview: {currencySymbol} 499</p>
+                                        </div>
 
                                         <div
                                             ref={(el) => qrRefs.current[idx] = el}

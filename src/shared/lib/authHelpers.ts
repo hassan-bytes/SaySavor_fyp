@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // FILE: authHelpers.ts
 // SECTION: shared > lib
 // PURPOSE: Authentication ke helper functions.
@@ -46,7 +46,14 @@ export async function getUserStatus(): Promise<UserStatus> {
             setupComplete,
             redirectTo: setupComplete ? '/dashboard' : '/restaurant-setup'
         };
-    } catch (error) {
+    } catch (error: any) {
+        if (error?.name === 'AbortError' || error?.message?.includes('AbortError')) {
+            return {
+                isAuthenticated: false,
+                setupComplete: false,
+                redirectTo: '/auth'
+            };
+        }
         console.error('Error checking user status:', error);
         return {
             isAuthenticated: false,
@@ -76,7 +83,8 @@ export async function hasCompletedSetup(userId: string): Promise<boolean> {
             .maybeSingle<ProfileSetupData>();
 
         return profile?.setup_complete ?? false;
-    } catch (error) {
+    } catch (error: any) {
+        if (error?.name === 'AbortError' || error?.message?.includes('AbortError')) return false;
         console.error('Error checking setup status:', error);
         return false;
     }

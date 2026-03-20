@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // FILE: imageMatchService.ts
 // SECTION: shared > services
 // PURPOSE: Image matching service â€” menu items ki images ko scan se match karna.
@@ -7,7 +7,8 @@
 import { supabase } from '@/shared/lib/supabaseClient';
 import { predictVisuals } from '@/shared/services/visualMappingUtils';
 
-const BUCKET_NAME = 'preset-dishes';
+const BUCKET = 'preset-images';
+const FOLDERS = ['Beverages', 'Chinese', 'Desi', 'Fast Food', 'Italian', 'Japanese'];const BUCKET_NAME = BUCKET; // Keep for backward compatibility if needed internally
 
 let cachedImagePaths: string[] | null = null;
 

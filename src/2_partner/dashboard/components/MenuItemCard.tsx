@@ -1,15 +1,14 @@
 // ============================================================
 // FILE: MenuItemCard.tsx
 // SECTION: 2_partner > dashboard > components
-// PURPOSE: Ek menu item ka card â€” name, price, image, edit/delete buttons.
-//          MenuManager mein use hota hai.
+// PURPOSE: Ek menu item ka card — name, price, image, edit/delete buttons.
+//          Ab yeh Variants, Addons, aur precise Stock details show karta hai.
 // ============================================================
 import React from 'react';
-import { Edit2, MoreVertical, Trash2, GripVertical, Clock, Tag, Check, Sparkles, RotateCcw, Plus } from 'lucide-react';
+import { Edit2, MoreVertical, Trash2, Tag, Check, Sparkles, RotateCcw, Box, Wand2 } from 'lucide-react';
 import { Button } from '@/shared/ui/button';
 import { Badge } from '@/shared/ui/badge';
 import { Switch } from '@/shared/ui/switch';
-import { Label } from '@/shared/ui/label';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -39,7 +38,7 @@ interface MenuItemCardProps {
 const MenuItemCard: React.FC<MenuItemCardProps> = ({
     item, onEdit, onDelete, onToggleAvailability, allMenuItems,
     isSelectionMode, isSelected, onSelect, onClearOffer, onApplyOffer,
-    formatPrice = (p) => `Rs. ${p.toLocaleString()}` // Default fallback
+    formatPrice = (p: number) => p.toLocaleString('en', { maximumFractionDigits: 0 })
 }) => {
     // --- SMART STOCK LOGIC ---
     const variantStock = (item.variants || [])
@@ -55,43 +54,19 @@ const MenuItemCard: React.FC<MenuItemCardProps> = ({
     const isSoldOut = !item.is_available || (isStockManaged && currentStock !== null && currentStock <= 0);
     const isLowStock = isStockManaged && currentStock !== null && currentStock > 0 && currentStock <= (item.low_stock_threshold || 5);
 
-    const stockStatus = !isStockManaged
-        ? 'Unlimited'
-        : currentStock === null
-            ? 'Unlimited'
-            : currentStock <= 0
-                ? 'Out of Stock'
-                : `${currentStock} left`;
-
-    // Time Formatting
-    const formatTime = (timeStr: string | null | undefined) => {
-        if (!timeStr) return '';
-        // Input: "14:00:00" or "08:30"
-        const [hours, minutes] = timeStr.split(':');
-        const h = parseInt(hours);
-        const ampm = h >= 12 ? 'PM' : 'AM';
-        const h12 = h % 12 || 12;
-        return `${h12}:${minutes} ${ampm}`;
-    };
-
-    const hasTimeRestriction = item.available_start_time && item.available_end_time;
-
     // --- SMART DISCOUNT LOGIC ---
-    // Calculate the best discount available (either from item or its variants)
     const itemDiscount = item.discount_percentage || 0;
-    const variantDiscounts = (item.variants || []).map(v =>
-        v.original_price && v.original_price > v.price
-            ? ((v.original_price - v.price) / v.original_price) * 100
-            : 0
-    );
-    const maxDiscount = Math.max(itemDiscount, ...variantDiscounts);
-    const roundedMaxDiscount = Math.round(maxDiscount);
+    
+    const finalPrice = React.useMemo(() => {
+        const base = item.price || 0;
+        return Math.round(base - (base * (itemDiscount / 100)));
+    }, [item.price, itemDiscount]);
 
     return (
         <div
             onClick={() => isSelectionMode && onSelect?.(item.id)}
             data-item-id={item.id}
-            className={`glass-card rounded-xl overflow-hidden group relative flex flex-col h-full cursor-pointer ${isSelected ? 'ring-2 ring-primary/80 shadow-[0_0_20px_rgba(212,17,50,0.4)]' : ''}`}
+            className={`glass-card rounded-2xl overflow-hidden group relative flex flex-col h-full cursor-pointer bg-slate-900/40 border-slate-800/80 hover:bg-slate-900/80 hover:border-amber-500/30 hover:shadow-xl transition-all duration-300 ${isSelected ? 'ring-2 ring-primary shadow-[0_0_20px_rgba(212,17,50,0.4)]' : ''}`}
         >
             {/* Selection Overlay */}
             {isSelectionMode && (
@@ -102,8 +77,8 @@ const MenuItemCard: React.FC<MenuItemCardProps> = ({
                 </div>
             )}
 
-            {/* Image Header */}
-            <div id={`menu-item-img-container-${item.id}`} className="h-32 w-full bg-[#18080a] relative overflow-hidden shrink-0">
+            {/* Image Header with Overlays */}
+            <div id={`menu-item-img-container-${item.id}`} className="h-40 w-full bg-slate-950 relative overflow-hidden shrink-0">
                 {item.item_type === 'deal' && !item.image_url ? (
                     <DealMosaicImage divId={`deal-mosaic-${item.id}`} items={item.deal_items || []} className="w-full h-full" allMenuItems={allMenuItems} />
                 ) : (
@@ -112,206 +87,159 @@ const MenuItemCard: React.FC<MenuItemCardProps> = ({
                         category={item.category || undefined}
                         name={item.name}
                         manualImage={item.image_url}
-                        className="w-full h-full object-cover transition-transform duration-500"
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
                 )}
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-90"></div>
 
-                {/* Gradient Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#18080a] via-transparent to-transparent opacity-90"></div>
-
-                {/* Status Badges Container */}
+                {/* Top-Left Badges (Stock & Offer) */}
+                <div className="absolute top-3 left-3 flex flex-col items-start gap-2 z-10">
+                    {itemDiscount > 0 && (
+                        <Badge className="bg-red-500 text-white font-black px-2 py-0.5 border-none shadow-lg flex items-center gap-1 rounded-md text-[10px]">
+                            <Tag className="w-3 h-3" /> {itemDiscount}% OFF
+                        </Badge>
+                    )}
+                    {isStockManaged && (
+                        <Badge className={`px-2 py-0.5 border-none shadow-lg font-bold rounded-md flex items-center gap-1 text-[10px] ${
+                            isSoldOut ? 'bg-rose-600 text-white' :
+                            isLowStock ? 'bg-orange-500 text-white' :
+                            'bg-slate-900/80 text-emerald-400 backdrop-blur-md border border-white/10'
+                        }`}>
+                            <Box className="w-3 h-3" />
+                            {isSoldOut ? 'Out of Stock' :
+                             isLowStock ? `Low Stock (${currentStock})` :
+                             `${currentStock} Left`}
+                        </Badge>
+                    )}
+                </div>
             </div>
 
-            {/* Content  - Action buttons moved to footer */}
-
-            {/* Content */}
-            <div className="p-3 relative flex-1 flex flex-col gap-2">
+            {/* Card Content Body */}
+            <div className="p-5 flex-1 flex flex-col gap-3">
                 <div className="flex justify-between items-start gap-3">
-                    <div className="flex-1">
-                        <div className="flex justify-between items-start gap-2">
-                            <h4 className="text-base font-extrabold text-slate-100 transition-colors leading-tight line-clamp-2 mt-0.5" title={item.name}>
-                                {item.name}
-                            </h4>
-                            <div className="flex flex-col items-end shrink-0 pt-0.5">
-                                {(() => {
-                                    const vs = item.variants?.filter(v => v.price > 0) || [];
-                                    if (vs.length > 0) {
-                                        const minP = Math.min(...vs.map(v => v.price));
-                                        const maxP = Math.max(...vs.map(v => v.price));
-                                        const minVar = vs.find(v => v.price === minP);
-                                        const hasOffer = (item.original_price && item.original_price > minP) || (minVar?.original_price && minVar.original_price > minVar.price);
-                                        const strikethroughPrice = (item.original_price && item.original_price > minP)
-                                            ? item.original_price
-                                            : minVar?.original_price;
-
-                                        return (
-                                            <div className="flex flex-col items-end">
-                                                {hasOffer && (
-                                                    <span className="text-[10px] text-slate-500 line-through">
-                                                        {formatPrice(strikethroughPrice || 0)}
-                                                    </span>
-                                                )}
-                                                <span className="text-xl font-black text-primary leading-none">
-                                                    {minP === maxP
-                                                        ? formatPrice(minP)
-                                                        : `${formatPrice(minP)}+`}
-                                                </span>
-                                            </div>
-                                        );
-                                    }
-                                    return (
-                                        <div className="flex flex-col items-end">
-                                            {item.original_price && item.original_price > item.price && (
-                                                <span className="text-[10px] text-slate-500 line-through">
-                                                    {formatPrice(item.original_price)}
-                                                </span>
-                                            )}
-                                            <span className="text-xl font-black text-primary leading-none">
-                                                {formatPrice(item.price)}
-                                            </span>
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-1.5">
-                            {item.item_type === 'deal' && (
-                                <Badge variant="outline" className="text-amber-400 border-amber-500/30 bg-amber-500/10 text-[9px] px-1.5 py-0 rounded uppercase tracking-widest font-black">
-                                    Meal Deal
-                                </Badge>
-                            )}
-                            {item.category && (
-                                <span className="text-[9px] text-primary uppercase font-bold tracking-widest px-2 py-0.5 bg-primary/10 rounded-full truncate max-w-[140px] border border-primary/20">
-                                    {item.category}
-                                </span>
-                            )}
-                        </div>
+                    <div className="flex-1 min-w-0">
+                        <h4 className="text-base font-extrabold text-slate-100 leading-tight truncate mb-1" title={item.name}>
+                            {item.name}
+                        </h4>
+                        {item.category && (
+                            <span className="text-[10px] text-amber-500 font-bold uppercase tracking-widest bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                {item.category}
+                            </span>
+                        )}
+                    </div>
+                    <div className="text-right shrink-0">
+                        <div className="text-lg font-black text-white">{formatPrice(finalPrice)}</div>
+                        {itemDiscount > 0 && (
+                            <div className="text-[10px] text-slate-500 line-through font-bold">{formatPrice(item.price)}</div>
+                        )}
                     </div>
                 </div>
 
-                {item.item_type === 'deal' && item.deal_items && item.deal_items.length > 0 && (
-                    <div className="mb-2">
-                        <p className="text-[9px] font-bold text-amber-600 uppercase tracking-wider mb-1">Includes:</p>
+                {item.item_type === 'deal' && item.deal_items && item.deal_items.length > 0 ? (
+                    <div className="flex-1 flex flex-col justify-center">
+                        <p className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" /> Meal Includes:
+                        </p>
                         <ul className="space-y-1">
-                            {item.deal_items.map((di: any, idx: number) => (
-                                <li key={idx} className="text-[10px] text-slate-300 flex justify-between items-center bg-white/5 border border-white/5 px-1.5 py-1 rounded">
+                            {item.deal_items.slice(0, 3).map((di: any, idx: number) => (
+                                <li
+                                    key={idx}
+                                    className={`text-[10px] text-slate-300 flex justify-between items-center px-2 py-1 rounded border ${
+                                        di.is_free
+                                            ? 'bg-green-500/5 border-green-500/20'
+                                            : 'bg-white/5 border-white/10'
+                                    }`}
+                                >
                                     <span className="font-medium truncate mr-2">{di.item_name}</span>
-                                    <span className="text-primary font-bold shrink-0 bg-primary/20 px-1 py-0.5 rounded">x{di.quantity}</span>
+                                    <span
+                                        className={`font-bold shrink-0 px-1.5 py-0.5 rounded text-[9px] ${
+                                            di.is_free
+                                                ? 'bg-green-500/20 text-green-400'
+                                                : 'bg-purple-500/20 text-purple-400'
+                                        }`}
+                                    >
+                                        {di.is_free ? '🎁 FREE' : `x${di.quantity}`}
+                                    </span>
                                 </li>
                             ))}
+                            {item.deal_items.length > 3 && (
+                                <li className="text-[10px] text-slate-500 text-center font-bold pt-1">+{item.deal_items.length - 3} more items</li>
+                            )}
                         </ul>
                     </div>
-                )}
-
-                {item.item_type !== 'deal' && (
-                    <p className="text-xs text-slate-400 line-clamp-2 min-h-[2rem] leading-snug">
+                ) : (
+                    <p className="text-xs text-slate-400 line-clamp-2 leading-snug flex-1">
                         {item.description || "No description provided."}
                     </p>
                 )}
 
-                {/* Add-ons / Modifiers Section */}
-                {item.modifier_groups && item.modifier_groups.length > 0 && (
-                    <div className="mb-2">
-                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-1">
-                            <Plus className="w-3 h-3" /> Available Add-ons
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                            {item.modifier_groups.map((group, gIdx) => (
-                                <div key={gIdx} className="flex flex-wrap gap-1">
-                                    {group.modifiers.map((mod, mIdx) => (
-                                        <Badge
-                                            key={mIdx}
-                                            variant="outline"
-                                            className="text-[9px] h-5 bg-white/5 border-white/10 text-slate-300 font-medium px-2"
-                                        >
-                                            {mod.name} {mod.price > 0 && <span className="text-primary ml-1">(+{mod.price})</span>}
-                                        </Badge>
-                                    ))}
-                                </div>
-                            ))}
-                        </div>
+                {/* Details: Variants & Addons */}
+                {(item.variants?.length > 0 || item.modifier_groups?.length > 0) && (
+                    <div className="space-y-2 pt-3 border-t border-white/5">
+                        {item.variants && item.variants.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                                <span className="text-[9px] font-bold text-slate-500 uppercase">Sizes:</span>
+                                {item.variants.slice(0, 3).map((v, i) => (
+                                    <Badge key={i} variant="outline" className="bg-blue-500/10 border-blue-500/20 text-blue-300 text-[9px] px-1.5 h-4 rounded">
+                                        {v.name}: {formatPrice(v.price)}
+                                    </Badge>
+                                ))}
+                                {item.variants.length > 3 && <span className="text-[9px] text-slate-500">+{item.variants.length - 3}</span>}
+                            </div>
+                        )}
+                        
+                        {item.modifier_groups && item.modifier_groups.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                                <span className="text-[9px] font-bold text-slate-500 uppercase">Add-ons:</span>
+                                {item.modifier_groups.flatMap(g => g.modifiers).slice(0, 3).map((m, i) => (
+                                    <Badge key={i} variant="outline" className="bg-purple-500/10 border-purple-500/20 text-purple-300 text-[9px] px-1.5 h-4 rounded">
+                                        {m.price > 0 ? `${m.name} (+${formatPrice(m.price)})` : `${m.name} (Free)`}
+                                    </Badge>
+                                ))}
+                                {item.modifier_groups.flatMap(g => g.modifiers).length > 3 && <span className="text-[9px] text-slate-500">+{item.modifier_groups.flatMap(g => g.modifiers).length - 3}</span>}
+                            </div>
+                        )}
                     </div>
                 )}
 
-                {/* Footer Content & Actions */}
-                <div className="mt-auto flex flex-col pt-1 gap-2">
-                    {item.offer_name && (
-                        <div className="flex items-center gap-1 self-end bg-emerald-500/10 w-fit px-1.5 py-0.5 rounded border border-emerald-500/20">
-                            <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
-                            <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">{item.offer_name}</span>
-                        </div>
-                    )}
+                {/* Bottom Action Footer */}
+                <div className="flex items-center justify-between mt-1 pt-3 border-t border-slate-800">
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <Switch
+                            checked={item.is_available}
+                            onCheckedChange={() => onToggleAvailability(item)}
+                            className="scale-75 origin-left data-[state=checked]:bg-emerald-500"
+                        />
+                        <span className={`text-[10px] font-bold uppercase tracking-wider ${item.is_available ? 'text-emerald-400' : 'text-slate-500'}`}>
+                            {item.is_available ? 'Live' : 'Hidden'}
+                        </span>
+                    </div>
 
-                    {/* Action Footer */}
-                    <div className="flex items-center justify-between mt-1 pt-2 border-t border-white/5">
-                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                            <Switch
-                                id={`availability-${item.id}`}
-                                checked={!isSoldOut}
-                                onCheckedChange={() => onToggleAvailability(item)}
-                                className="data-[state=checked]:bg-primary shadow-lg"
-                                aria-label="Toggle availability"
-                            />
-                            <Label
-                                htmlFor={`availability-${item.id}`}
-                                className={`text-[10px] font-bold uppercase tracking-wider cursor-pointer ${!isSoldOut ? 'text-primary' : 'text-slate-500'}`}
-                            >
-                                {!isSoldOut ? 'Available' : 'Sold Out'}
-                            </Label>
-                        </div>
-
-                        <div onClick={(e) => e.stopPropagation()} className="flex">
-                            <DropdownMenu modal={false}>
-                                <DropdownMenuTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        type="button"
-                                        size="sm"
-                                        className="h-8 gap-1.5 text-white/70 hover:text-white hover:bg-white/10 backdrop-blur-md rounded-lg border border-white/10"
-                                    >
-                                        <span className="text-xs font-bold">Actions</span>
-                                        <MoreVertical className="w-3 h-3" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                    align="end"
-                                    side="bottom"
-                                    sideOffset={4}
-                                    className="bg-black/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 text-slate-100 rounded-xl overflow-hidden min-w-[180px] z-50 p-1"
-                                    onCloseAutoFocus={(e) => e.preventDefault()}
-                                >
-                                    <DropdownMenuItem
-                                        onClick={(e) => { e.stopPropagation(); onEdit(item); }}
-                                        className="gap-2 cursor-pointer focus:bg-white/10 transition-colors py-2.5 px-3 font-bold rounded-lg"
-                                    >
-                                        <Edit2 className="w-4 h-4 text-amber-500" /> Edit Details
+                    <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" onClick={() => onEdit(item)} className="w-8 h-8 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-400/10">
+                            <Wand2 className="w-4 h-4" />
+                        </Button>
+                        <DropdownMenu modal={false}>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="w-8 h-8 rounded-lg text-slate-400 hover:text-white hover:bg-white/10">
+                                    <MoreVertical className="w-4 h-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800 shadow-xl min-w-[160px]">
+                                {!itemDiscount ? (
+                                    <DropdownMenuItem onClick={() => onApplyOffer?.(item)} className="cursor-pointer hover:bg-slate-800 text-emerald-400 font-bold">
+                                        <Tag className="w-4 h-4 mr-2" /> Apply Offer
                                     </DropdownMenuItem>
-                                    {!item.discount_percentage && (
-                                        <DropdownMenuItem
-                                            onClick={(e) => { e.stopPropagation(); onApplyOffer?.(item); }}
-                                            className="gap-2 cursor-pointer text-emerald-400 focus:bg-emerald-500/10 transition-colors py-2.5 px-3 font-bold rounded-lg"
-                                        >
-                                            <Tag className="w-4 h-4" /> Apply Offer
-                                        </DropdownMenuItem>
-                                    )}
-                                    {item.discount_percentage && (
-                                        <DropdownMenuItem
-                                            onClick={(e) => { e.stopPropagation(); onClearOffer?.(item); }}
-                                            className="gap-2 cursor-pointer text-amber-500 focus:bg-amber-500/10 transition-colors py-2.5 px-3 font-bold rounded-lg"
-                                        >
-                                            <RotateCcw className="w-4 h-4" /> Remove Offer
-                                        </DropdownMenuItem>
-                                    )}
-                                    <div className="h-px bg-white/10 my-1 mx-2" />
-                                    <DropdownMenuItem
-                                        onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
-                                        className="text-red-400 gap-2 cursor-pointer focus:bg-red-500/10 transition-colors py-2.5 px-3 font-bold rounded-lg"
-                                    >
-                                        <Trash2 className="w-4 h-4" /> Delete Dish
+                                ) : (
+                                    <DropdownMenuItem onClick={() => onClearOffer?.(item)} className="cursor-pointer hover:bg-slate-800 text-amber-500 font-bold">
+                                        <RotateCcw className="w-4 h-4 mr-2" /> Remove Offer
                                     </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        </div>
+                                )}
+                                <DropdownMenuItem onClick={() => onDelete(item.id)} className="cursor-pointer text-red-400 hover:bg-red-500/10 font-bold mt-1">
+                                    <Trash2 className="w-4 h-4 mr-2" /> Delete Dish
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
                 </div>
             </div>

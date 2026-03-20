@@ -33,7 +33,7 @@ export default function NewOrderModal({
     defaultCustomerName,
     defaultCustomerPhone,
     defaultDeliveryAddress,
-    formatPrice = (p) => `Rs. ${p.toLocaleString()}`
+    formatPrice = (p: number) => p.toLocaleString('en', { maximumFractionDigits: 0 })
 }: NewOrderModalProps) {
     const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -350,14 +350,13 @@ export default function NewOrderModal({
                                 className="flex-1 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm font-bold text-zinc-900 placeholder:font-medium focus:outline-none focus:border-zinc-400 focus:bg-white transition-colors"
                             />
                             <div className="relative w-28 shrink-0">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm font-bold">Rs.</span>
                                 <input
                                     type="number"
                                     placeholder="0"
                                     min="0"
                                     value={customItemPrice}
                                     onChange={e => setCustomItemPrice(e.target.value)}
-                                    className="w-full bg-zinc-50 border border-zinc-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold text-zinc-900 focus:outline-none focus:border-zinc-400 focus:bg-white transition-colors"
+                                    className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm font-bold text-zinc-900 focus:outline-none focus:border-zinc-400 focus:bg-white transition-colors"
                                 />
                             </div>
                             <button type="submit" disabled={!customItemName || !customItemPrice} className="bg-zinc-900 text-white px-5 py-2 rounded-lg font-bold text-sm disabled:opacity-40 hover:bg-zinc-800 transition-all flex items-center gap-1.5 shadow-sm active:scale-95">

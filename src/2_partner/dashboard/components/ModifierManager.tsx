@@ -23,9 +23,16 @@ export type { Modifier, ModifierGroup };
 interface ModifierManagerProps {
     groups: ModifierGroup[];
     setGroups: (groups: ModifierGroup[]) => void;
+    formatPrice?: (price: number) => string;
+    currencySymbol?: string;
 }
 
-const ModifierManager: React.FC<ModifierManagerProps> = ({ groups, setGroups }) => {
+const ModifierManager: React.FC<ModifierManagerProps> = ({ 
+    groups, 
+    setGroups,
+    formatPrice = (p: number) => p.toLocaleString('en', { maximumFractionDigits: 0 }),
+    currencySymbol = '$',
+}) => {
     const [isAddingGroup, setIsAddingGroup] = useState(false);
     const [newGroup, setNewGroup] = useState<ModifierGroup>({
         name: '',
@@ -180,6 +187,8 @@ const ModifierManager: React.FC<ModifierManagerProps> = ({ groups, setGroups }) 
                         onDelete={() => deleteGroup(group.id)}
                         onAddModifier={(mod) => addModifierToGroup(group.id, mod)}
                         onRemoveModifier={(modId) => removeModifierFromGroup(group.id, modId)}
+                        formatPrice={formatPrice}
+                        currencySymbol={currencySymbol}
                     />
                 ))}
             </div>
@@ -188,11 +197,13 @@ const ModifierManager: React.FC<ModifierManagerProps> = ({ groups, setGroups }) 
 };
 
 // --- Sub-Component for Group Item ---
-const ModifierGroupItem = ({ group, onDelete, onAddModifier, onRemoveModifier }: {
+const ModifierGroupItem = ({ group, onDelete, onAddModifier, onRemoveModifier, formatPrice, currencySymbol }: {
     group: ModifierGroup,
     onDelete: () => void,
     onAddModifier: (m: Modifier) => void,
-    onRemoveModifier: (id: string | undefined) => void
+    onRemoveModifier: (id: string | undefined) => void,
+    formatPrice: (price: number) => string,
+    currencySymbol: string,
 }) => {
     const [isOpen, setIsOpen] = useState(true);
     const [newMod, setNewMod] = useState<Modifier>({ name: '', price: 0, stock_count: null, is_available: true });
@@ -243,7 +254,9 @@ const ModifierGroupItem = ({ group, onDelete, onAddModifier, onRemoveModifier }:
                                 <div className="flex items-center gap-8">
                                     <div className="text-right">
                                         <p className="text-[10px] font-black uppercase text-slate-600 leading-none mb-1 tracking-widest">Extra Price</p>
-                                        <span className="text-2xl font-black text-white group-hover/mod:text-amber-400 transition-colors">+{mod.price}</span>
+                                        <span className="text-2xl font-black text-white group-hover/mod:text-amber-400 transition-colors">
+                                            {mod.price > 0 ? `+${formatPrice(mod.price)}` : 'Free'}
+                                        </span>
                                     </div>
                                     <Button size="icon" variant="ghost" className="h-12 w-12 rounded-2xl text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20" onClick={() => onRemoveModifier(mod.id)}>
                                         <Trash2 className="w-5 h-5" />
@@ -270,20 +283,29 @@ const ModifierGroupItem = ({ group, onDelete, onAddModifier, onRemoveModifier }:
                                     onChange={(e) => setNewMod({ ...newMod, name: e.target.value })}
                                 />
                             </div>
-                            <div className="flex-1">
+                            <div className="space-y-1">
+                                <Label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                                    Extra Price ({currencySymbol})
+                                </Label>
                                 <div className="relative">
                                     <Input
-                                        className="bg-slate-800 border-slate-700 text-white rounded-[1.5rem] h-16 pl-14 pr-6 text-2xl font-black shadow-inner focus:bg-slate-900 focus:border-purple-500/50 transition-all remove-arrow"
                                         type="number"
+                                        min="0"
                                         placeholder="0"
                                         value={newMod.price || ''}
-                                        onChange={(e) => {
+                                        onChange={e => {
                                             const val = parseFloat(e.target.value);
                                             setNewMod({ ...newMod, price: isNaN(val) ? 0 : val });
                                         }}
+                                        className="h-11 w-32 bg-slate-800 border-slate-700 text-white rounded-xl remove-arrow [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-center font-black pr-8"
                                     />
-                                    <span className="absolute left-6 top-1/2 -translate-y-1/2 text-purple-400 font-black text-2xl">+</span>
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-bold">
+                                        {currencySymbol}
+                                    </span>
                                 </div>
+                                <p className="text-[10px] text-slate-600">
+                                    0 = Free
+                                </p>
                             </div>
                             <Button className="h-16 px-10 bg-purple-500 hover:bg-purple-600 text-white rounded-[1.5rem] font-black text-xl shadow-2xl shadow-purple-500/20 active:scale-95 transition-all flex items-center gap-3" onClick={handleAdd}>
                                 <Plus className="w-6 h-6" /> Add

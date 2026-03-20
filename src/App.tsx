@@ -39,7 +39,7 @@ import MenuManager from "@/2_partner/dashboard/pages/MenuManager";
 import Orders from "@/2_partner/dashboard/pages/Orders";
 import AIAssistant from "@/2_partner/dashboard/pages/AIAssistant";
 import QRBuilder from "@/2_partner/dashboard/pages/QRBuilder";
-import Settings from "@/2_partner/dashboard/pages/Settings";
+import Settings from "@/2_partner/dashboard/settings";
 
 // --- 2_partner > customer_menu: Customer QR scan karta hai, yeh page khulta hai ---
 import CustomerMenu from "@/2_partner/customer_menu/pages/CustomerMenu";
@@ -47,7 +47,36 @@ import CustomerMenu from "@/2_partner/customer_menu/pages/CustomerMenu";
 // --- 3_customer: Foodie / Customer App ---
 import CustomerAuth from "@/3_customer/auth/pages/CustomerAuth";
 import CustomerHome from "@/3_customer/pages/CustomerHome";
+import RestaurantDetail from "@/3_customer/pages/RestaurantDetail";
+import CartPage from "@/3_customer/pages/Cart";
+import CheckoutPage from "@/3_customer/pages/Checkout";
+import OrderTracker from "@/3_customer/pages/OrderTracker";
+import CustomerProfile from "@/3_customer/pages/CustomerProfile";
 import { CustomerAuthProvider } from "@/3_customer/context/CustomerAuthContext";
+import { CartProvider } from "@/3_customer/context/CartContext";
+import PaymentSuccess from '@/3_customer/pages/PaymentSuccess';
+import PartnerOrders from '@/2_partner/pages/PartnerOrders';
+import { RestaurantProvider, useRestaurant } from "@/shared/contexts/RestaurantContext";
+
+const PartnerOrdersInner = () => {
+    const { restaurantId, isLoading } = useRestaurant();
+
+    if (isLoading || !restaurantId) {
+      return (
+        <div className="min-h-screen bg-[#0d0500] flex items-center justify-center">
+          <div className="text-white/40 text-sm">Loading orders...</div>
+        </div>
+      );
+    }
+
+    return <PartnerOrders restaurantId={restaurantId || ''} />;
+};
+
+const PartnerOrdersWithId = () => (
+  <RestaurantProvider>
+    <PartnerOrdersInner />
+  </RestaurantProvider>
+);
 
 const App = () => {
   useEffect(() => {
@@ -99,11 +128,19 @@ const App = () => {
               path="/foodie/*"
               element={
                 <CustomerAuthProvider>
-                  <Routes>
-                    <Route path="auth" element={<CustomerAuth />} />
-                    <Route path="home" element={<CustomerHome />} />
-                    {/* Phase 3+ routes will be added here */}
-                  </Routes>
+                  <CartProvider>
+                    <Routes>
+                      <Route path="auth" element={<CustomerAuth />} />
+                      <Route path="home" element={<CustomerHome />} />
+                      <Route path="restaurant/:id" element={<RestaurantDetail />} />
+                      <Route path="cart" element={<CartPage />} />
+                      <Route path="checkout" element={<CheckoutPage />} />
+                      <Route path="track/:id" element={<OrderTracker />} />
+                      <Route path="profile" element={<CustomerProfile />} />
+                      <Route path="payment-success" element={<PaymentSuccess />} />
+                      {/* Phase 6+ routes will be added here */}
+                    </Routes>
+                  </CartProvider>
                 </CustomerAuthProvider>
               }
             />
@@ -116,6 +153,16 @@ const App = () => {
                   <RestaurantSetup />
                 </ProtectedRoute>
               }
+            />
+
+            {/* ── LIVE KITCHEN DASHBOARD ── */}
+            <Route 
+              path="/partner/orders" 
+              element={
+                <ProtectedRoute requireSetup={true}>
+                  <PartnerOrdersWithId />
+                </ProtectedRoute>
+              } 
             />
 
             {/* Partner Dashboard with nested routes */}

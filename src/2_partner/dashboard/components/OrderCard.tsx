@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // FILE: OrderCard.tsx
 // SECTION: 2_partner > dashboard > components
 // PURPOSE: Ek order ka card component â€” items, status, customer info dikhata hai.
@@ -23,7 +23,7 @@ export interface Order {
     id: string;
     customer_name: string;
     customer_phone?: string;
-    delivery_address?: string;
+    customer_address?: string;
     table_number?: string | null;
     order_type?: string;
     session_status?: string;
@@ -66,7 +66,7 @@ export const OrderCard = ({
     isSelected,
     onToggleSelect,
     isDemoMode = false,
-    formatPrice = (p) => `Rs. ${p.toLocaleString()}`
+    formatPrice = (p: number) => p.toLocaleString('en', { maximumFractionDigits: 0 })
 }: OrderCardProps) => {
     const statusConfig: Record<string, { label: string, icon: any, glowClass: string }> = {
         pending: {
@@ -139,10 +139,10 @@ export const OrderCard = ({
                         )}
                     </h3>
                     <p className="text-slate-400 text-sm mt-1 mb-1">{order.customer_name || 'Guest'} {order.customer_phone ? `• ${order.customer_phone}` : ''}</p>
-                    {order.delivery_address && (
+                    {order.customer_address && (
                         <div className="flex items-start gap-1 text-xs text-slate-500 mt-1">
                             <span className="mt-0.5">📍</span>
-                            <span>{order.delivery_address}</span>
+                            <span>{order.customer_address}</span>
                         </div>
                     )}
 

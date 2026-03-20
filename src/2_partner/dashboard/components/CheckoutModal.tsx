@@ -17,7 +17,7 @@ interface CheckoutModalProps {
     formatPrice?: (price: number) => string;
 }
 
-export default function CheckoutModal({ isOpen, onClose, order, onPaymentComplete, formatPrice = (p) => `Rs. ${p.toLocaleString()}` }: CheckoutModalProps) {
+export default function CheckoutModal({ isOpen, onClose, order, onPaymentComplete, formatPrice = (p: number) => p.toLocaleString('en', { maximumFractionDigits: 0 }) }: CheckoutModalProps) {
     const [discountType, setDiscountType] = useState<'NONE' | 'PERCENTAGE' | 'FLAT'>('NONE');
     const [discountValue, setDiscountValue] = useState<number>(0);
     const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD'>('CASH');

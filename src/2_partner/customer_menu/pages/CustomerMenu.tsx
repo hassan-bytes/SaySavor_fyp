@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/shared/ui/badge';
 import { DynamicFoodImage } from '@/2_partner/setup/pages/RestaurantSetup';
 import DealMosaicImage from '@/2_partner/dashboard/components/DealMosaicImage';
-import { formatPrice, resolveCurrency, CurrencyInfo, DEFAULT_CURRENCY } from '@/shared/lib/currencyUtils';
+import { COUNTRY_CURRENCIES, CurrencyInfo, DEFAULT_CURRENCY } from '@/shared/lib/currencyUtils';
 import StripeWrapper from '@/shared/components/Stripe/StripeWrapper';
 import { CreditCard, Banknote } from 'lucide-react';
 
@@ -185,17 +185,19 @@ export default function CustomerMenu() {
                 console.log("Restaurant Info fetched:", restData, "Error:", restError);
                 if (restError || !restData) throw restError || new Error("Restaurant not found");
 
-                // Resolve currency from stored code or phone number
-                const currencyInfo = restData.currency
-                    ? resolveCurrency(restData.currency)
-                    : resolveCurrency(restData.phone);
+                const savedCurrency = restData?.currency || 'PKR';
+                const currencyInfo = Object.values(COUNTRY_CURRENCIES).find(
+                    c => c.code === savedCurrency
+                ) ?? Object.values(COUNTRY_CURRENCIES).find(
+                    c => c.code === 'PKR'
+                );
 
                 setRestaurantInfo({
                     name: restData.name,
                     logo_url: restData.logo_url,
                     address: restData.address,
                     phone: restData.phone,
-                    currency: currencyInfo
+                    currency: currencyInfo || DEFAULT_CURRENCY
                 });
 
                 console.log("Fetching Categories...");
@@ -368,16 +370,14 @@ export default function CustomerMenu() {
         );
     }
 
-    const getCurrencySymbol = () => {
-        return restaurantInfo?.currency?.symbol || DEFAULT_CURRENCY.symbol;
-    };
+    const fallbackCurrency = Object.values(COUNTRY_CURRENCIES).find(c => c.code === 'PKR');
+    const currencySymbol = restaurantInfo?.currency?.symbol ?? fallbackCurrency?.symbol ?? DEFAULT_CURRENCY.symbol;
 
-    // Helper to format prices using restaurant's currency
-    const formatPriceDisplay = (price: number) => {
-        return formatPrice(price, restaurantInfo?.currency || DEFAULT_CURRENCY);
+    const formatPriceDisplay = (price: number): string => {
+        return `${currencySymbol}\u00A0${price.toLocaleString('en', {
+            maximumFractionDigits: 0
+        })}`;
     };
-
-    const currencySymbol = getCurrencySymbol();
 
     const toggleCategory = (categoryId: string) => {
         setExpandedCategories(prev =>
@@ -871,11 +871,11 @@ export default function CustomerMenu() {
                                                             <div className="flex flex-col">
                                                                 {(item.original_price && item.original_price > minP) ? (
                                                                     <span className="text-[10px] text-slate-400 line-through">
-                                                                        {currencySymbol} {item.original_price.toLocaleString()}
+                                                                        {formatPriceDisplay(item.original_price)}
                                                                     </span>
                                                                 ) : null}
                                                                 <span className="font-black text-amber-600 text-base leading-none drop-shadow-sm">
-                                                                    {currencySymbol} {minP === maxP ? minP.toLocaleString() : `${minP.toLocaleString()} - ${maxP.toLocaleString()}`}
+                                                                    {minP === maxP ? formatPriceDisplay(minP) : `${formatPriceDisplay(minP)} - ${formatPriceDisplay(maxP)}`}
                                                                 </span>
                                                             </div>
                                                             <button
@@ -962,11 +962,11 @@ export default function CustomerMenu() {
                                                             <div className="flex flex-col items-end">
                                                                 {variant.original_price && variant.original_price > variant.price && (
                                                                     <span className="text-[10px] text-slate-400 line-through font-medium leading-none mb-0.5">
-                                                                        {currencySymbol} {variant.original_price.toLocaleString()}
+                                                                        {formatPriceDisplay(variant.original_price)}
                                                                     </span>
                                                                 )}
                                                                 <span className={`font-black leading-none ${isSelected ? 'text-amber-600' : 'text-slate-600'}`}>
-                                                                    {currencySymbol} {variant.price.toLocaleString()}
+                                                                    {formatPriceDisplay(variant.price)}
                                                                 </span>
                                                             </div>
                                                             <div className={`w-5 h-5 rounded animate-in zoom-in-95 border-2 flex items-center justify-center ${isSelected ? 'border-amber-500 bg-amber-500' : 'border-slate-300'
@@ -1004,9 +1004,14 @@ export default function CustomerMenu() {
                                                                 <div className="flex items-center gap-3">
                                                                     {addon.price > 0 && (
                                                                         <span className={`text-sm font-black ${isSelected ? 'text-amber-600' : 'text-slate-500'}`}>
-                                                                            + {currencySymbol} {addon.price.toLocaleString()}
+                                                                                    +{formatPriceDisplay(addon.price)}
                                                                         </span>
                                                                     )}
+                                                                            {addon.price <= 0 && (
+                                                                                <span className={`text-sm font-black ${isSelected ? 'text-emerald-600' : 'text-slate-500'}`}>
+                                                                                    Free
+                                                                                </span>
+                                                                            )}
                                                                     <div className={`w-5 h-5 rounded animate-in zoom-in-95 border-2 flex items-center justify-center ${isSelected ? 'border-amber-500 bg-amber-500' : 'border-slate-300'
                                                                         }`}>
                                                                         {isSelected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
@@ -1031,10 +1036,10 @@ export default function CustomerMenu() {
                                         <div className="flex items-center justify-center gap-2 mt-2">
                                             {selectedItem.original_price && selectedItem.original_price > selectedItem.price && (
                                                 <span className="text-sm text-slate-400 line-through font-medium mt-1">
-                                                    {currencySymbol} {selectedItem.original_price.toLocaleString()}
+                                                    {formatPriceDisplay(selectedItem.original_price)}
                                                 </span>
                                             )}
-                                            <span className="text-2xl font-black text-slate-900">{currencySymbol} {selectedItem.price.toLocaleString()}</span>
+                                            <span className="text-2xl font-black text-slate-900">{formatPriceDisplay(selectedItem.price)}</span>
                                         </div>
                                     </div>
                                 )}
@@ -1063,7 +1068,7 @@ export default function CustomerMenu() {
                                 className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black text-lg py-5 rounded-[2rem] shadow-xl shadow-amber-500/20 transition-all active:scale-[0.98] flex items-center justify-between px-8"
                             >
                                 <span>Add to Order</span>
-                                <span>{currencySymbol} {calculateModalTotal().toLocaleString()}</span>
+                                <span>{formatPriceDisplay(calculateModalTotal())}</span>
                             </button>
                         </div>
                     </div>
@@ -1109,11 +1114,11 @@ export default function CustomerMenu() {
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-0.5">Total</p>
                                     {activeOrder.discount_amount > 0 ? (
                                         <div className="flex flex-col items-end">
-                                            <span className="text-sm line-through text-slate-400 block leading-tight">{currencySymbol} {activeOrder.total_amount}</span>
-                                            <span className="font-black text-slate-900 text-lg leading-none">{currencySymbol} {Math.max(0, activeOrder.total_amount - activeOrder.discount_amount)}</span>
+                                            <span className="text-sm line-through text-slate-400 block leading-tight">{formatPriceDisplay(activeOrder.total_amount)}</span>
+                                            <span className="font-black text-slate-900 text-lg leading-none">{formatPriceDisplay(Math.max(0, activeOrder.total_amount - activeOrder.discount_amount))}</span>
                                         </div>
                                     ) : (
-                                        <p className="font-black text-slate-900 text-lg">{currencySymbol} {activeOrder.total_amount}</p>
+                                        <p className="font-black text-slate-900 text-lg">{formatPriceDisplay(activeOrder.total_amount)}</p>
                                     )}
                                 </div>
                             </div>
@@ -1160,7 +1165,7 @@ export default function CustomerMenu() {
                                 </div>
                             </div>
                             <div className="font-black text-xl">
-                                {currencySymbol} {calculateCartTotal().toLocaleString()}
+                                {formatPriceDisplay(calculateCartTotal())}
                             </div>
                         </button>
                     </motion.div>
@@ -1218,6 +1223,8 @@ export default function CustomerMenu() {
                                         <StripeWrapper
                                             amount={isPayingActiveOrder ? activeOrder.total_amount : calculateCartTotal()}
                                             restaurantId={restaurantId || ''}
+                                            currencyCode={restaurantInfo?.currency?.code || 'PKR'}
+                                            currencySymbol={currencySymbol}
                                             metadata={{
                                                 customer_name: isPayingActiveOrder ? activeOrder.customer_name : customerName,
                                                 table_number: tableNo,
@@ -1261,7 +1268,7 @@ export default function CustomerMenu() {
                                                         <div className="flex justify-between items-start mb-1">
                                                             <h4 className="font-bold text-slate-900 text-[15px] leading-tight truncate pr-4">{cartItem.item.name}</h4>
                                                             <span className="font-black text-amber-600 text-sm shrink-0">
-                                                                {currencySymbol}{(cartItem.totalPrice * cartItem.quantity).toLocaleString()}
+                                                                {formatPriceDisplay(cartItem.totalPrice * cartItem.quantity)}
                                                             </span>
                                                         </div>
 
@@ -1394,7 +1401,7 @@ export default function CustomerMenu() {
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Total Amount</span>
                                                     <span className="text-3xl font-black text-slate-900 leading-none">
-                                                        {currencySymbol} {calculateCartTotal().toLocaleString()}
+                                                        {formatPriceDisplay(calculateCartTotal())}
                                                     </span>
                                                 </div>
                                                 <div className="text-right">

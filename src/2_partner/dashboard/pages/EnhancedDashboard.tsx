@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // FILE: EnhancedDashboard.tsx
 // SECTION: 2_partner > dashboard > pages
 // PURPOSE: Dashboard ka overview / home screen.
@@ -12,13 +12,14 @@
 // This component replaces the existing DashboardOverview
 // Import this to use the new dashboard with all management features
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { toast } from 'sonner';
-import { useCurrency } from '@/shared/hooks/useCurrency';
+import { useRestaurant } from '@/shared/contexts/RestaurantContext';
 import { RevenueChart, OrderVolumeChart, PeakHoursChart } from '@/2_partner/dashboard/components/Charts';
 import { TimeRangeFilter, TopItemsGrid, StatusSummaryCard, RatingCard, type TimeRange } from '@/2_partner/dashboard/components/DashboardComponents';
+import { CustomerInsights } from '@/2_partner/dashboard/components/CustomerInsights';
 import { QuickActionsBar } from '@/2_partner/dashboard/components/QuickActions';
 import { soundManager } from '@/shared/services/soundManager';
 import {
@@ -30,7 +31,8 @@ import {
     MoreHorizontal,
     Star,
     AlertCircle,
-    ChevronDown
+    ChevronDown,
+    Users
 } from 'lucide-react';
 
 export const EnhancedDashboardOverview = () => {
@@ -38,8 +40,12 @@ export const EnhancedDashboardOverview = () => {
     const [timeRange, setTimeRange] = useState<TimeRange>('24h');
     const [loading, setLoading] = useState(true);
 
-    // Currency Hook
-    const { formatPrice } = useCurrency();
+    const { currencySymbol } = useRestaurant();
+    const formatMoney = useCallback((amount: number): string => {
+        return `${currencySymbol}\u00A0${amount.toLocaleString('en', {
+            maximumFractionDigits: 0
+        })}`;
+    }, [currencySymbol]);
 
     // User Info
     const [userName, setUserName] = useState('Partner');
@@ -68,6 +74,7 @@ export const EnhancedDashboardOverview = () => {
 
     // Demo Mode
     const [isDemoMode, setIsDemoMode] = useState(false);
+    const [isNewRestaurant, setIsNewRestaurant] = useState(false);
 
     // Time & Greeting
     const [currentTime, setCurrentTime] = useState(new Date());
@@ -126,6 +133,8 @@ export const EnhancedDashboardOverview = () => {
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
+            let fetchedTotalRevenue = 0;
+            let fetchedTotalOrders = 0;
 
             // Get User & Restaurant
             const { data: { user } } = await supabase.auth.getUser();
@@ -180,6 +189,7 @@ export const EnhancedDashboardOverview = () => {
                     })));
 
                     const total = revenueTrend.reduce((sum: number, d: any) => sum + parseFloat(d.revenue), 0);
+                    fetchedTotalRevenue = total;
                     setStats(prev => ({ ...prev, totalRevenue: total }));
                 }
 
@@ -253,15 +263,19 @@ export const EnhancedDashboardOverview = () => {
                     setOrdersByStatus(statusObj);
 
                     const total = statusObj.pending + statusObj.cooking + statusObj.delivered + statusObj.cancelled;
+                    fetchedTotalOrders = total;
                     setStats(prev => ({ ...prev, totalOrders: total, activeOrders: statusObj.pending + statusObj.cooking }));
                 } else {
                     // Koi orders nahi hain abhi tak — loading band karo aur empty state dikhao
                     console.log('No order data found — empty state dikhayenge');
                     setOrdersByStatus({ pending: 0, cooking: 0, delivered: 0, cancelled: 0 });
                     setStats(prev => ({ ...prev, totalOrders: 0, activeOrders: 0 }));
+                    setIsNewRestaurant(fetchedTotalRevenue === 0);
                     setLoading(false); // ← yeh zaruri hai warna loading hamesha on rehti hai
                     return;
                 }
+
+                setIsNewRestaurant(fetchedTotalOrders === 0 && fetchedTotalRevenue === 0);
 
                 setLoading(false);
             } catch (rpcError) {
@@ -269,7 +283,8 @@ export const EnhancedDashboardOverview = () => {
                 console.error('RPC Error:', rpcError);
                 setLoading(false);
             }
-        } catch (error) {
+        } catch (error: any) {
+            if (error?.name === 'AbortError' || error?.message?.includes('AbortError')) return;
             console.error('Dashboard fetch error:', error);
             setLoading(false);
         }
@@ -327,6 +342,7 @@ export const EnhancedDashboardOverview = () => {
         setOrderVolumeData(data.orders);
         setStats(prev => ({ ...prev, ...data.stats }));
         setOrdersByStatus(data.status);
+        setIsNewRestaurant(false);
 
         // Demo top items
         setTopItems([
@@ -413,6 +429,54 @@ export const EnhancedDashboardOverview = () => {
 
                 {/* Main Content Scrollable Area */}
                 <div className="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
+                    {isNewRestaurant && (
+                        <div className="order-glass-panel rounded-[2rem] p-8 mb-8 border border-amber-500/20 relative overflow-hidden">
+                            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent pointer-events-none" />
+
+                            <div className="relative z-10">
+                                <h3 className="text-xl font-black text-white mb-2 flex items-center gap-3">
+                                    <span className="text-2xl">👋</span>
+                                    Welcome! Let's set up your restaurant
+                                </h3>
+                                <p className="text-slate-400 text-sm mb-6">
+                                    Complete these steps to start receiving orders.
+                                </p>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <a href="/dashboard/settings" className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 hover:border-amber-500/30 transition-all group">
+                                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-500 font-black text-lg shrink-0">1</div>
+                                        <div>
+                                            <p className="text-white font-bold text-sm">Complete Profile</p>
+                                            <p className="text-slate-500 text-xs mt-0.5">
+                                                Add your logo, address, and hours
+                                            </p>
+                                        </div>
+                                    </a>
+
+                                    <a href="/dashboard/menu" className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 hover:border-amber-500/30 transition-all group">
+                                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-500 font-black text-lg shrink-0">2</div>
+                                        <div>
+                                            <p className="text-white font-bold text-sm">Add Menu Items</p>
+                                            <p className="text-slate-500 text-xs mt-0.5">
+                                                Add your dishes with prices and photos
+                                            </p>
+                                        </div>
+                                    </a>
+
+                                    <a href="/dashboard/qr" className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 hover:border-amber-500/30 transition-all group">
+                                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-500 font-black text-lg shrink-0">3</div>
+                                        <div>
+                                            <p className="text-white font-bold text-sm">Share QR Code</p>
+                                            <p className="text-slate-500 text-xs mt-0.5">
+                                                Print and place on your tables
+                                            </p>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* KPI Cards - Exact Stitch Markup Replicated */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 mt-4">
                         {/* Revenue Card */}
@@ -423,7 +487,7 @@ export const EnhancedDashboardOverview = () => {
                                 <DollarSign className="text-[var(--primary)]/50 w-6 h-6" />
                             </div>
                             <div className="flex items-end justify-between relative z-10">
-                                <h3 className="text-white text-3xl font-bold tracking-tight">{formatPrice(stats.totalRevenue)}</h3>
+                                <h3 className="text-white text-3xl font-bold tracking-tight">{formatMoney(stats.totalRevenue)}</h3>
                                 <div className="flex items-center gap-1 text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md border border-emerald-400/20">
                                     <TrendingUp className="w-3.5 h-3.5" />
                                     <span className="text-xs font-bold neon-text-green">+12%</span>
@@ -475,7 +539,7 @@ export const EnhancedDashboardOverview = () => {
                                 <div>
                                     <h4 className="text-white text-lg font-semibold tracking-wide">Revenue Trend</h4>
                                     <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-2xl font-bold text-white">{formatPrice(stats.totalRevenue)}</span>
+                                        <span className="text-2xl font-bold text-white">{formatMoney(stats.totalRevenue)}</span>
                                         <span className="text-emerald-400 text-sm font-medium">+12%</span>
                                     </div>
                                 </div>
@@ -484,7 +548,7 @@ export const EnhancedDashboardOverview = () => {
                                 </button>
                             </div>
                             <div className="relative h-48 w-full mt-4 flex items-end transition-transform duration-500 group-hover:scale-[1.01]">
-                                <RevenueChart data={revenueData} timeRange={timeRange} />
+                                <RevenueChart data={revenueData} timeRange={timeRange} formatPrice={formatMoney} />
                             </div>
                         </div>
 
@@ -530,7 +594,7 @@ export const EnhancedDashboardOverview = () => {
                                     <Star className="w-5 h-5 text-amber-500" /> Top Performing Items
                                 </h4>
                             </div>
-                            {topItems.length > 0 && <TopItemsGrid items={topItems} />}
+                            {topItems.length > 0 && <TopItemsGrid items={topItems} formatPrice={formatMoney} />}
                         </div>
 
                         {/* Today's Summary & Rating Section */}
@@ -551,6 +615,18 @@ export const EnhancedDashboardOverview = () => {
                                 <RatingCard avgRating={reviews.avgRating} reviewCount={reviews.count} />
                             </div>
                         </div>
+                    </div>
+
+                    {/* Customer Insights & Loyalty Section */}
+                    <div className="mt-8">
+                        <div className="flex items-center gap-2 mb-6">
+                            <h4 className="text-white text-2xl font-black tracking-tight flex items-center gap-3">
+                                <Users className="w-8 h-8 text-[var(--primary)]" />
+                                Customer Loyalty & Insights
+                            </h4>
+                            <div className="h-px flex-1 bg-white/5" />
+                        </div>
+                        {restaurantId && <CustomerInsights restaurantId={restaurantId} />}
                     </div>
 
                     {/* Quick Actions Bar integration - Floating style matching Stitch intent */}

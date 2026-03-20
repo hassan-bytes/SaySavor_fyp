@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // FILE: RestaurantSetup.tsx
 // SECTION: 2_partner > setup > pages
 // PURPOSE: Pehli baar login karne par restaurant ki details bharni hoti hain.
@@ -43,7 +43,7 @@ export const getFilesInFolder = async (folderPath: string): Promise<Set<string>>
 
     try {
         const { data, error } = await supabase.storage
-            .from('preset-dishes')
+            .from('preset-images')
             .list(folderPath, { limit: 500 });
 
         const fileSet = new Set<string>(
@@ -169,7 +169,7 @@ export const DynamicFoodImage = ({
             for (const fileName of candidateFiles) {
                 if (existingFiles.has(fileName)) {
                     const fullPath = `${folderPath}/${fileName}`;
-                    const { data } = supabase.storage.from('preset-dishes').getPublicUrl(fullPath);
+                    const { data } = supabase.storage.from('preset-images').getPublicUrl(fullPath);
                     const proxiedUrl = getProxiedUrl(data.publicUrl);
                     resolvedUrlCache.set(cacheKey, proxiedUrl);
                     if (!cancelled) { setImgSrc(proxiedUrl); setHasError(false); setIsLoading(false); }

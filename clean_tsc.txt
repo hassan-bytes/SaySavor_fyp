@@ -1,2 +1,0 @@
-src/2_partner/dashboard/pages/MenuManager.tsx(1741,43): error TS2495: Type 'NodeListOf<HTMLImageElement>' is not an array type or a string type.
-src/2_partner/dashboard/pages/MenuManager.tsx(1948,36): error TS2339: Property 'menuManager' does not exist on type '{ editDish: string; addNew: string; dish: string; deal: string; saveChanges: string; cancel: string; pricing: string; media: string; stock: string; variants: string; dishName: string; dealName: string; ... 18 more ...; actions: string; } | { ...; }'.
