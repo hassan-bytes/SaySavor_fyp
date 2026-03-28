@@ -9,6 +9,7 @@
 // ============================================
 
 import { Clock, User, Package, CheckCircle, XCircle, ChefHat, Receipt, Trash2, Edit2, CreditCard, Banknote } from 'lucide-react';
+import { isPaymentComplete } from '@/shared/types/paymentTypes';
 
 export interface OrderItem {
     id?: string;
@@ -156,7 +157,7 @@ export const OrderCard = ({
                                 <><Banknote className="w-3 h-3" /> Cash</>
                             )}
                         </div>
-                        {order.payment_status === 'PAID' && (
+                        {isPaymentComplete(order.payment_status) && (
                             <div className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
                                 <CheckCircle className="w-3 h-3" /> Paid
                             </div>

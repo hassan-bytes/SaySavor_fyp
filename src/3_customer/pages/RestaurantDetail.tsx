@@ -6,7 +6,7 @@
 // ROUTE: /foodie/restaurant/:id
 // ============================================================
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { 
     ArrowLeft, Star, Clock, MapPin, 
@@ -87,8 +87,10 @@ const MenuItemCard: React.FC<{
 // ── Main Component ─────────────────────────────────────────────
 const RestaurantDetail: React.FC = () => {
     const { id } = useParams();
+    const [searchParams] = useSearchParams();
+    const tableNo = searchParams.get('table');
     const navigate = useNavigate();
-    const { addToCart, cartItems, totalAmount, totalCount } = useCart();
+    const { addToCart, cartItems, totalAmount, totalCount, setTableNumber } = useCart();
     const [restaurant, setRestaurant] = useState<RestaurantInfo | null>(null);
     const [menuCategories, setMenuCategories] = useState<{name: string, items: MenuItem[]}[]>([]);
     const [loading, setLoading] = useState(true);
@@ -101,6 +103,14 @@ const RestaurantDetail: React.FC = () => {
     const headerBlur = useTransform(scrollY, [0, 200], [0, 20]);
     const headerOpacity = useTransform(scrollY, [0, 200], [1, 0.5]);
     const headerScale = useTransform(scrollY, [0, 200], [1, 1.1]);
+
+    useEffect(() => {
+        if (tableNo) {
+            setTableNumber(tableNo);
+        } else {
+            setTableNumber(null);
+        }
+    }, [tableNo, setTableNumber]);
 
     useEffect(() => {
         if (!id) return;

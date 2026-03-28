@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // FILE: CustomerMenu.tsx
 // SECTION: 2_partner > customer_menu > pages
 // PURPOSE: Customer ka menu page â€” QR scan karne ke baad yeh khulta hai.
@@ -10,6 +10,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { useMenuRealtime } from '@/2_partner/customer_menu/hooks/useMenuRealtime';
 import { MenuItem } from '@/shared/types/menu';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Plus, Clock, Sparkles, ChevronDown, X, MapPin, Phone, ShoppingCart, Minus, Trash2, ArrowRight, Search, Filter, BellRing, CheckCircle, ChefHat, Package, MessageSquare } from 'lucide-react';
@@ -60,7 +61,14 @@ export default function CustomerMenu() {
     const [isValidTable, setIsValidTable] = useState<boolean | null>(null);
 
     // Live Order Status Tracking
-    const [activeOrder, setActiveOrder] = useState<any>(null);
+    const [activeOrder, setActiveOrder] = useState<{
+        id: string;
+        status: string;
+        session_status?: string;
+        payment_status?: string;
+        stripe_payment_intent_id?: string;
+        [key: string]: any;
+    } | null>(null);
     const [isSessionClosed, setIsSessionClosed] = useState(false);
 
     // FIX #5: Session validation on page load
@@ -69,23 +77,33 @@ export default function CustomerMenu() {
 
         const fetchActiveOrder = async () => {
             try {
-                const { data } = await supabase
+                const { data, error } = await supabase
                     .from('orders')
                     .select('*')
                     .eq('restaurant_id', restaurantId)
-                    .eq('table_number', parseInt(tableNo))
+                    .eq('table_number', tableNo)
                     .in('status', ['pending', 'accepted', 'cooking', 'ready'])
                     .order('created_at', { ascending: false })
-                    .limit(1)
-                    .single();
+                    .limit(1);
 
-                // FIX #5: Check if session is closed before loading
-                if (data && data.session_status !== 'CLOSED') {
-                    setActiveOrder(data);
+                if (error) {
+                    console.error('Error fetching active order:', error);
+                    setActiveOrder(null);
+                    return;
+                }
+
+                // Get first order from array (limit 1 returns array, not single object)
+                const order = data && data.length > 0 ? data[0] : null;
+
+                // Check if session is closed before loading
+                if (order && order.session_status !== 'closed') {
+                    setActiveOrder(order);
                     setIsSessionClosed(false);
-                } else if (data && data.session_status === 'CLOSED') {
+                } else if (order && order.session_status === 'closed') {
                     setActiveOrder(null);
                     setIsSessionClosed(true);
+                } else {
+                    setActiveOrder(null);
                 }
             } catch (error) {
                 console.error('Error fetching active order:', error);
@@ -107,7 +125,7 @@ export default function CustomerMenu() {
                         // If an order is already active on this phone, check by its unique ID
                         if (prevOrder && prevOrder.id === newOrder.id) {
                             // FIX #2: Check session_status FIRST - if closed, clear everything
-                            if (newOrder.session_status === 'CLOSED') {
+                            if (newOrder.session_status === 'closed') {
                                 setIsSessionClosed(true);
                                 setCart([]);
                                 return null;
@@ -123,7 +141,7 @@ export default function CustomerMenu() {
 
                         // If there is NO active order, and a new one was just INSERTED for this table
                         if (!prevOrder && newOrder.table_number == tableNo) {
-                            if (newOrder.session_status !== 'CLOSED' && ['pending', 'accepted', 'cooking', 'ready'].includes(newOrder.status)) {
+                            if (newOrder.session_status !== 'closed' && ['pending', 'accepted', 'cooking', 'ready'].includes(newOrder.status)) {
                                 setIsSessionClosed(false);
                                 return { ...newOrder };
                             }
@@ -189,6 +207,38 @@ export default function CustomerMenu() {
             document.body.style.overflow = 'unset';
         };
     }, [selectedItem, isCartOpen]);
+
+    // Real-time menu synchronization - reflects partner updates in real-time
+    useMenuRealtime({
+        restaurantId: restaurantId || '',
+        enabled: isValidTable === true && !!restaurantId,
+        onMenuUpdate: (change) => {
+            console.log('Menu updated in real-time:', change);
+            // Refetch menu to get fresh data
+            if (restaurantId) {
+                const refetchMenuItems = async () => {
+                    const { data, error } = await supabase
+                        .from('menu_items')
+                        .select('*')
+                        .eq('restaurant_id', restaurantId)
+                        .eq('is_available', true)
+                        .order('sort_order');
+                    if (!error && data) {
+                        console.log('Menu items refreshed from real-time update');
+                        setMenuItems(data);
+                        // Show toast notification for menu changes
+                        if (change.event === 'UPDATE') {
+                            toast.info('Menu updated - prices or availability may have changed', { duration: 3000 });
+                        }
+                    }
+                };
+                refetchMenuItems();
+            }
+        },
+        onError: (error) => {
+            console.error('Menu real-time sync error:', error);
+        }
+    });
 
     useEffect(() => {
         const fetchMenuData = async () => {
@@ -464,11 +514,11 @@ export default function CustomerMenu() {
         if (!activeOrder) return;
         
         try {
-            // Update order session_status to CLOSED
-            const { error } = await supabase
+            // Update order session_status to closed
+            const { error } = await (supabase as any)
                 .from('orders')
                 .update({ 
-                    session_status: 'CLOSED',
+                    session_status: 'closed',
                     payment_status: 'PAID',
                     stripe_payment_intent_id: paymentIntentId
                 })
@@ -492,7 +542,7 @@ export default function CustomerMenu() {
 
     const handleAddToCart = () => {
         // FIX #4: Validate session is still active before adding items
-        if (isSessionClosed || (activeOrder && activeOrder.session_status === 'CLOSED')) {
+        if (isSessionClosed || (activeOrder && activeOrder.session_status === 'closed')) {
             toast.error('Session has ended. Please scan QR code again to start a new order.');
             return;
         }
@@ -564,15 +614,16 @@ export default function CustomerMenu() {
 
             let activeOrderId = null;
 
-            // 1. If Dine-In, check for an existing OPEN session for this table
+            // 1. If Dine-In, check for an existing active session for this table
             if (tableNo) {
                 const { data: existingOrder, error: checkError } = await (supabase as any)
                     .from('orders')
                     .select('id, total_amount')
                     .eq('restaurant_id', restaurantId)
                     .eq('table_number', tableNo)
-                    .eq('session_status', 'OPEN')
+                    .eq('session_status', 'active')
                     .neq('status', 'cancelled')
+                    .neq('status', 'delivered')
                     .maybeSingle();
 
                 if (!checkError && existingOrder) {
@@ -587,6 +638,11 @@ export default function CustomerMenu() {
 
             // 2. If no active session found, create a new Order
             if (!activeOrderId) {
+                console.log('[CustomerMenu] 📝 Creating new order with status: pending');
+                
+                // Use 'ONLINE' if payment is already processed (Stripe), otherwise use selected method
+                const finalPaymentMethod = isAlreadyPaid ? 'ONLINE' : paymentMethod;
+                
                 const { data: newOrderData, error: orderInsertError } = await (supabase as any)
                     .from('orders')
                     .insert({
@@ -596,14 +652,20 @@ export default function CustomerMenu() {
                         customer_phone: customerPhone.trim() || null,
                         order_type: orderType,
                         total_amount: grandTotal,
-                        session_status: 'OPEN',
-                        payment_status: paymentMethod === 'ONLINE' ? 'PAID' : 'PENDING',
-                        payment_method: paymentMethod,
-                        status: 'pending'
+                        session_status: 'active',
+                        payment_status: isAlreadyPaid ? 'PAID' : (finalPaymentMethod === 'ONLINE' ? 'PAID' : 'PENDING'),
+                        payment_method: finalPaymentMethod,
+                        status: 'pending',
+                        is_guest: true  // Mark as guest order
                     })
-                    .select('id');
+                    .select('id, status, created_at');
 
-                if (orderInsertError) throw orderInsertError;
+                if (orderInsertError) {
+                    console.error('[CustomerMenu] ❌ Order insert error:', orderInsertError);
+                    throw orderInsertError;
+                }
+                
+                console.log('[CustomerMenu] ✅ Order created:', newOrderData);
 
                 // Fallback in case RLS prevents returning the inserted row
                 if (newOrderData && newOrderData.length > 0) {
@@ -1281,15 +1343,15 @@ export default function CustomerMenu() {
                                         </div>
                                     ) : showStripe ? (
                                         <StripeWrapper
-                                            amount={isPayingActiveOrder ? activeOrder.total_amount : calculateCartTotal()}
+                                            amount={isPayingActiveOrder && activeOrder ? activeOrder.total_amount : calculateCartTotal()}
                                             restaurantId={restaurantId || ''}
                                             currencyCode={restaurantInfo?.currency?.code || 'PKR'}
                                             currencySymbol={currencySymbol}
                                             metadata={{
-                                                customer_name: isPayingActiveOrder ? activeOrder.customer_name : customerName,
+                                                customer_name: isPayingActiveOrder && activeOrder ? activeOrder.customer_name : customerName,
                                                 table_number: tableNo,
-                                                order_note: isPayingActiveOrder ? 'Active Order Payment' : orderNote,
-                                                order_id: isPayingActiveOrder ? activeOrder.id : undefined
+                                                order_note: isPayingActiveOrder && activeOrder ? 'Active Order Payment' : orderNote,
+                                                order_id: isPayingActiveOrder && activeOrder ? activeOrder.id : undefined
                                             }}
                                             onSuccess={() => {
                                                 if (isPayingActiveOrder) {

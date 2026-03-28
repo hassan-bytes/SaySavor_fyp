@@ -8,6 +8,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { Order } from './OrderCard';
 import { X, Receipt, Banknote, CreditCard, Percent, Minus, ChefHat } from 'lucide-react';
 import { toast } from 'sonner';
+import { PaymentStatus } from '@/shared/types/paymentTypes';
 
 interface CheckoutModalProps {
     isOpen: boolean;
@@ -53,7 +54,7 @@ export default function CheckoutModal({ isOpen, onClose, order, onPaymentComplet
                 .from('orders')
                 .update({
                     session_status: 'CLOSED',
-                    payment_status: 'PAID',
+                    payment_status: PaymentStatus.PAID,
                     payment_method: paymentMethod,
                     discount_amount: discountAmount,
                     status: 'delivered' // Auto-close kitchen status if checking out

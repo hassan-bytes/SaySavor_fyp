@@ -1,13 +1,14 @@
 ﻿// ============================================================
 // FILE: ProtectedRoute.tsx
 // SECTION: shared > components
-// PURPOSE: Auth guard â€” sirf logged in users dashboard access kar sakte hain.
+// PURPOSE: Auth guard — sirf logged in users dashboard access kar sakte hain.
 //          Login nahi toh /auth par redirect.
 //          requireSetup=true: setup complete karna zaruri hai.
 // ============================================================
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { getUserStatus } from '@/shared/lib/authHelpers';
+import { usePartnerAuth } from '@/shared/contexts/PartnerAuthContext';
+import { supabase } from '@/shared/lib/supabaseClient';
 import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
@@ -30,29 +31,62 @@ interface ProtectedRouteProps {
  * └─────────────────┴──────────────────┴─────────────────────────┴──────────────────────────┘
  */
 export function ProtectedRoute({ children, requireSetup = false }: ProtectedRouteProps) {
-    const [loading, setLoading] = useState(true);
+    const { user, profile, loading } = usePartnerAuth();
     const navigate = useNavigate();
     const location = useLocation();
+    const mountedRef = useRef(true);
 
     useEffect(() => {
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (loading) return; // Wait for auth to initialize
         checkAccessAndRedirect();
-    }, [location.pathname]);
+    }, [user, loading, location.pathname]);
 
     const checkAccessAndRedirect = async () => {
-        const status = await getUserStatus();
-
         // RULE 1: Not authenticated -> Redirect to /auth
-        if (!status.isAuthenticated) {
+        if (!user) {
             navigate('/auth', { replace: true });
             return;
         }
+
+        // Check if restaurant exists for this user
+        // Note: restaurant is linked via owner_id in restaurants table
+        // If restaurant exists, consider setup complete
+        let isSetupComplete = false;
+        if (user?.id) {
+            console.log('[ProtectedRoute] Checking restaurant for user:', user.id);
+            const { data, error } = await supabase
+                .from('restaurants')
+                .select('id, name')
+                .eq('owner_id', user.id)
+                .maybeSingle();
+            
+            if (error) {
+                console.warn('[ProtectedRoute] Restaurant check error:', error.message);
+                // Fail open on error - allow access and retry later
+                isSetupComplete = true;
+            } else if (data) {
+                // If restaurant exists, setup is complete
+                isSetupComplete = true;
+                console.log('[ProtectedRoute] Restaurant found:', data.name);
+            } else {
+                console.log('[ProtectedRoute] No restaurant found for user');
+            }
+        }
+
+        if (!mountedRef.current) return;
 
         // Get current route
         const currentPath = location.pathname;
 
         // RULE 2: Logged in BUT setup incomplete AND trying to access /dashboard
         // -> Redirect to /restaurant-setup
-        if (!status.setupComplete && currentPath === '/dashboard') {
+        if (!isSetupComplete && currentPath.startsWith('/dashboard')) {
             navigate('/restaurant-setup', { replace: true });
             return;
         }
@@ -63,22 +97,22 @@ export function ProtectedRoute({ children, requireSetup = false }: ProtectedRout
         const urlParams = new URLSearchParams(location.search);
         const hasStepParam = urlParams.has('step');
 
-        if (status.setupComplete && currentPath === '/restaurant-setup' && !hasStepParam) {
+        if (isSetupComplete && currentPath === '/restaurant-setup' && !hasStepParam) {
             navigate('/dashboard', { replace: true });
             return;
         }
 
         // RULE 4: requireSetup flag check (additional protection)
         // If route requires setup completion but user hasn't completed
-        if (requireSetup && !status.setupComplete) {
+        if (requireSetup && !isSetupComplete) {
             navigate('/restaurant-setup', { replace: true });
             return;
         }
 
         // All checks passed - Allow access
-        setLoading(false);
     };
 
+    // Show loading while auth initializes
     if (loading) {
         return (
             <div className="flex items-center justify-center h-screen bg-obsidian">

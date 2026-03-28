@@ -33,6 +33,8 @@ export interface CreateOrderParams {
     customer_id?: string;       // → customer_id in DB
     is_guest?: boolean;         // → is_guest in DB
     stripe_payment_intent_id?: string;
+    table_number?: string | null;
+    order_type?: string;
 }
 
 export const customerOrderService = {
@@ -46,6 +48,9 @@ export const customerOrderService = {
 
         const isGuest = user.is_anonymous === true;
 
+        // Determine order type
+        const orderType = params.order_type || (params.table_number ? 'DINE_IN' : 'delivery');
+
         // 2. Insert order — using YOUR actual column names
         const { data: orderData, error: orderError } = await (supabase
             .from('orders') as any)
@@ -55,14 +60,14 @@ export const customerOrderService = {
                 customer_name: params.customer_name || (isGuest ? 'Guest' : null),
                 customer_phone: params.delivery_phone,    // your column name
                 customer_address: params.delivery_address,  // your column name
-                order_type: 'delivery',
+                order_type: orderType,
+                table_number: params.table_number ?? null,
                 total_amount: params.total_amount,
                 discount_amount: params.discount_amount ?? 0,
                 delivery_fee: params.delivery_fee,      // NEW column we added
                 tax_amount: params.tax_amount,        // NEW column we added
                 payment_method: params.payment_method,
-                payment_status: params.payment_method === 'ONLINE' && params.stripe_payment_intent_id
-                    ? 'paid' : 'pending',
+                payment_status: 'pending', // ALWAYS pending initially; webhook updates to 'paid' or 'failed'
                 status: 'pending',
                 session_status: 'active',
                 is_guest: isGuest,          // NEW column we added
@@ -72,8 +77,14 @@ export const customerOrderService = {
             .single();
 
         if (orderError) {
-            console.error('Order insert error:', orderError);
-            throw new Error(`Order failed: ${orderError.message}`);
+            console.error('[customerOrderService] 💥 Order INSERT FAILED:', {
+                message: orderError.message,
+                code: orderError.code,
+                details: orderError.details,
+                hint: orderError.hint,
+                status: orderError.status
+            });
+            throw orderError;
         }
         if (!orderData) throw new Error('Order creation returned no data');
 

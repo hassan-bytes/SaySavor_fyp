@@ -159,7 +159,7 @@ const StripePaymentForm: React.FC<{
 // ── Main Checkout Component ───────────────────────────────────
 const CheckoutPage: React.FC = () => {
     const navigate = useNavigate();
-    const { cartItems, totalAmount, clearCart, currentRestaurantId } = useCart();
+    const { cartItems, totalAmount, clearCart, currentRestaurantId, tableNumber } = useCart();
     const { customer } = useCustomerAuth();
 
     const [loading, setLoading] = useState(false);
@@ -255,13 +255,18 @@ const CheckoutPage: React.FC = () => {
 
     // ── Validate address ─────────────────────────────────────
     const validateBeforeOrder = (): boolean => {
-        if (!selectedAddress?.fullAddress?.trim()) {
-            toast.error('Please add a delivery address before placing order.');
-            setShowAddressForm(true);
-            return false;
+        // If it's a Dine-in order (table number exists), address is less critical but still good to have.
+        // However, the current UI requires it. I'll keep it required for now or make it optional for dine-in.
+        if (!tableNumber) {
+            if (!selectedAddress?.fullAddress?.trim()) {
+                toast.error('Please add a delivery address before placing order.');
+                setShowAddressForm(true);
+                return false;
+            }
         }
+        
         if (!selectedAddress?.phone?.trim()) {
-            toast.error('Please add your phone number for delivery.');
+            toast.error('Please add your phone number for contact.');
             setShowAddressForm(true);
             return false;
         }
@@ -295,8 +300,9 @@ const CheckoutPage: React.FC = () => {
                 tax_amount: tax,
                 items: cartItems,
                 payment_method: 'COD',
-                delivery_address: `${selectedAddress.fullAddress} | ${selectedAddress.phone}`,
+                delivery_address: selectedAddress.fullAddress ? `${selectedAddress.fullAddress} | ${selectedAddress.phone}` : `Dine-in Order | ${selectedAddress.phone}`,
                 is_guest: isGuest,
+                table_number: tableNumber,
             });
 
             toast.success('Order placed! 🎉', {
@@ -338,16 +344,26 @@ const CheckoutPage: React.FC = () => {
                 tax_amount: tax,
                 items: cartItems,
                 payment_method: 'ONLINE',
-                delivery_address: `${selectedAddress.fullAddress} | ${selectedAddress.phone}`,
+                delivery_address: selectedAddress.fullAddress ? `${selectedAddress.fullAddress} | ${selectedAddress.phone}` : `Dine-in Order | ${selectedAddress.phone}`,
                 is_guest: isGuest,
                 stripe_payment_intent_id: paymentIntentId,
+                table_number: tableNumber,
             });
 
             toast.success('Payment successful! 🎉');
             clearCart();
             navigate(`/foodie/track/${order.id}`);
         } catch (err: any) {
-            toast.error('Payment done but order failed. Contact support.');
+            console.error('[Checkout] ❌ Order creation failed after Stripe payment:', {
+                message: err.message,
+                code: err.code,
+                details: err.details,
+                hint: err.hint,
+                cartLength: cartItems.length,
+                restaurantId: currentRestaurantId,
+                total: finalTotal
+            });
+            toast.error(`Order failed: ${err.message || 'Unknown error'}`);
         } finally {
             setLoading(false);
         }

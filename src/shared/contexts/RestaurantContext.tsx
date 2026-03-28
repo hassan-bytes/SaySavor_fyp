@@ -95,6 +95,29 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
     refreshRestaurant: fetchRestaurant,
   }
 
+  // CRITICAL SECURITY: Block rendering if no restaurantId
+  // Prevents data leakage and ensures multi-tenant isolation
+  if (!isLoading && !restaurantId) {
+    return (
+      <div className="min-h-screen bg-[#060606] flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="text-red-500 text-lg font-semibold">
+            ⚠️ Restaurant Not Found
+          </div>
+          <p className="text-slate-400 text-sm max-w-md">
+            No restaurant is associated with your account. Please complete restaurant setup first.
+          </p>
+          <a 
+            href="/restaurant-setup" 
+            className="inline-block px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
+          >
+            Complete Setup
+          </a>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <RestaurantContext.Provider value={value}>
       {children}

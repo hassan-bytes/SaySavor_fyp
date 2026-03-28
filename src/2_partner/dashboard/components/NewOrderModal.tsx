@@ -7,6 +7,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { MenuItem } from '@/shared/types/menu';
+import { PaymentStatus } from '@/shared/types/paymentTypes';
 import { X, Search, Plus, Minus, Trash2, ShoppingCart, User, Phone, MapPin, Coffee, Utensils, Hash } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -254,7 +255,7 @@ export default function NewOrderModal({
                         order_type: orderType,
                         total_amount: currentTotal,
                         session_status: orderType === 'DINE_IN' ? 'OPEN' : 'CLOSED',
-                        payment_status: 'PENDING',
+                        payment_status: PaymentStatus.PENDING,
                         status: 'pending' // Kitchen status
                     })
                     .select()

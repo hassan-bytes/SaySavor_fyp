@@ -11,11 +11,13 @@ import Lenis from "lenis";
 import { Toaster } from "@/shared/ui/toaster";
 import { Toaster as Sonner } from "@/shared/ui/sonner";
 import { TooltipProvider } from "@/shared/ui/tooltip";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LanguageProvider } from "@/shared/contexts/LanguageContext";
 import ScrollToTop from "@/shared/components/ScrollToTop";
 import { ProtectedRoute } from "@/shared/components/ProtectedRoute";
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
+import { PartnerAuthProvider, usePartnerAuth } from "@/shared/contexts/PartnerAuthContext";
+import LoadingSpinner from "@/shared/components/LoadingSpinner";
 
 // --- 1_public: Landing pages (koi bhi dekh sakta hai) ---
 import Index from "@/1_public/pages/Index";
@@ -37,7 +39,7 @@ import RestaurantSetup from "@/2_partner/setup/pages/RestaurantSetup";
 import Partner_Dashboard from "@/2_partner/dashboard/pages/Partner_Dashboard";
 import { EnhancedDashboardOverview } from "@/2_partner/dashboard/pages/EnhancedDashboard";
 import MenuManager from "@/2_partner/dashboard/pages/MenuManager";
-import Orders from "@/2_partner/dashboard/pages/Orders";
+import UnifiedOrdersManager from '@/2_partner/dashboard/pages/UnifiedOrdersManager';
 import AIAssistant from "@/2_partner/dashboard/pages/AIAssistant";
 import QRBuilder from "@/2_partner/dashboard/pages/QRBuilder";
 import Settings from "@/2_partner/dashboard/settings";
@@ -79,7 +81,13 @@ const PartnerOrdersWithId = () => (
   </RestaurantProvider>
 );
 
-const App = () => {
+/**
+ * AppContent - Inner component that uses auth context
+ * Separated to allow usePartnerAuth hook to work
+ */
+const AppContent = () => {
+  const { loadingInitial } = usePartnerAuth();
+
   useEffect(() => {
     const lenis = new Lenis({
       duration: 1.2,
@@ -103,6 +111,12 @@ const App = () => {
       lenis.destroy();
     };
   }, []);
+
+  // Show loading spinner during initial session restoration
+  // Prevents flash of unauthenticated content
+  if (loadingInitial) {
+    return <LoadingSpinner message="Restoring session..." />;
+  }
 
   return (
     <ErrorBoundary>
@@ -158,13 +172,14 @@ const App = () => {
             />
 
             {/* ── LIVE KITCHEN DASHBOARD ── */}
-            <Route 
-              path="/partner/orders" 
-              element={
-                <ProtectedRoute requireSetup={true}>
-                  <PartnerOrdersWithId />
-                </ProtectedRoute>
-              } 
+            <Route
+              path="/partner/orders"
+              element={<Navigate to="/dashboard/orders" replace />}
+            />
+
+            <Route
+              path="/partner/pos"
+              element={<Navigate to="/dashboard/orders" replace />}
             />
 
             {/* Partner Dashboard with nested routes */}
@@ -178,7 +193,7 @@ const App = () => {
             >
               {/* Nested dashboard routes */}
               <Route index element={<EnhancedDashboardOverview />} />
-              <Route path="orders" element={<Orders />} />
+              <Route path="orders" element={<UnifiedOrdersManager />} />
               <Route path="menu" element={<MenuManager />} />
               <Route path="ai" element={<AIAssistant />} />
               <Route path="qr" element={<QRBuilder />} />
@@ -191,6 +206,20 @@ const App = () => {
         </TooltipProvider>
       </LanguageProvider>
     </ErrorBoundary>
+  );
+};
+
+/**
+ * App - Root component with PartnerAuthProvider
+ * 
+ * CRITICAL: PartnerAuthProvider MUST wrap entire app
+ * This ensures session restoration happens before any routing
+ */
+const App = () => {
+  return (
+    <PartnerAuthProvider>
+      <AppContent />
+    </PartnerAuthProvider>
   );
 };
 

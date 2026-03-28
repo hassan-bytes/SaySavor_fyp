@@ -49,6 +49,30 @@ export function useMenuOffers({
         }
         return i;
       }));
+      
+      // Broadcast menu update to all connected customers
+      try {
+        const channel = supabase.channel('menu-updates');
+        await channel.subscribe((status) => {
+          console.log(`[useMenuOffers] Channel subscription status: ${status}`);
+        });
+        
+        await channel.send('broadcast', {
+          event: 'menu_updated',
+          payload: {
+            type: 'category_offer',
+            category,
+            cuisine,
+            discount,
+            offerName,
+            timestamp: new Date().toISOString()
+          }
+        });
+        supabase.removeChannel(channel);
+      } catch (error) {
+        console.error('Failed to broadcast menu update:', error);
+      }
+      
       toast.success(`Applied ${discount}% offer to all ${category} items!`);
     } catch (error) {
       toast.error('Failed to apply category offer');
@@ -81,6 +105,25 @@ export function useMenuOffers({
         }
         return i;
       }));
+      
+      // Broadcast menu update to all connected customers
+      try {
+        const channel = supabase.channel('menu-updates');
+        await channel.send('broadcast', {
+          event: 'menu_updated',
+          payload: {
+            type: 'cuisine_offer',
+            cuisine,
+            discount,
+            offerName,
+            timestamp: new Date().toISOString()
+          }
+        });
+        supabase.removeChannel(channel);
+      } catch (error) {
+        console.error('Failed to broadcast menu update:', error);
+      }
+      
       toast.success(`Applied ${discount}% offer to all ${cuisine} items!`);
     } catch (error) {
       toast.error('Failed to apply cuisine offer');
@@ -113,6 +156,25 @@ export function useMenuOffers({
         }
         return i;
       }));
+      
+      // Broadcast menu update to all connected customers
+      try {
+        const channel = supabase.channel('menu-updates');
+        await channel.send('broadcast', {
+          event: 'menu_updated',
+          payload: {
+            type: 'bulk_offer',
+            itemCount: selectedItems.length,
+            discount,
+            offerName,
+            timestamp: new Date().toISOString()
+          }
+        });
+        supabase.removeChannel(channel);
+      } catch (error) {
+        console.error('Failed to broadcast menu update:', error);
+      }
+      
       toast.success(`Applied ${discount}% offer to ${selectedItems.length} selected items!`);
       setSelectedItems([]);
       setIsSelectionMode(false);

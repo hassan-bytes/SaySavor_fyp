@@ -35,6 +35,7 @@ import { partnerOrderService } from '@/3_customer/services/customerOrderService'
 // ── NEW IMPORT ──────────────────────────────────────────────
 import PartnerOrders from '@/2_partner/pages/PartnerOrders';
 import PartnerPOS from '@/2_partner/pages/PartnerPOS';
+import LiveOrdersDashboard from '@/2_partner/dashboard/pages/LiveOrdersDashboard';
 
 interface Profile {
     restaurant_name: string;
@@ -52,8 +53,6 @@ const PartnerDashboardLayout = () => {
     const [isDarkMode, setIsDarkMode] = useState(true);
     const [restaurantId, setRestaurantId] = useState<string | null>(null);
     const [realtimeTrigger, setRealtimeTrigger] = useState(0);
-    // ── NEW: controls which content shows in main area ───────
-    const [activeSection, setActiveSection] = useState<'outlet' | 'orders' | 'pos'>('outlet');
 
     const [themeColor, setThemeColor] = useState('amber');
     const { language, setLanguage, isRTL, t } = useLanguage();
@@ -155,47 +154,29 @@ const PartnerDashboardLayout = () => {
                     }
                 }
             })
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` }, (payload) => {
-                activeOrderTotals.current[payload.new.id] = payload.new.total_amount || 0;
-                setRealtimeTrigger(prev => prev + 1);
-                // ── Also switch to orders tab on new order ────
-                setActiveSection('orders');
-                // Only increment pending count if order status is actually pending
-                if (payload.new.status === 'pending') {
-                    setPendingCount(prev => prev + 1);
+            // Real-time order updates listener - updates dashboard order badge count
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'orders',
+                filter: `restaurant_id=eq.${restaurantId}`
+            }, async (payload) => {
+                try {
+                    // Refetch pending orders count for badge update
+                    const { count } = await supabase
+                        .from('orders')
+                        .select('id', { count: 'exact', head: true })
+                        .eq('restaurant_id', restaurantId)
+                        .eq('status', 'pending');
+                    if (count !== null) setPendingCount(count);
+                } catch (error) {
+                    console.error('Error updating pending count:', error);
                 }
-
-                soundManager.playNewOrder();
-                setTimeout(() => soundManager.playNewOrder(), 1500);
-                toast(`NEW ORDER RECEIVED! ${payload.new.table_number ? `- Table ${payload.new.table_number}` : ''} 🔥`, {
-                    style: { background: '#f59e0b', color: '#fff', fontSize: '1.2rem', padding: '16px' },
-                    duration: 5000
-                });
-                if ('Notification' in window && Notification.permission === 'granted') {
-                    new Notification('🚨 New Order Alert! 🚨', {
-                        body: payload.new.table_number ? `Dine-In Table ${payload.new.table_number}` : `New Delivery / Takeaway Order`,
-                        icon: profile?.logo_url || '/favicon.ico',
-                        requireInteraction: true
-                    });
-                }
-            })
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` }, (payload) => {
-                const previousTotal = activeOrderTotals.current[payload.new.id] || 0;
-                if (payload.new.total_amount > previousTotal) {
-                    soundManager.playNewOrder();
-                    setTimeout(() => soundManager.playNewOrder(), 1500);
-                    toast('ADDITIONAL ITEMS ORDERED! 🍽️', {
-                        style: { background: '#f59e0b', color: '#fff', fontSize: '1.2rem', padding: '16px', boxShadow: '0 10px 30px rgba(245, 158, 11, 0.4)' },
-                        duration: 5000
-                    });
-                }
-                activeOrderTotals.current[payload.new.id] = payload.new.total_amount || 0;
-                setRealtimeTrigger(prev => prev + 1);
             })
             .subscribe();
 
         return () => { supabase.removeChannel(channel); };
-    }, [restaurantId]);
+    }, [restaurantId, profile]);
 
     const fetchProfile = async () => {
         try {
@@ -251,15 +232,13 @@ const PartnerDashboardLayout = () => {
         }
     };
 
-    // ── navLinks: Live Orders is now identified with isOrdersTab ─
     const navLinks = [
-        { name: t('dash.overview'),    path: '/dashboard',          icon: LayoutDashboard },
-        { name: 'Live Orders',         path: '/partner/orders',     icon: Bell,            badge: pendingCount > 0 ? pendingCount.toString() : undefined, isOrdersTab: true },
-        { name: 'New Order (POS)',      path: '/partner/pos',        icon: ShoppingBag,     isPosTab: true },
-        { name: t('dash.menuManager'), path: '/dashboard/menu',     icon: UtensilsCrossed },
-        { name: t('dash.aiAssistant'), path: '/dashboard/ai',       icon: Bot,             badge: 'AI' },
-        { name: t('dash.qrBuilder'),   path: '/dashboard/qr',       icon: QrCode },
-        { name: t('dash.settings'),    path: '/dashboard/settings', icon: Settings },
+        { name: language === 'ur' ? 'جائزہ' : 'Overview', path: '/dashboard', icon: LayoutDashboard },
+        { name: language === 'ur' ? 'آرڈرز' : 'Orders', path: '/dashboard/orders', icon: Bell, badge: pendingCount > 0 ? pendingCount.toString() : undefined },
+        { name: language === 'ur' ? 'مینو' : 'Menu', path: '/dashboard/menu', icon: UtensilsCrossed },
+        { name: language === 'ur' ? 'AI معاون' : 'AI Assistant', path: '/dashboard/ai', icon: Bot, badge: 'AI' },
+        { name: language === 'ur' ? 'QR کوڈ' : 'QR Builder', path: '/dashboard/qr', icon: QrCode },
+        { name: language === 'ur' ? 'سیٹنگز' : 'Settings', path: '/dashboard/settings', icon: Settings },
     ];
 
     const isActiveLink = (path: string) => {
@@ -322,71 +301,13 @@ const PartnerDashboardLayout = () => {
                 <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto custom-scrollbar">
                     {navLinks.map((link) => {
                         const Icon = link.icon;
+                        const active = isActiveLink(link.path);
 
-                        // ── Live Orders: renders as button, opens inline ──
-                        if ((link as any).isOrdersTab) {
-                            const isActive = activeSection === 'orders';
-                            return (
-                                <button
-                                    key="live-orders"
-                                    onClick={() => { setActiveSection('orders'); setIsOpen(false); }}
-                                    className={`
-                                        w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all group relative text-left
-                                        ${isActive
-                                            ? 'bg-[var(--primary)]/15 border border-[var(--primary)]/30 text-[var(--primary)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(244,175,37,0.15)]'
-                                            : 'text-slate-400 hover:bg-[var(--surface-dark-hover)] hover:text-white'
-                                        }
-                                    `}
-                                >
-                                    <Icon
-                                        size={22}
-                                        className={`transition-colors duration-300 ${isActive ? 'text-[var(--primary)]' : 'group-hover:text-[var(--primary)]'}`}
-                                    />
-                                    <span className={`text-sm tracking-wide ${isActive ? 'font-semibold' : 'font-medium'}`}>
-                                        {link.name}
-                                    </span>
-                                    {link.badge && (
-                                        <span className="ml-auto flex items-center justify-center px-2 py-[2px] rounded-full bg-red-500 text-white text-[10px] font-black shadow-[0_0_8px_rgba(239,68,68,0.8)]">
-                                            {link.badge}
-                                        </span>
-                                    )}
-                                </button>
-                            );
-                        }
-
-                        // ── POS: renders as button, opens manual order entry ──
-                        if ((link as any).isPosTab) {
-                            const isActive = activeSection === 'pos';
-                            return (
-                                <button
-                                    key="partner-pos"
-                                    onClick={() => { setActiveSection('pos'); setIsOpen(false); }}
-                                    className={`
-                                        w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all group relative text-left
-                                        ${isActive
-                                            ? 'bg-[var(--primary)]/15 border border-[var(--primary)]/30 text-[var(--primary)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(244,175,37,0.15)]'
-                                            : 'text-slate-400 hover:bg-[var(--surface-dark-hover)] hover:text-white'
-                                        }
-                                    `}
-                                >
-                                    <Icon
-                                        size={22}
-                                        className={`transition-colors duration-300 ${isActive ? 'text-[var(--primary)]' : 'group-hover:text-[var(--primary)]'}`}
-                                    />
-                                    <span className={`text-sm tracking-wide ${isActive ? 'font-semibold' : 'font-medium'}`}>
-                                        {link.name}
-                                    </span>
-                                </button>
-                            );
-                        }
-
-                        // ── All other links: normal Link navigation ──────
-                        const active = isActiveLink(link.path) && activeSection === 'outlet';
                         return (
                             <Link
                                 key={link.path}
                                 to={link.path}
-                                onClick={() => { setActiveSection('outlet'); setIsOpen(false); }}
+                                onClick={() => { setIsOpen(false); }}
                                 className={`
                                     flex items-center gap-4 px-4 py-3 rounded-xl transition-all group relative
                                     ${active
@@ -436,17 +357,11 @@ const PartnerDashboardLayout = () => {
                 <div className="lg:hidden fixed inset-0 bg-black/50 z-30" onClick={() => setIsOpen(false)} />
             )}
 
-            {/* ── Main Content: switches between Outlet and PartnerOrders ── */}
+            {/* ── Main Content: Direct Outlet ── */}
             <main className={`${isRtl ? 'lg:mr-64' : 'lg:ml-64'} min-h-screen pt-16 lg:pt-0 transition-all duration-300`}>
-                {activeSection === 'orders' && restaurantId ? (
-                    <PartnerOrders restaurantId={restaurantId} />
-                ) : activeSection === 'pos' && restaurantId ? (
-                    <PartnerPOS restaurantId={restaurantId} />
-                ) : (
-                    <div className="p-6 lg:p-8">
-                        <Outlet context={{ greeting, formattedTime, profile, realtimeTrigger, theme, dashboardLang: language, refreshProfile: fetchProfile }} />
-                    </div>
-                )}
+                <div className="p-6 lg:p-8">
+                    <Outlet context={{ greeting, formattedTime, profile, realtimeTrigger, theme, dashboardLang: language, refreshProfile: fetchProfile, restaurantId }} />
+                </div>
             </main>
         </div>
     );

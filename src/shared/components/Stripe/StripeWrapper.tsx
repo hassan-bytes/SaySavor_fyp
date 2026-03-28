@@ -27,15 +27,25 @@ export default function StripeWrapper({ amount, restaurantId, currencyCode = 'PK
         setLoading(true);
         setError(null);
         try {
+            // Log safe, non-PII fields only
+            console.log("[StripeWrapper] Creating Payment Intent:", {
+                amount,
+                currencyCode: 'usd', // Force USD for testing Stripe
+                restaurantId,
+                // Note: metadata may contain PII, not logged in production
+            });
             const { data, error: functionError } = await supabase.functions.invoke('create-payment-intent', {
                 body: {
                     amount: amount,
-                    currency: currencyCode.toLowerCase(),
+                    currency: 'usd', // Use USD instead of PKR for Stripe compatibility
                     restaurantId: restaurantId,
                     metadata: {
                         ...metadata,
                         restaurant_id: restaurantId,
                     },
+                },
+                headers: {
+                    'Content-Type': 'application/json',
                 },
             });
 

@@ -15,12 +15,23 @@ export default function CheckoutForm({ amount, currencySymbol = DEFAULT_CURRENCY
     const stripe = useStripe();
     const elements = useElements();
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isReady, setIsReady] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+    // PaymentElement is ready to be used
+    useEffect(() => {
+        if (elements) {
+            setIsReady(true);
+        }
+    }, [elements]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!stripe || !elements) return;
+        if (!stripe || !elements || !isReady) {
+            toast.error('Payment form is not ready. Please wait...');
+            return;
+        }
 
         setIsProcessing(true);
         setErrorMessage(null);
@@ -30,14 +41,23 @@ export default function CheckoutForm({ amount, currencySymbol = DEFAULT_CURRENCY
             redirect: 'if_required',
         });
 
+        const paymentStatus = paymentIntent?.status;
+        console.log('[CheckoutForm] Payment intent status:', paymentStatus);
+
         if (error) {
             setErrorMessage(error.message || 'An error occurred during payment.');
             toast.error(error.message || 'Payment failed');
             setIsProcessing(false);
-        } else if (paymentIntent && paymentIntent.status === 'succeeded') {
+        } else if (paymentIntent && paymentStatus === 'succeeded') {
             toast.success('Payment successful!');
             onSuccess(paymentIntent);
+        } else if (paymentIntent) {
+            setErrorMessage(`Payment status: ${paymentStatus}. Please try again.`);
+            toast.error(`Payment status: ${paymentStatus}. Please try again.`);
+            setIsProcessing(false);
         } else {
+            setErrorMessage('Payment was not completed. Please try again.');
+            toast.error('Payment was not completed. Please try again.');
             setIsProcessing(false);
         }
     };
@@ -51,13 +71,18 @@ export default function CheckoutForm({ amount, currencySymbol = DEFAULT_CURRENCY
             <div className="flex flex-col gap-3">
                 <button
                     type="submit"
-                    disabled={isProcessing || !stripe || !elements}
+                    disabled={isProcessing || !stripe || !elements || !isReady}
                     className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-all hover:bg-slate-800"
                 >
                     {isProcessing ? (
                         <>
                             <Loader2 className="w-5 h-5 animate-spin" />
                             Processing...
+                        </>
+                    ) : !isReady ? (
+                        <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            Loading form...
                         </>
                     ) : (
                         `Pay ${currencySymbol}\u00A0${amount.toLocaleString('en', { maximumFractionDigits: 0 })}`

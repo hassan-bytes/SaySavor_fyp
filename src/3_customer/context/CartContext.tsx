@@ -18,6 +18,8 @@ interface CartContextType {
     totalAmount: number;
     totalCount: number;
     currentRestaurantId: string | null;
+    tableNumber: string | null;
+    setTableNumber: (val: string | null) => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -27,6 +29,7 @@ const CART_STORAGE_KEY = 'ss_customer_cart';
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [currentRestaurantId, setCurrentRestaurantId] = useState<string | null>(null);
+    const [tableNumber, setTableNumber] = useState<string | null>(null);
 
     // Initial load
     useEffect(() => {
@@ -36,6 +39,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const parsed = JSON.parse(savedCart);
                 setCartItems(parsed.items || []);
                 setCurrentRestaurantId(parsed.restaurantId || null);
+                setTableNumber(parsed.tableNumber || null);
             } catch (e) {
                 console.error('Error parsing cart from storage:', e);
             }
@@ -46,9 +50,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({
             items: cartItems,
-            restaurantId: currentRestaurantId
+            restaurantId: currentRestaurantId,
+            tableNumber: tableNumber
         }));
-    }, [cartItems, currentRestaurantId]);
+    }, [cartItems, currentRestaurantId, tableNumber]);
 
     const addToCart = (newItem: CartItem) => {
         // Multi-restaurant check
@@ -107,6 +112,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const clearCart = () => {
         setCartItems([]);
         setCurrentRestaurantId(null);
+        setTableNumber(null);
     };
 
     const totalAmount = Math.round(cartItems.reduce((acc, item) => {
@@ -126,7 +132,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             clearCart,
             totalAmount,
             totalCount,
-            currentRestaurantId
+            currentRestaurantId,
+            tableNumber,
+            setTableNumber
         }}>
             {children}
         </CartContext.Provider>
