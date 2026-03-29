@@ -32,6 +32,10 @@ import { soundManager } from '@/shared/services/soundManager';
 import { useLanguage } from '@/shared/contexts/LanguageContext';
 import { RestaurantProvider, useRestaurant } from '@/shared/contexts/RestaurantContext';
 import { partnerOrderService } from '@/3_customer/services/customerOrderService';
+import { useNotificationManager } from '@/2_partner/dashboard/components/NotificationManager';
+import { setupOrderRealtimeListener } from '@/2_partner/dashboard/services/orderRealtimeService';
+import { ORDER_WITH_ITEMS_SELECT } from '@/shared/constants/querySelects';
+import { registerOrderPushNotifications } from '@/shared/services/pushNotifications';
 // ── NEW IMPORT ──────────────────────────────────────────────
 import PartnerOrders from '@/2_partner/pages/PartnerOrders';
 import PartnerPOS from '@/2_partner/pages/PartnerPOS';
@@ -72,12 +76,38 @@ const PartnerDashboardLayout = () => {
     const activeOrderTotals = useRef<Record<string, number>>({});
     const navigate = useNavigate();
     const location = useLocation();
+    const notifiedOrderIdsRef = useRef<Set<string>>(new Set());
+    const notificationManagerRef = useRef<any>(null);
+    const pushInitRef = useRef<string | null>(null);
+
+    // Persistent Notification Manager (stays active across all dashboard routes)
+    const notificationManager = useNotificationManager({
+        onOrdersReady: () => {
+            console.log('[Partner_Dashboard] 📦 New orders ready for display');
+        }
+    });
+    notificationManagerRef.current = notificationManager;
 
     useEffect(() => {
         fetchProfile();
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(timer);
     }, []);
+
+    useEffect(() => {
+        if (!restaurantId || pushInitRef.current === restaurantId) return;
+        pushInitRef.current = restaurantId;
+
+        registerOrderPushNotifications(restaurantId)
+            .then((result) => {
+                if (result.status === 'error' || result.status === 'missing-key') {
+                    console.warn('[Partner_Dashboard] Push setup failed:', result.error);
+                }
+            })
+            .catch((error) => {
+                console.error('[Partner_Dashboard] Push setup error:', error);
+            });
+    }, [restaurantId]);
 
     useEffect(() => {
         const hour = currentTime.getHours();
@@ -177,6 +207,85 @@ const PartnerDashboardLayout = () => {
 
         return () => { supabase.removeChannel(channel); };
     }, [restaurantId, profile]);
+
+    // PERSISTENT ORDER NOTIFICATION SYSTEM (works across all dashboard routes)
+    useEffect(() => {
+        if (!restaurantId) return;
+
+        console.log('[Partner_Dashboard] 🔔 Setting up persistent order notifications');
+
+        const handleOrderChange = async (eventType: string, orderId: string) => {
+            try {
+                console.log(`[Partner_Dashboard] 📦 ${eventType} event for order ${orderId?.slice(-4)}`);
+
+                // Fetch fresh order data with items
+                const { data: freshOrders, error } = await supabase
+                    .from('orders')
+                    .select(ORDER_WITH_ITEMS_SELECT)
+                    .eq('restaurant_id', restaurantId)
+                    .eq('status', 'pending')
+                    .order('created_at', { ascending: false });
+
+                if (!error && freshOrders && freshOrders.length > 0) {
+                    console.log(`[Partner_Dashboard] 🔔 Found ${freshOrders.length} pending orders`);
+
+                    // Update pending count badge
+                    setPendingCount(freshOrders.length);
+
+                    // Process each pending order for notifications
+                    freshOrders.forEach((order: any) => {
+                        // Only notify if we haven't already notified this order
+                        if (!notifiedOrderIdsRef.current.has(order.id)) {
+                            if (notificationManagerRef.current?.addOrderToQueue) {
+                                notificationManagerRef.current.addOrderToQueue({
+                                    id: order.id,
+                                    customer_name: order.customer_name,
+                                    status: order.status,
+                                    created_at: order.created_at
+                                });
+                                notifiedOrderIdsRef.current.add(order.id);
+                                console.log(`🔊 [GLOBAL SOUND] Added order #${order.id.slice(-4)} to notification queue`);
+                            } else {
+                                // Fallback visual notification
+                                toast.success(`🔔 NEW ORDER from ${order.customer_name || 'Guest'}!`, {
+                                    duration: 5000,
+                                    description: `Order #${order.id.slice(-6).toUpperCase()}`
+                                });
+                                notifiedOrderIdsRef.current.add(order.id);
+                            }
+                        }
+                    });
+
+                    // Clean up notified orders that are no longer pending
+                    const pendingIds = new Set(freshOrders.map((o: any) => o.id));
+                    notifiedOrderIdsRef.current.forEach(orderId => {
+                        if (!pendingIds.has(orderId)) {
+                            notifiedOrderIdsRef.current.delete(orderId);
+                        }
+                    });
+                } else {
+                    // No pending orders, update badge
+                    setPendingCount(0);
+                }
+            } catch (err) {
+                console.error('[Partner_Dashboard] Error handling order change:', err);
+            }
+        };
+
+        const unsubscribe = setupOrderRealtimeListener({
+            restaurantId,
+            onOrderChange: () => {
+                // Trigger on any order change (INSERT/UPDATE/DELETE)
+                handleOrderChange('CHANGE', 'multiple');
+            },
+            onError: (error) => {
+                console.error('[Partner_Dashboard] Real-time sync error:', error);
+                toast.error('Real-time sync interrupted - please refresh');
+            }
+        });
+
+        return unsubscribe;
+    }, [restaurantId]);
 
     const fetchProfile = async () => {
         try {
@@ -360,7 +469,7 @@ const PartnerDashboardLayout = () => {
             {/* ── Main Content: Direct Outlet ── */}
             <main className={`${isRtl ? 'lg:mr-64' : 'lg:ml-64'} min-h-screen pt-16 lg:pt-0 transition-all duration-300`}>
                 <div className="p-6 lg:p-8">
-                    <Outlet context={{ greeting, formattedTime, profile, realtimeTrigger, theme, dashboardLang: language, refreshProfile: fetchProfile, restaurantId }} />
+                    <Outlet context={{ greeting, formattedTime, profile, realtimeTrigger, theme, dashboardLang: language, refreshProfile: fetchProfile, restaurantId, notificationManager }} />
                 </div>
             </main>
         </div>

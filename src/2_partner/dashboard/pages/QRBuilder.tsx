@@ -41,16 +41,7 @@ const QRBuilder = () => {
                 const { data: { user } } = await supabase.auth.getUser();
                 if (!user) return;
 
-                // Load saved tables list from user metadata
-                const userTables = user.user_metadata?.tables_list;
-                if (userTables && Array.isArray(userTables)) {
-                    setTables(userTables);
-                } else {
-                    // Fallback to legacy total_tables if list doesn't exist
-                    const fallback = user.user_metadata?.total_tables || 1;
-                    setTables(Array.from({ length: fallback }, (_, i) => i + 1));
-                }
-
+                // Get restaurant ID first
                 const { data: restaurant } = await supabase
                     .from('restaurants')
                     .select('id')
@@ -58,7 +49,28 @@ const QRBuilder = () => {
                     .single();
 
                 if (restaurant) {
-                    setRestaurantId((restaurant as any).id);
+                    const restId = (restaurant as any).id;
+                    setRestaurantId(restId);
+
+                    // Load tables from restaurant_tables database table (not user_metadata)
+                    const { data: tablesData, error: tablesError } = await supabase
+                        .from('restaurant_tables')
+                        .select('table_number')
+                        .eq('restaurant_id', restId)
+                        .order('table_number', { ascending: true });
+
+                    if (tablesError) {
+                        console.error('Error fetching tables:', tablesError);
+                        // If table doesn't exist yet, start with empty array
+                        setTables([]);
+                    } else if (tablesData && tablesData.length > 0) {
+                        // Extract table numbers from database
+                        const tableNumbers = tablesData.map(t => t.table_number);
+                        setTables(tableNumbers);
+                    } else {
+                        // No tables created yet
+                        setTables([]);
+                    }
                 }
             } catch (error) {
                 console.error('Error fetching data:', error);
@@ -73,11 +85,26 @@ const QRBuilder = () => {
     const baseUrl = window.location.origin;
 
     const saveTablesToDB = async (updatedTables: number[]) => {
+        if (!restaurantId) {
+            toast.error('Restaurant ID not found');
+            return;
+        }
+
         setSaving(true);
         try {
-            const { error } = await supabase.auth.updateUser({
-                data: { tables_list: updatedTables, total_tables: updatedTables.length }
-            });
+            // Insert new tables into restaurant_tables (generic for any restaurant)
+            const tablesToInsert = updatedTables.map(tableNum => ({
+                restaurant_id: restaurantId,
+                table_number: tableNum,
+                capacity: 4
+            }));
+
+            const { error } = await supabase
+                .from('restaurant_tables')
+                .upsert(tablesToInsert, {
+                    onConflict: 'restaurant_id,table_number',
+                    ignoreDuplicates: false
+                });
 
             if (error) throw error;
             toast.success(`Tables configuration saved!`);
@@ -106,10 +133,33 @@ const QRBuilder = () => {
             title: 'Delete QR Code',
             message: `Are you sure you want to delete Table ${tableToDelete}? You will have to print a new QR code if you add it back.`,
             action: async () => {
-                const updated = tables.filter(t => t !== tableToDelete);
-                setTables(updated);
-                await saveTablesToDB(updated);
-                setConfirmDialog(p => ({ ...p, isOpen: false }));
+                if (!restaurantId) {
+                    toast.error('Restaurant ID not found');
+                    return;
+                }
+
+                setSaving(true);
+                try {
+                    // Delete from restaurant_tables database
+                    const { error } = await supabase
+                        .from('restaurant_tables')
+                        .delete()
+                        .eq('restaurant_id', restaurantId)
+                        .eq('table_number', tableToDelete);
+
+                    if (error) throw error;
+
+                    // Update local state
+                    const updated = tables.filter(t => t !== tableToDelete);
+                    setTables(updated);
+                    toast.success(`Table ${tableToDelete} deleted!`);
+                } catch (error) {
+                    console.error('Error deleting table:', error);
+                    toast.error('Failed to delete table.');
+                } finally {
+                    setSaving(false);
+                    setConfirmDialog(p => ({ ...p, isOpen: false }));
+                }
             }
         });
     };

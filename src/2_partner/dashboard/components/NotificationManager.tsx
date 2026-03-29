@@ -74,8 +74,8 @@ export const useNotificationManager = (props?: NotificationManagerProps) => {
     const now = Date.now();
     const timeSinceLastSound = now - lastSoundTime.current;
 
-    // Enforce 10-second cooldown between sounds
-    if (timeSinceLastSound < 10000) {
+    // Enforce 3-second cooldown between sounds (reduced from 10s for faster notifications)
+    if (timeSinceLastSound < 3000) {
       console.log('⏳ Sound cooldown active - skipping sound');
       return false;
     }
@@ -121,7 +121,7 @@ export const useNotificationManager = (props?: NotificationManagerProps) => {
       });
     }
 
-    // Browser Notification API (if granted permission)
+    // Browser Notification API (if granted permission) - Works even in background tabs
     if ('Notification' in window && Notification.permission === 'granted') {
       const title = orders.length === 1 
         ? `New Order: ${orders[0].customer_name || 'Guest'}`
@@ -135,8 +135,10 @@ export const useNotificationManager = (props?: NotificationManagerProps) => {
         icon: '🍕',
         tag: 'order-notification',
         requireInteraction: true,
+        silent: false, // Play system sound even in background
+        vibrate: [200, 100, 200], // Vibrate pattern for mobile devices
       });
-      console.log('🌐 Browser Notification sent');
+      console.log('🌐 Browser Notification sent (works in background)');
     }
 
     // Log audio status
@@ -166,6 +168,7 @@ export const useNotificationManager = (props?: NotificationManagerProps) => {
       // Set new timer (2.5 seconds) - wait for more orders to arrive, but notify quickly
       batchTimer.current = setTimeout(() => {
         console.log(`⏰ Batch timeout reached - processing ${notificationQueue.current.length} orders`);
+        console.log(`📍 Tab visibility: ${document.hidden ? 'BACKGROUND' : 'ACTIVE'}`);
         processBatch();
         setQueueLength(notificationQueue.current.length);
       }, 2500);

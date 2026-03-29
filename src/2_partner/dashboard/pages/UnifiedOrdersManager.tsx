@@ -210,73 +210,28 @@ const UnifiedOrdersManager = () => {
   }, [fetchOrders, fetchTables, fetchTableSessions]);
 
   /**
-   * MEMOIZED ORDER CHANGE HANDLER
-   * Prevents unnecessary re-subscription by using ref for notificationManager
+   * REAL-TIME ORDER REFRESH (NO NOTIFICATION LOGIC)
+   * Notification system is now handled globally by Partner_Dashboard
+   * This just refreshes the order list when changes are detected
    */
   const handleOrderChangeCallback = useCallback(async () => {
-    console.log('[UnifiedOrdersManager] 📦 Order change detected');
+    console.log('[UnifiedOrdersManager] 📦 Order change detected - refreshing data');
     
-    // Refetch complete order list with order_items
-    try {
-      const { data: freshOrders, error } = await supabase
-        .from('orders')
-        .select(ORDER_WITH_ITEMS_SELECT)
-        .eq('restaurant_id', restaurantId)
-        .in('status', ['pending', 'accepted', 'cooking', 'ready', 'delivered', 'cancelled'])
-        .order('created_at', { ascending: false });
-
-      if (!error && freshOrders) {
-        setAllOrders(freshOrders as Order[]);
-        
-        // NEW ORDERS detection: Add pending orders to notification queue (with deduplication)
-        const pendingOrders = (freshOrders as Order[]).filter(o => o.status === 'pending');
-        pendingOrders.forEach(order => {
-          // Only notify if we haven't already notified this order
-          if (!notifiedOrderIdsRef.current.has(order.id)) {
-            notificationManagerRef.current?.addOrderToQueue(order);
-            notifiedOrderIdsRef.current.add(order.id);
-            console.log(`⏰ Added order #${order.id.slice(-4)} to notification queue`);
-          }
-        });
-        
-        // Clean up notified orders that are no longer pending
-        notifiedOrderIdsRef.current.forEach(orderId => {
-          if (!pendingOrders.some(o => o.id === orderId)) {
-            notifiedOrderIdsRef.current.delete(orderId);
-          }
-        });
-      }
-    } catch (err) {
-      console.error('Error fetching fresh orders:', err);
-    }
-    
-    // Refresh table sessions for accurate bill totals
+    // Refetch orders and table sessions
+    await fetchOrders();
     await fetchTableSessions();
-  }, [restaurantId, fetchTableSessions]);
+  }, [fetchOrders, fetchTableSessions]);
 
   /**
-   * REAL-TIME ORDER SYNCHRONIZATION
+   * REAL-TIME ORDER SYNCHRONIZATION - DISABLED
    * 
-   * Uses centralized orderRealtimeService for:
-   * - Instant QR order visibility (< 1 second)
-   * - Restaurant-specific filtering (security)
-   * - Proper cleanup on unmount
-   * - Notification management for new orders
+   * Moved to Partner_Dashboard to prevent duplicate channel subscriptions.
+   * Partner_Dashboard handles notifications globally across all dashboard routes.
+   * 
+   * This component will receive updates via context or props when needed.
+   * For now, manual refresh via fetchOrders() is sufficient when on this route.
    */
-  useEffect(() => {
-    if (!restaurantId) return;
-
-    const unsubscribe = setupOrderRealtimeListener({
-      restaurantId,
-      onOrderChange: handleOrderChangeCallback,
-      onError: (error) => {
-        console.error('[UnifiedOrdersManager] Real-time sync error:', error);
-        toast.error('Real-time sync interrupted - please refresh');
-      }
-    });
-
-    return unsubscribe;
-  }, [restaurantId, handleOrderChangeCallback]);
+  // Real-time listener removed - handled by Partner_Dashboard
 
   const handleStatusUpdate = async (id: string, newStatus: string) => {
     console.log(`[handleStatusUpdate] Starting update for order ${id.slice(-4)} to ${newStatus}`);
