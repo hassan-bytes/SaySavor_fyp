@@ -1,9 +1,9 @@
 ﻿// ============================================================
 // FILE: LanguageContext.tsx
 // SECTION: shared > contexts
-// PURPOSE: App-wide language state manage karna â€” English aur Urdu.
-//          Puri app ka translations data yahan stored hai.
-//          useLanguage() hook se koi bhi component translations access kar sakta hai.
+// PURPOSE: Manages app-wide language state for English and Urdu.
+//          Stores translation data used across the application.
+//          Components can access translations through the useLanguage() hook.
 // ============================================================
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';

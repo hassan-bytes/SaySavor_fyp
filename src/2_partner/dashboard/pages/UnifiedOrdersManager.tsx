@@ -53,12 +53,15 @@ const UnifiedOrdersManager = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState<Order | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
   const notifiedOrderIdsRef = useRef<Set<string>>(new Set());
   const audioUnlockedRef = useRef(false);
   const notificationManagerRef = useRef<any>(null);
   const lastRealtimeTriggerRef = useRef<number | null>(null);
+  const lastStatsSignatureRef = useRef<string | null>(null);
 
   const [selectedTable, setSelectedTable] = useState('');
 
@@ -356,6 +359,56 @@ const UnifiedOrdersManager = () => {
     }
   };
 
+  const handleDeleteOrder = async (id: string) => {
+    const target = allOrders.find((order) => order.id === id);
+    if (!target) {
+      toast.error('Order not found.');
+      return;
+    }
+
+    if (target.status !== ORDER_STATUS.PENDING && target.status !== ORDER_STATUS.CANCELLED) {
+      toast.error('Only unaccepted or cancelled orders can be deleted.');
+      return;
+    }
+
+    setDeleteCandidate(target);
+    setIsDeleteModalOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    if (updating) return;
+    setIsDeleteModalOpen(false);
+    setDeleteCandidate(null);
+  };
+
+  const confirmDeleteOrder = async () => {
+    if (!deleteCandidate) return;
+    const id = deleteCandidate.id;
+
+    setUpdating(id);
+    try {
+      const { error } = await (supabase as any)
+        .from('orders')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setAllOrders((prev) => prev.filter((order) => order.id !== id));
+      toast.success(`Order #${id.slice(-4).toUpperCase()} deleted`);
+      setIsDeleteModalOpen(false);
+      setDeleteCandidate(null);
+      fetchOrders();
+      fetchTableSessions();
+    } catch (err: any) {
+      console.error('[handleDeleteOrder] Error:', err?.message || err);
+      toast.error(`Delete failed: ${err?.message || 'Network error'}`);
+      fetchOrders();
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const handleCloseSession = async (tableNum: string) => {
     setLoading(true);
     try {
@@ -385,19 +438,28 @@ const UnifiedOrdersManager = () => {
 
   const pendingOrders = allOrders.filter(o => o.status === 'pending');
   const activeOrders = allOrders.filter(o => !['delivered', 'cancelled'].includes(o.status));
-  
-  const statusBreakdown = allOrders.reduce((acc, o) => {
-    acc[o.status || 'NULL'] = (acc[o.status || 'NULL'] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-  
-  console.log('[UnifiedOrdersManager] 📊 Dashboard Stats:', {
-    total: allOrders.length,
-    pending: pendingOrders.length,
-    active: activeOrders.length,
-    tableSessions: tableSessions.length,
-    statusBreakdown: JSON.stringify(statusBreakdown)
-  });
+  const kitchenOrders = allOrders.filter(o => o.status !== 'delivered');
+
+  useEffect(() => {
+    const statusBreakdown = allOrders.reduce((acc, o) => {
+      acc[o.status || 'NULL'] = (acc[o.status || 'NULL'] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const statsSnapshot = {
+      total: allOrders.length,
+      pending: pendingOrders.length,
+      active: activeOrders.length,
+      tableSessions: tableSessions.length,
+      statusBreakdown: JSON.stringify(statusBreakdown)
+    };
+
+    const signature = JSON.stringify(statsSnapshot);
+    if (lastStatsSignatureRef.current === signature) return;
+    lastStatsSignatureRef.current = signature;
+    console.log('[UnifiedOrdersManager] 📊 Dashboard Stats:', statsSnapshot);
+  }, [allOrders, pendingOrders.length, activeOrders.length, tableSessions.length]);
+
   // tableSessions now comes from tableSessionService with proper aggregation
 
   return (
@@ -552,8 +614,9 @@ const UnifiedOrdersManager = () => {
               {activeTab === 'kitchen' && (
                 <TabErrorBoundary fallbackTitle="Kitchen Tab" onReset={fetchOrders}>
                   <KitchenTab 
-                    orders={activeOrders} 
+                    orders={kitchenOrders} 
                     onUpdate={handleStatusUpdate} 
+                    onDeleteOrder={handleDeleteOrder}
                     onMarkPaid={handleMarkPaid}
                     onEditOrder={openEditOrder}
                     updating={updating} 
@@ -610,6 +673,62 @@ const UnifiedOrdersManager = () => {
           fetchTableSessions();
         }}
       />
+
+      <AnimatePresence>
+        {isDeleteModalOpen && deleteCandidate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                closeDeleteModal();
+              }
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              className="w-full max-w-md rounded-[2rem] border border-red-500/30 bg-[#0b0b0b]/95 shadow-[0_0_40px_rgba(239,68,68,0.2)] p-6"
+            >
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-11 h-11 rounded-2xl bg-red-500/15 border border-red-500/25 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-red-300" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white tracking-tight">Delete This Order?</h3>
+                  <p className="text-xs text-slate-400 mt-1">This will permanently remove the order and its items.</p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 mb-6">
+                <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em] font-black">Order</p>
+                <p className="text-sm font-black text-white mt-1">#{deleteCandidate.id.slice(-4).toUpperCase()}</p>
+                <p className="text-xs text-slate-400 mt-1">Status: {String(deleteCandidate.status || '').toUpperCase()}</p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={closeDeleteModal}
+                  disabled={updating === deleteCandidate.id}
+                  className="px-4 py-2.5 rounded-xl border border-white/15 bg-white/5 text-slate-300 text-xs font-black uppercase tracking-widest hover:bg-white/10 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteOrder}
+                  disabled={updating === deleteCandidate.id}
+                  className="px-4 py-2.5 rounded-xl border border-red-500/30 bg-red-500/20 text-red-200 text-xs font-black uppercase tracking-widest hover:bg-red-500/30 disabled:opacity-60"
+                >
+                  {updating === deleteCandidate.id ? 'Deleting...' : 'Delete Order'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

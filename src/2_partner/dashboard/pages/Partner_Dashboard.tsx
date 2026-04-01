@@ -101,7 +101,7 @@ const PartnerDashboardLayout = () => {
 
         registerOrderPushNotifications(restaurantId)
             .then((result) => {
-                if (result.status === 'error' || result.status === 'missing-key') {
+                if (result.status === 'error') {
                     console.warn('[Partner_Dashboard] Push setup failed:', result.error);
                 }
             })

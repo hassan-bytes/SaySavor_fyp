@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 
 export interface PromotionRecord {
@@ -22,9 +22,12 @@ export interface PromotionRecord {
 export const usePromotions = (limit: number = 6) => {
   const [promotions, setPromotions] = useState<PromotionRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const refreshTimeoutRef = useRef<number | null>(null);
 
-  const fetchPromotions = async () => {
-    setLoading(true);
+  const fetchPromotions = useCallback(async (background: boolean = false) => {
+    if (!background) {
+      setLoading(true);
+    }
     try {
       const { data, error } = await supabase
         .from('promotions')
@@ -58,13 +61,61 @@ export const usePromotions = (limit: number = 6) => {
       console.error('usePromotions error:', err);
       setPromotions([]);
     } finally {
-      setLoading(false);
+      if (!background) {
+        setLoading(false);
+      }
     }
-  };
+  }, [limit]);
+
+  const scheduleBackgroundRefresh = useCallback((delayMs: number = 300) => {
+    if (refreshTimeoutRef.current !== null) {
+      window.clearTimeout(refreshTimeoutRef.current);
+    }
+
+    refreshTimeoutRef.current = window.setTimeout(() => {
+      void fetchPromotions(true);
+    }, delayMs);
+  }, [fetchPromotions]);
 
   useEffect(() => {
-    fetchPromotions();
-  }, [limit]);
+    void fetchPromotions();
+  }, [fetchPromotions]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('promotions-live-customer-home')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'promotions',
+      }, () => {
+        scheduleBackgroundRefresh();
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'restaurants',
+      }, (payload) => {
+        const nextRow = payload.new as any;
+        const prevRow = payload.old as any;
+        const fieldsChanged =
+          nextRow?.name !== prevRow?.name ||
+          nextRow?.logo_url !== prevRow?.logo_url ||
+          nextRow?.currency !== prevRow?.currency;
+
+        if (fieldsChanged) {
+          scheduleBackgroundRefresh();
+        }
+      })
+      .subscribe();
+
+    return () => {
+      if (refreshTimeoutRef.current !== null) {
+        window.clearTimeout(refreshTimeoutRef.current);
+      }
+      void supabase.removeChannel(channel);
+    };
+  }, [scheduleBackgroundRefresh]);
 
   return {
     promotions,

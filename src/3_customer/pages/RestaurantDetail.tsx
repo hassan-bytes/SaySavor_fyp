@@ -5,7 +5,7 @@
 //          Design: Cinematic parallax header + Glassmorphism menu list.
 // ROUTE: /foodie/restaurant/:id
 // ============================================================
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { 
@@ -101,6 +101,21 @@ const RestaurantDetail: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const refreshTimeoutRef = useRef<number | null>(null);
+
+    const allMenuItems = useMemo(
+        () => menuCategories.flatMap((cat) => cat.items),
+        [menuCategories]
+    );
+
+    const quickPicks = useMemo(() => {
+        return [...allMenuItems]
+            .sort((a, b) => {
+                if (a.price !== b.price) return a.price - b.price;
+                return a.name.localeCompare(b.name);
+            })
+            .slice(0, 8);
+    }, [allMenuItems]);
 
     const {
         location,
@@ -127,7 +142,7 @@ const RestaurantDetail: React.FC = () => {
     useEffect(() => {
         if (!id) return;
         if (!isLocationReady) return;
-        fetchRestaurantData();
+        void fetchRestaurantData();
     }, [id, isLocationReady]);
 
     useEffect(() => {
@@ -136,8 +151,10 @@ const RestaurantDetail: React.FC = () => {
         }
     }, [location, locationStatus, requestLocation]);
 
-    const fetchRestaurantData = async () => {
-        setLoading(true);
+    const fetchRestaurantData = useCallback(async (background: boolean = false) => {
+        if (!background) {
+            setLoading(true);
+        }
         setError(null);
         try {
             // 1. Restaurant Info
@@ -209,9 +226,60 @@ const RestaurantDetail: React.FC = () => {
             console.error('Error fetching restaurant detail:', err);
             setError(err.message || 'Failed to load restaurant details');
         } finally {
-            setLoading(false);
+            if (!background) {
+                setLoading(false);
+            }
         }
-    };
+    }, [id]);
+
+    const scheduleBackgroundRefresh = useCallback((delayMs: number = 250) => {
+        if (refreshTimeoutRef.current !== null) {
+            window.clearTimeout(refreshTimeoutRef.current);
+        }
+
+        refreshTimeoutRef.current = window.setTimeout(() => {
+            void fetchRestaurantData(true);
+        }, delayMs);
+    }, [fetchRestaurantData]);
+
+    useEffect(() => {
+        if (!id) return;
+
+        const channel = supabase
+            .channel(`restaurant-detail-live-${id}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'restaurants',
+                filter: `id=eq.${id}`,
+            }, () => {
+                scheduleBackgroundRefresh();
+            })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'categories',
+                filter: `restaurant_id=eq.${id}`,
+            }, () => {
+                scheduleBackgroundRefresh();
+            })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'menu_items',
+                filter: `restaurant_id=eq.${id}`,
+            }, () => {
+                scheduleBackgroundRefresh();
+            })
+            .subscribe();
+
+        return () => {
+            if (refreshTimeoutRef.current !== null) {
+                window.clearTimeout(refreshTimeoutRef.current);
+            }
+            void supabase.removeChannel(channel);
+        };
+    }, [id, scheduleBackgroundRefresh]);
 
     if (!isLocationReady) {
         return (
@@ -394,6 +462,42 @@ const RestaurantDetail: React.FC = () => {
                         className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white/5 border border-white/10 focus:border-orange-500/50 outline-none transition-all placeholder:text-white/20"
                     />
                 </div>
+
+                {quickPicks.length > 0 && (
+                    <section className="mb-8">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-black uppercase tracking-widest text-white/70">Quick Picks</h3>
+                            <p className="text-[10px] text-white/40">Fast add for top value items</p>
+                        </div>
+
+                        <div className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory">
+                            {quickPicks.map((item) => (
+                                <div
+                                    key={`quick-${item.id}`}
+                                    className="snap-start shrink-0 w-[220px] rounded-2xl border border-white/10 bg-white/5 p-3"
+                                >
+                                    <div className="h-24 rounded-xl overflow-hidden bg-white/5 border border-white/10 mb-3">
+                                        {item.image_url ? (
+                                            <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-2xl">🍲</div>
+                                        )}
+                                    </div>
+
+                                    <p className="text-white text-sm font-bold truncate">{item.name}</p>
+                                    <p className="text-orange-400 text-xs font-black mt-1">{formatPrice(item.price)}</p>
+
+                                    <button
+                                        onClick={() => addToCart({ menuItem: item, quantity: 1 })}
+                                        className="mt-3 w-full h-9 rounded-xl bg-orange-500 text-white text-xs font-black uppercase tracking-wider"
+                                    >
+                                        Quick Add
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                )}
 
                 {/* Categories Tab Bar (Sticky) */}
                 <div className="sticky top-20 z-40 flex gap-3 overflow-x-auto pb-6 scrollbar-hide">

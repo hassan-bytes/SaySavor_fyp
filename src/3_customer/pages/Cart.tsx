@@ -5,7 +5,7 @@
 //          + promo code + item notes + empty state + UX polish.
 // ROUTE: /foodie/cart
 // ============================================================
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -15,6 +15,7 @@ import {
     ChevronDown, MessageSquare
 } from 'lucide-react';
 import { useCart } from '@/3_customer/context/CartContext';
+import { toast } from 'sonner';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { COUNTRY_CURRENCIES } from '@/shared/lib/currencyUtils';
 
@@ -36,41 +37,107 @@ const CartPage: React.FC = () => {
     const [deliveryTimeMin, setDeliveryTimeMin] = useState<number | null>(null);
     const [expandedItem, setExpandedItem] = useState<number | null>(null);
     const [itemNotes, setItemNotes] = useState<Record<number, string>>({});
+    const realtimeRefreshTimeoutRef = useRef<number | null>(null);
+    const hasHydratedPricingRef = useRef(false);
+    const lastVisiblePricingSignatureRef = useRef<string>('');
+
+    const loadRestaurantInfo = useCallback(async () => {
+        if (!currentRestaurantId) return;
+        try {
+            const { data, error } = await supabase
+                .from('restaurants')
+                .select('currency, delivery_fee, tax_percent, delivery_time_min')
+                .eq('id', currentRestaurantId)
+                .maybeSingle();
+
+            if (error) {
+                console.error('Error loading currency:', error);
+                setCurrencySymbol('PKR');
+                return;
+            }
+
+            const savedCurrency = (data as any)?.currency || 'PKR';
+            const info = Object.values(COUNTRY_CURRENCIES).find(c => c.code === savedCurrency)
+                ?? Object.values(COUNTRY_CURRENCIES).find(c => c.code === 'PKR');
+
+            const nextVisiblePricingSignature = JSON.stringify({
+                currency: savedCurrency,
+                deliveryFee: typeof (data as any)?.delivery_fee === 'number' ? (data as any).delivery_fee : 0,
+                taxPercent: typeof (data as any)?.tax_percent === 'number' ? (data as any).tax_percent : 0,
+                deliveryTimeMin: typeof (data as any)?.delivery_time_min === 'number' ? (data as any).delivery_time_min : null,
+            });
+
+            if (
+                hasHydratedPricingRef.current
+                && lastVisiblePricingSignatureRef.current
+                && lastVisiblePricingSignatureRef.current !== nextVisiblePricingSignature
+            ) {
+                toast.message('Cart pricing updated', {
+                    description: 'Latest fee/tax values are now applied.',
+                    duration: 2200,
+                    id: 'cart-pricing-updated',
+                });
+            }
+
+            lastVisiblePricingSignatureRef.current = nextVisiblePricingSignature;
+            hasHydratedPricingRef.current = true;
+
+            setCurrencySymbol(info?.symbol ?? 'PKR');
+            setDeliveryFee(typeof (data as any)?.delivery_fee === 'number' ? (data as any).delivery_fee : 0);
+            setTaxPercent(typeof (data as any)?.tax_percent === 'number' ? (data as any).tax_percent : 0);
+            setDeliveryTimeMin(typeof (data as any)?.delivery_time_min === 'number' ? (data as any).delivery_time_min : null);
+        } catch (err) {
+            console.error('Failed to load currency:', err);
+            setCurrencySymbol('PKR');
+            setDeliveryFee(0);
+            setTaxPercent(0);
+            setDeliveryTimeMin(null);
+        }
+    }, [currentRestaurantId]);
 
     // Load restaurant pricing info
     React.useEffect(() => {
-        const loadRestaurantInfo = async () => {
-            if (!currentRestaurantId) return;
-            try {
-                const { data, error } = await supabase
-                    .from('restaurants')
-                    .select('currency, delivery_fee, tax_percent, delivery_time_min')
-                    .eq('id', currentRestaurantId)
-                    .maybeSingle();
-                
-                if (error) {
-                    console.error('Error loading currency:', error);
-                    setCurrencySymbol('PKR');
-                    return;
+        void loadRestaurantInfo();
+    }, [loadRestaurantInfo]);
+
+    React.useEffect(() => {
+        if (!currentRestaurantId) return;
+
+        const trackedFields = ['currency', 'delivery_fee', 'tax_percent', 'delivery_time_min'];
+
+        const channel = supabase
+            .channel(`cart-restaurant-live-${currentRestaurantId}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'restaurants',
+                filter: `id=eq.${currentRestaurantId}`,
+            }, (payload) => {
+                const nextRow = payload.new as any;
+                const prevRow = payload.old as any;
+                const changed = trackedFields.some((field) => (
+                    JSON.stringify(nextRow?.[field]) !== JSON.stringify(prevRow?.[field])
+                ));
+
+                if (!changed) return;
+
+                if (realtimeRefreshTimeoutRef.current !== null) {
+                    window.clearTimeout(realtimeRefreshTimeoutRef.current);
                 }
 
-                const savedCurrency = (data as any)?.currency || 'PKR';
-                const info = Object.values(COUNTRY_CURRENCIES).find(c => c.code === savedCurrency)
-                    ?? Object.values(COUNTRY_CURRENCIES).find(c => c.code === 'PKR');
-                setCurrencySymbol(info?.symbol ?? 'PKR');
-                setDeliveryFee(typeof (data as any)?.delivery_fee === 'number' ? (data as any).delivery_fee : 0);
-                setTaxPercent(typeof (data as any)?.tax_percent === 'number' ? (data as any).tax_percent : 0);
-                setDeliveryTimeMin(typeof (data as any)?.delivery_time_min === 'number' ? (data as any).delivery_time_min : null);
-            } catch (err) {
-                console.error('Failed to load currency:', err);
-                setCurrencySymbol('PKR');
-                setDeliveryFee(0);
-                setTaxPercent(0);
-                setDeliveryTimeMin(null);
+                realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
+                    void loadRestaurantInfo();
+                }, 250);
+            })
+            .subscribe();
+
+        return () => {
+            if (realtimeRefreshTimeoutRef.current !== null) {
+                window.clearTimeout(realtimeRefreshTimeoutRef.current);
             }
+            void supabase.removeChannel(channel);
         };
-        loadRestaurantInfo();
-    }, [currentRestaurantId]);
+    }, [currentRestaurantId, loadRestaurantInfo]);
 
     const formatPrice = (price: number) =>
         `${currencySymbol}\u00A0${price.toLocaleString('en', { maximumFractionDigits: 0 })}`;
@@ -92,7 +159,7 @@ const CartPage: React.FC = () => {
                     </div>
                     <h2 className="text-2xl font-black text-white mb-3 tracking-tight">Cart is Empty!</h2>
                     <p className="text-white/40 max-w-xs mx-auto leading-relaxed">
-                        Abhi tak koi item add nahi kiya gaya. Kuch lazeez dishes explore karein!
+                        No items have been added yet. Explore some delicious dishes!
                     </p>
                 </motion.div>
                 <button

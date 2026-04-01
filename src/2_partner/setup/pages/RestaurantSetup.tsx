@@ -1,10 +1,10 @@
 // ============================================================
 // FILE: RestaurantSetup.tsx
 // SECTION: 2_partner > setup > pages
-// PURPOSE: Pehli baar login karne par restaurant ki details bharni hoti hain.
-//          Restaurant name, logo, cuisine type, address, opening hours.
-//          Yeh step complete hone ke baad dashboard open hota hai.
-// ROUTE: /restaurant-setup (Protected - sirf logged in partner)
+// PURPOSE: Collects restaurant details after first login.
+//          Includes restaurant name, logo, cuisine type, address, and opening hours.
+//          Dashboard access is available after this step is complete.
+// ROUTE: /restaurant-setup (Protected - logged-in partners only)
 // ============================================================
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';

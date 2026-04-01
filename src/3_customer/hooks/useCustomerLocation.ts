@@ -8,6 +8,7 @@ export interface CustomerLocation {
 }
 
 export type LocationStatus = 'idle' | 'loading' | 'ready' | 'error';
+export type LocationPermissionStatus = 'unknown' | 'prompt' | 'granted' | 'denied' | 'unsupported';
 
 const LOCATION_STORAGE_KEY = 'ss_customer_location';
 const LOCATION_TTL_MS = 30 * 60 * 1000;
@@ -30,6 +31,7 @@ export const useCustomerLocation = () => {
     const [location, setLocation] = useState<CustomerLocation | null>(null);
     const [status, setStatus] = useState<LocationStatus>('idle');
     const [error, setError] = useState<string | null>(null);
+    const [permission, setPermission] = useState<LocationPermissionStatus>('unknown');
 
     useEffect(() => {
         const cached = readCachedLocation();
@@ -37,11 +39,52 @@ export const useCustomerLocation = () => {
             setLocation(cached);
             setStatus('ready');
         }
+
+        if (!navigator.permissions?.query) {
+            setPermission('unsupported');
+            return;
+        }
+
+        let active = true;
+
+        navigator.permissions
+            .query({ name: 'geolocation' as PermissionName })
+            .then((perm) => {
+                if (!active) return;
+
+                const updatePermission = () => {
+                    const state = perm.state as LocationPermissionStatus;
+                    setPermission(state);
+
+                    if (state === 'denied') {
+                        setStatus((prev) => (prev === 'ready' ? prev : 'error'));
+                        setError('Location permission blocked. Please allow location from browser site settings.');
+                    }
+                };
+
+                updatePermission();
+                perm.onchange = updatePermission;
+            })
+            .catch(() => {
+                if (active) {
+                    setPermission('unknown');
+                }
+            });
+
+        return () => {
+            active = false;
+        };
     }, []);
 
     const requestLocation = useCallback(() => {
         if (!navigator.geolocation) {
             setError('Geolocation is not supported on this device.');
+            setStatus('error');
+            return;
+        }
+
+        if (permission === 'denied') {
+            setError('Location permission blocked. Please allow location from browser site settings.');
             setStatus('error');
             return;
         }
@@ -58,6 +101,7 @@ export const useCustomerLocation = () => {
                 setLocation(next);
                 setStatus('ready');
                 setError(null);
+                setPermission('granted');
                 try {
                     localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(next));
                 } catch {
@@ -65,7 +109,12 @@ export const useCustomerLocation = () => {
                 }
             },
             (err) => {
-                setError(err.message || 'Unable to access location.');
+                if (err.code === err.PERMISSION_DENIED) {
+                    setPermission('denied');
+                    setError('Location access denied. Please allow permission to continue.');
+                } else {
+                    setError(err.message || 'Unable to access location.');
+                }
                 setStatus('error');
             },
             {
@@ -74,7 +123,7 @@ export const useCustomerLocation = () => {
                 maximumAge: 5 * 60 * 1000,
             }
         );
-    }, []);
+    }, [permission]);
 
     const clearLocation = useCallback(() => {
         setLocation(null);
@@ -91,6 +140,7 @@ export const useCustomerLocation = () => {
         location,
         status,
         error,
+        permission,
         requestLocation,
         clearLocation,
     };

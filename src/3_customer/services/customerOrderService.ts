@@ -186,6 +186,12 @@ export const customerOrderService = {
           logo_url,
           currency,
           phone
+                ),
+                order_items (
+                    id,
+                    item_name,
+                    quantity,
+                    total_price
         )
       `)
             .eq('customer_id', user.id)

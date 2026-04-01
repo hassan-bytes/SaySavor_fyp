@@ -1,11 +1,11 @@
 // ============================================================
 // FILE: App.tsx
 // SECTION: Root — App Entry Point
-// PURPOSE: Puri app ki routing yahan define hoti hai.
-//          Teen qisam ke users hain: Public Visitor, Partner (Restaurant Owner), Customer.
+// PURPOSE: Defines routing for the entire app.
+//          Supports three user groups: Public Visitor, Partner (Restaurant Owner), and Customer.
 // ============================================================
 
-// --- Shared UI aur Provider imports ---
+// --- Shared UI and provider imports ---
 import { useEffect } from "react";
 import Lenis from "lenis";
 import { Toaster } from "@/shared/ui/toaster";
@@ -19,7 +19,7 @@ import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
 import { PartnerAuthProvider, usePartnerAuth } from "@/shared/contexts/PartnerAuthContext";
 import LoadingSpinner from "@/shared/components/LoadingSpinner";
 
-// --- 1_public: Landing pages (koi bhi dekh sakta hai) ---
+// --- 1_public: Landing pages (accessible to everyone) ---
 import Index from "@/1_public/pages/Index";
 import About from "@/1_public/pages/About";
 import Features from "@/1_public/pages/Features";
@@ -32,10 +32,10 @@ import NotFound from "@/1_public/pages/NotFound";
 import Partner from "@/2_partner/auth/pages/Partner";
 import Partner_Auth from "@/2_partner/auth/pages/Partner_Auth";
 
-// --- 2_partner > setup: Pehli baar restaurant setup ---
+// --- 2_partner > setup: First-time restaurant setup ---
 import RestaurantSetup from "@/2_partner/setup/pages/RestaurantSetup";
 
-// --- 2_partner > dashboard: Roz ka partner dashboard ---
+// --- 2_partner > dashboard: Partner dashboard ---
 import Partner_Dashboard from "@/2_partner/dashboard/pages/Partner_Dashboard";
 import { EnhancedDashboardOverview } from "@/2_partner/dashboard/pages/EnhancedDashboard";
 import MenuManager from "@/2_partner/dashboard/pages/MenuManager";

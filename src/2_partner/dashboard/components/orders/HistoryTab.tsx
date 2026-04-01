@@ -20,6 +20,7 @@ interface HistoryTabProps {
 const HistoryTab: React.FC<HistoryTabProps> = ({ orders, fmt, onOrdersUpdated }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'all'>('today');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'delivered' | 'cancelled'>('all');
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [dealItemsByMenuId, setDealItemsByMenuId] = useState<Record<string, DealItem[]>>({});
@@ -118,10 +119,12 @@ const HistoryTab: React.FC<HistoryTabProps> = ({ orders, fmt, onOrdersUpdated })
         order.order_items.some(item => 
           item.item_name.toLowerCase().includes(searchQuery.toLowerCase())
         );
+
+      const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
       
-      return matchesDate && matchesSearch;
+      return matchesDate && matchesSearch && matchesStatus;
     }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [completedOrders, dateFilter, searchQuery]);
+  }, [completedOrders, dateFilter, searchQuery, statusFilter]);
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -228,6 +231,26 @@ const HistoryTab: React.FC<HistoryTabProps> = ({ orders, fmt, onOrdersUpdated })
             </button>
           ))}
         </div>
+
+        <div className="flex gap-2">
+          {([
+            { key: 'all', label: 'All Status' },
+            { key: 'delivered', label: 'Delivered' },
+            { key: 'cancelled', label: 'Cancelled' },
+          ] as const).map((filter) => (
+            <button
+              key={filter.key}
+              onClick={() => setStatusFilter(filter.key)}
+              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                statusFilter === filter.key
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-white/5 text-slate-500 hover:text-white'
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Orders List */}
@@ -236,7 +259,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({ orders, fmt, onOrdersUpdated })
           <div className="bg-black/40 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 p-20 text-center">
             <Receipt size={48} className="mx-auto mb-4 text-slate-700" />
             <h3 className="text-2xl font-black text-white mb-2">No Orders Found</h3>
-            <p className="text-slate-500">No completed orders match your filters.</p>
+            <p className="text-slate-500">No archived orders match your filters.</p>
           </div>
         ) : (
           filteredOrders.map((order) => {

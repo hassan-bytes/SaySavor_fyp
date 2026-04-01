@@ -266,12 +266,12 @@ export const EnhancedDashboardOverview = () => {
                     fetchedTotalOrders = total;
                     setStats(prev => ({ ...prev, totalOrders: total, activeOrders: statusObj.pending + statusObj.cooking }));
                 } else {
-                    // Koi orders nahi hain abhi tak — loading band karo aur empty state dikhao
-                    console.log('No order data found — empty state dikhayenge');
+                    // No orders yet - stop loading and show empty state.
+                    console.log('No order data found - showing empty state');
                     setOrdersByStatus({ pending: 0, cooking: 0, delivered: 0, cancelled: 0 });
                     setStats(prev => ({ ...prev, totalOrders: 0, activeOrders: 0 }));
                     setIsNewRestaurant(fetchedTotalRevenue === 0);
-                    setLoading(false); // ← yeh zaruri hai warna loading hamesha on rehti hai
+                    setLoading(false); // Important: prevent loading from staying active indefinitely.
                     return;
                 }
 

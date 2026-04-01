@@ -23,10 +23,10 @@ const OrderTracker: React.FC = () => {
     const [isConnected, setIsConnected] = useState(true);
 
     const statuses = [
-        { key: 'pending',    label: 'Order Received', desc: 'Aapka order mil gaya hai' },
-        { key: 'confirmed',  label: 'Confirmed',      desc: 'Restaurant ne accept kar liya' },
-        { key: 'preparing',  label: 'Preparing',      desc: 'Chefs apna jadu dikha rahe hain' },
-        { key: 'on_the_way', label: 'On the Way',     desc: 'Rider aa raha hai' },
+        { key: 'pending',    label: 'Order Received', desc: 'Your order has been received.' },
+        { key: 'confirmed',  label: 'Confirmed',      desc: 'The restaurant has accepted your order.' },
+        { key: 'preparing',  label: 'Preparing',      desc: 'Your meal is being prepared by the chefs.' },
+        { key: 'on_the_way', label: 'On the Way',     desc: 'Your rider is on the way.' },
         { key: 'delivered',  label: 'Delivered',      desc: 'Enjoy your meal! 🎉' },
     ];
 

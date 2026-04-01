@@ -7,12 +7,12 @@
 //          Today's Deals sidebar + 3D cinematic cards.
 // ROUTE: /foodie/home (or /foodie after auth)
 // ============================================================
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Search, MapPin, ShoppingCart, Star, Clock,
-    ChevronRight, Flame, Gift,
+    ChevronRight, Flame, Gift, Receipt,
     ChevronDown, X, SlidersHorizontal
 } from 'lucide-react';
 import { useCustomerAuth } from '@/3_customer/context/CustomerAuthContext';
@@ -20,8 +20,44 @@ import { useNearbyRestaurants } from '@/3_customer/hooks/useNearbyRestaurants';
 import { useCustomerLocation } from '@/3_customer/hooks/useCustomerLocation';
 import { usePromotions } from '@/3_customer/hooks/usePromotions';
 import type { RestaurantCard } from '@/3_customer/types/customer';
+import type { MenuItem } from '@/shared/types/menu';
 import { COUNTRY_CURRENCIES } from '@/shared/lib/currencyUtils';
 import { useCart } from '@/3_customer/context/CartContext';
+import { supabase } from '@/shared/lib/supabaseClient';
+
+interface HomeFeaturedProduct {
+    id: string;
+    restaurant_id: string;
+    restaurant_name: string;
+    currency: string | null;
+    name: string;
+    price: number;
+    original_price: number | null;
+    discount_percentage: number | null;
+    category: string | null;
+    image_url: string | null;
+    item_type?: 'single' | 'deal';
+}
+
+const normalizeProductCategory = (value?: string | null) =>
+    (value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+const mapHomeProductToMenuItem = (item: HomeFeaturedProduct): MenuItem => ({
+    id: item.id,
+    restaurant_id: item.restaurant_id,
+    name: item.name,
+    description: null,
+    price: item.price,
+    image_url: item.image_url,
+    category_id: null,
+    category: item.category || undefined,
+    categories: item.category ? { name: item.category } : null,
+    cuisine: null,
+    item_type: item.item_type,
+    is_available: true,
+    original_price: item.original_price,
+    discount_percentage: item.discount_percentage,
+});
 
 
 // ── Skeleton loader card ───────────────────────────────────────
@@ -174,7 +210,7 @@ const RestaurantCard3D: React.FC<{
 const CustomerHome: React.FC = () => {
     const navigate = useNavigate();
     const { customer, isGuest } = useCustomerAuth();
-    const { totalCount } = useCart();
+    const { totalCount, addToCart } = useCart();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [activeChip, setActiveChip] = useState('all');
@@ -192,8 +228,11 @@ const CustomerHome: React.FC = () => {
         location,
         status: locationStatus,
         error: locationError,
+        permission: locationPermission,
         requestLocation,
     } = useCustomerLocation();
+
+    const isLocationReady = Boolean(location && locationStatus === 'ready');
 
     const toNumberOrNull = (value: string): number | null => {
         const trimmed = value.trim();
@@ -202,7 +241,7 @@ const CustomerHome: React.FC = () => {
         return Number.isFinite(num) ? num : null;
     };
 
-    const { restaurants: filteredRestaurants, loading, cuisineOptions } = useNearbyRestaurants(
+    const { restaurants: filteredRestaurants, allRestaurants, loading, cuisineOptions } = useNearbyRestaurants(
         searchQuery,
         activeChip,
         {
@@ -218,6 +257,259 @@ const CustomerHome: React.FC = () => {
     );
 
     const { promotions } = usePromotions(6);
+    const [homeProducts, setHomeProducts] = useState<HomeFeaturedProduct[]>([]);
+    const [productsLoading, setProductsLoading] = useState(false);
+    const [productsError, setProductsError] = useState<string | null>(null);
+    const [activeProductCategory, setActiveProductCategory] = useState('all');
+    const latestProductsReqRef = useRef(0);
+
+    const areProductsEqual = (next: HomeFeaturedProduct[], prev: HomeFeaturedProduct[]) => {
+        if (next.length !== prev.length) return false;
+        for (let i = 0; i < next.length; i += 1) {
+            const a = next[i];
+            const b = prev[i];
+            if (
+                a.id !== b.id ||
+                a.restaurant_id !== b.restaurant_id ||
+                a.restaurant_name !== b.restaurant_name ||
+                a.currency !== b.currency ||
+                a.name !== b.name ||
+                a.price !== b.price ||
+                a.original_price !== b.original_price ||
+                a.discount_percentage !== b.discount_percentage ||
+                a.category !== b.category ||
+                a.image_url !== b.image_url ||
+                a.item_type !== b.item_type
+            ) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    const bestSellerRestaurants = useMemo(() => {
+        return [...filteredRestaurants]
+            .sort((a, b) => {
+                const ratingA = typeof a.rating === 'number' ? a.rating : 0;
+                const ratingB = typeof b.rating === 'number' ? b.rating : 0;
+                if (ratingB !== ratingA) return ratingB - ratingA;
+
+                const etaA = typeof a.delivery_time_min === 'number' ? a.delivery_time_min : Number.POSITIVE_INFINITY;
+                const etaB = typeof b.delivery_time_min === 'number' ? b.delivery_time_min : Number.POSITIVE_INFINITY;
+                if (etaA !== etaB) return etaA - etaB;
+
+                const feeA = typeof a.delivery_fee === 'number' ? a.delivery_fee : Number.POSITIVE_INFINITY;
+                const feeB = typeof b.delivery_fee === 'number' ? b.delivery_fee : Number.POSITIVE_INFINITY;
+                return feeA - feeB;
+            })
+            .slice(0, 8);
+    }, [filteredRestaurants]);
+
+    const shouldShowBestSellers = useMemo(() => (
+        filteredRestaurants.length >= 6 && bestSellerRestaurants.length >= 4
+    ), [filteredRestaurants.length, bestSellerRestaurants.length]);
+
+    const topRestaurantList = useMemo(() => {
+        if (!shouldShowBestSellers) return filteredRestaurants;
+
+        const bestSellerIds = new Set(bestSellerRestaurants.map((r) => r.id));
+        const remainingRestaurants = filteredRestaurants.filter((r) => !bestSellerIds.has(r.id));
+
+        return remainingRestaurants.length > 0 ? remainingRestaurants : filteredRestaurants;
+    }, [filteredRestaurants, bestSellerRestaurants, shouldShowBestSellers]);
+
+    const normalizedDishSearch = searchQuery.trim().toLowerCase();
+
+    const nearbyRestaurantMeta = useMemo(
+        () => allRestaurants.map((restaurant) => ({
+            id: restaurant.id,
+            name: restaurant.name,
+            currency: restaurant.currency || 'PKR',
+        })),
+        [allRestaurants]
+    );
+
+    const nearbyRestaurantIdsKey = useMemo(
+        () => nearbyRestaurantMeta.map((restaurant) => restaurant.id).join(','),
+        [nearbyRestaurantMeta]
+    );
+
+    const topPromotionDeal = useMemo(() => {
+        if (!promotions.length) return null;
+
+        return [...promotions].sort((a, b) => {
+            const scoreA = a.discount_type === 'percent' ? a.discount_value : a.discount_value / 10;
+            const scoreB = b.discount_type === 'percent' ? b.discount_value : b.discount_value / 10;
+            return scoreB - scoreA;
+        })[0] ?? null;
+    }, [promotions]);
+
+    const searchableHomeProducts = useMemo(() => {
+        if (!normalizedDishSearch) return homeProducts;
+        return homeProducts.filter((item) => (
+            item.name.toLowerCase().includes(normalizedDishSearch) ||
+            item.restaurant_name.toLowerCase().includes(normalizedDishSearch) ||
+            normalizeProductCategory(item.category).includes(normalizedDishSearch)
+        ));
+    }, [homeProducts, normalizedDishSearch]);
+
+    const popularProducts = useMemo(
+        () => searchableHomeProducts.slice(0, 16),
+        [searchableHomeProducts]
+    );
+
+    const productCategoryOptions = useMemo(() => (
+        Array.from(
+            new Set(
+                searchableHomeProducts
+                    .map((item) => normalizeProductCategory(item.category))
+                    .filter(Boolean)
+            )
+        ).sort()
+    ), [searchableHomeProducts]);
+
+    const categoryProducts = useMemo(() => {
+        if (activeProductCategory === 'all') return searchableHomeProducts;
+        return searchableHomeProducts.filter(
+            (item) => normalizeProductCategory(item.category) === activeProductCategory
+        );
+    }, [searchableHomeProducts, activeProductCategory]);
+
+    const categoryPreviewProducts = useMemo(
+        () => categoryProducts.slice(0, 48),
+        [categoryProducts]
+    );
+
+    useEffect(() => {
+        if (nearbyRestaurantMeta.length === 0) {
+            setHomeProducts((prev) => (prev.length ? [] : prev));
+            setProductsLoading((prev) => (prev ? false : prev));
+            setProductsError((prev) => (prev !== null ? null : prev));
+            return;
+        }
+
+        let active = true;
+        const requestId = Date.now();
+        latestProductsReqRef.current = requestId;
+
+        const fetchHomeProducts = async () => {
+            setProductsLoading((prev) => (prev ? prev : true));
+            setProductsError((prev) => (prev !== null ? null : prev));
+            try {
+                const queryRestaurantIds = nearbyRestaurantMeta.map((restaurant) => restaurant.id);
+                const restaurantLookup = new Map<string, { name: string; currency: string | null }>();
+                nearbyRestaurantMeta.forEach((restaurant) => {
+                    restaurantLookup.set(restaurant.id, {
+                        name: restaurant.name,
+                        currency: restaurant.currency,
+                    });
+                });
+
+                const categoryNameById = new Map<string, string>();
+                const categoriesQuery = await supabase
+                    .from('categories')
+                    .select('id, name, restaurant_id')
+                    .in('restaurant_id', queryRestaurantIds);
+
+                if (!categoriesQuery.error) {
+                    (categoriesQuery.data || []).forEach((category: any) => {
+                        if (typeof category?.id === 'string' && typeof category?.name === 'string') {
+                            categoryNameById.set(category.id, category.name);
+                        }
+                    });
+                }
+
+                const primaryQuery = await supabase
+                    .from('menu_items')
+                    .select('*')
+                    .in('restaurant_id', queryRestaurantIds)
+                    .order('created_at', { ascending: false })
+                    .range(0, 499);
+
+                let rows: any[] = [];
+
+                if (primaryQuery.error) {
+                    const fallbackQuery = await supabase
+                        .from('menu_items')
+                        .select('*')
+                        .in('restaurant_id', queryRestaurantIds)
+                        .range(0, 499);
+
+                    if (fallbackQuery.error) {
+                        throw fallbackQuery.error;
+                    }
+
+                    rows = fallbackQuery.data || [];
+                } else {
+                    rows = primaryQuery.data || [];
+                }
+
+                if (!active || latestProductsReqRef.current !== requestId) return;
+
+                const availableRows = rows.filter((item: any) => {
+                    if (typeof item?.is_available === 'boolean') return item.is_available;
+                    if (typeof item?.available === 'boolean') return item.available;
+                    return true;
+                });
+
+                const mapped = availableRows.map((item: any) => {
+                    const restaurantInfo = restaurantLookup.get(item.restaurant_id);
+                    const rawCategory = typeof item?.category === 'string' ? item.category.trim() : '';
+                    const categoryNameFromId =
+                        typeof item?.category_id === 'string'
+                            ? (categoryNameById.get(item.category_id) || '')
+                            : '';
+                    const finalCategory = rawCategory || categoryNameFromId || null;
+
+                    const priceValue = typeof item?.price === 'number' ? item.price : Number(item?.price);
+                    const originalPriceValue = typeof item?.original_price === 'number'
+                        ? item.original_price
+                        : Number(item?.original_price);
+                    const discountValue = typeof item?.discount_percentage === 'number'
+                        ? item.discount_percentage
+                        : Number(item?.discount_percentage);
+
+                    return {
+                    id: item.id,
+                    restaurant_id: item.restaurant_id,
+                    restaurant_name: restaurantInfo?.name || 'Restaurant',
+                    currency: restaurantInfo?.currency || 'PKR',
+                    name: item.name,
+                    price: Number.isFinite(priceValue) ? priceValue : 0,
+                    original_price: Number.isFinite(originalPriceValue) ? originalPriceValue : null,
+                    discount_percentage: Number.isFinite(discountValue) ? discountValue : null,
+                    category: finalCategory,
+                    image_url: item.image_url || null,
+                    item_type: item.item_type,
+                };
+                })
+                    .filter((item) => Boolean(item.id && item.restaurant_id && item.name)) as HomeFeaturedProduct[];
+
+                setHomeProducts((prev) => (areProductsEqual(mapped, prev) ? prev : mapped));
+            } catch (error) {
+                if (active) {
+                    const err = error as any;
+                    console.error('Failed to load home products:', err?.message || err, err);
+                    setHomeProducts((prev) => (prev.length ? [] : prev));
+                    setProductsError((prev) => (
+                        prev === 'Popular products are temporarily unavailable.'
+                            ? prev
+                            : 'Popular products are temporarily unavailable.'
+                    ));
+                }
+            } finally {
+                if (active && latestProductsReqRef.current === requestId) {
+                    setProductsLoading((prev) => (prev ? false : prev));
+                }
+            }
+        };
+
+        void fetchHomeProducts();
+
+        return () => {
+            active = false;
+        };
+    }, [nearbyRestaurantIdsKey, nearbyRestaurantMeta]);
 
     const formatCuisineLabel = (value: string) =>
         value
@@ -230,6 +522,12 @@ const CustomerHome: React.FC = () => {
             setActiveChip('all');
         }
     }, [activeChip, cuisineOptions]);
+
+    useEffect(() => {
+        if (activeProductCategory !== 'all' && !productCategoryOptions.includes(activeProductCategory)) {
+            setActiveProductCategory('all');
+        }
+    }, [activeProductCategory, productCategoryOptions]);
 
     useEffect(() => {
         if (!location && locationStatus === 'idle') {
@@ -250,12 +548,17 @@ const CustomerHome: React.FC = () => {
 
     const locationLabel = location
         ? 'Near You'
+        : locationPermission === 'denied'
+            ? 'Location Blocked'
         : locationStatus === 'loading'
             ? 'Locating...'
             : 'Enable Location';
 
-    const isLocationReady = Boolean(location && locationStatus === 'ready');
-    const locationGateMessage = locationError || 'Allow location access to see restaurants and dishes within 5-10 km.';
+    const locationGateMessage =
+        locationError ||
+        (locationPermission === 'denied'
+            ? 'Location is blocked in browser settings. Allow it for this site and try again.'
+            : 'Allow location access to see restaurants and dishes within 5-10 km.');
 
     const handleExploreClick = () => {
         if (!isLocationReady) {
@@ -263,6 +566,13 @@ const CustomerHome: React.FC = () => {
             return;
         }
         document.getElementById('restaurant-list')?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    const handleAddHomeItem = (item: HomeFeaturedProduct) => {
+        addToCart({
+            menuItem: mapHomeProductToMenuItem(item),
+            quantity: 1,
+        });
     };
 
     const formatCurrency = (value: number, currencyCode: string | null) => {
@@ -323,7 +633,7 @@ const CustomerHome: React.FC = () => {
                             type="text"
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
-                            placeholder="Hungry? Let's find you some magic..."
+                            placeholder="Search dishes or restaurants..."
                             className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm text-white placeholder-gray-500 outline-none transition-all"
                             style={{
                                 background: 'rgba(255,255,255,0.07)',
@@ -380,6 +690,16 @@ const CustomerHome: React.FC = () => {
                           )}
                         </button>
 
+                        {/* Order History */}
+                        <button
+                            onClick={() => navigate('/foodie/profile')}
+                            className="p-2.5 rounded-xl transition-all"
+                            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}
+                            title="Order History"
+                        >
+                            <Receipt className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.85)' }} />
+                        </button>
+
                         {/* Profile/Logout */}
                         <button
                             onClick={() => navigate('/foodie/profile')}
@@ -422,6 +742,7 @@ const CustomerHome: React.FC = () => {
                             src="https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=400&q=70"
                             alt="Food"
                             className="w-full h-full object-cover"
+                            loading="lazy"
                         />
                         <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, #1a0800, transparent)' }} />
                     </div>
@@ -449,6 +770,46 @@ const CustomerHome: React.FC = () => {
                             >
                                 Explore Now →
                             </button>
+
+                            {topPromotionDeal && (
+                                <div
+                                    className="mt-4 p-3 rounded-2xl max-w-md"
+                                    style={{
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid rgba(255,255,255,0.12)',
+                                    }}
+                                >
+                                    <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#FF6B35' }}>
+                                        Best Deal Today
+                                    </p>
+                                    <p className="text-sm font-bold text-white mt-1">
+                                        {topPromotionDeal.restaurants?.name || 'Restaurant'} • {topPromotionDeal.code}
+                                    </p>
+                                    <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                                        {topPromotionDeal.discount_type === 'percent'
+                                            ? `${topPromotionDeal.discount_value}% OFF`
+                                            : `${formatCurrency(topPromotionDeal.discount_value, topPromotionDeal.restaurants?.currency || 'PKR')} OFF`}
+                                        {typeof topPromotionDeal.min_order === 'number'
+                                            ? ` • Min ${formatCurrency(topPromotionDeal.min_order, topPromotionDeal.restaurants?.currency || 'PKR')}`
+                                            : ''}
+                                    </p>
+                                    {topPromotionDeal.restaurant_id && (
+                                        <button
+                                            onClick={() => navigate(`/foodie/restaurant/${topPromotionDeal.restaurant_id}`)}
+                                            className="mt-2 text-xs font-black uppercase tracking-widest"
+                                            style={{ color: '#FF6B35' }}
+                                        >
+                                            Grab Deal →
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
+                            {shouldShowBestSellers && (
+                                <p className="mt-3 text-xs" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                                    {bestSellerRestaurants.length} top picks selected for your current filters
+                                </p>
+                            )}
                         </div>
 
                     </div>
@@ -671,7 +1032,7 @@ const CustomerHome: React.FC = () => {
                                 Deals Near You
                             </h2>
                         </div>
-                        <div className="grid md:grid-cols-2 gap-4">
+                        <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
                             {promotions.map((promo) => {
                                 const restaurant = promo.restaurants;
                                 const currencyCode = restaurant?.currency || 'PKR';
@@ -688,11 +1049,11 @@ const CustomerHome: React.FC = () => {
                                 return (
                                     <div
                                         key={promo.id}
-                                        className="p-4 rounded-2xl border border-white/10 bg-white/[0.03] flex items-center gap-4"
+                                        className="p-4 rounded-2xl border border-white/10 bg-white/[0.03] flex items-center gap-4 snap-start shrink-0 w-[320px] sm:w-[360px]"
                                     >
                                         <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/5 border border-white/10 flex items-center justify-center">
                                             {restaurant?.logo_url ? (
-                                                <img src={restaurant.logo_url} alt={restaurant?.name || 'Deal'} className="w-full h-full object-cover" />
+                                                <img src={restaurant.logo_url} alt={restaurant?.name || 'Deal'} className="w-full h-full object-cover" loading="lazy" />
                                             ) : (
                                                 <span className="text-2xl">🍽️</span>
                                             )}
@@ -723,6 +1084,297 @@ const CustomerHome: React.FC = () => {
                                             </button>
                                         )}
                                     </div>
+                                );
+                            })}
+                        </div>
+                    </section>
+                )}
+
+                {(productsLoading || homeProducts.length > 0 || productsError !== null || nearbyRestaurantMeta.length > 0) && (
+                    <section className="mb-10">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-white text-xl font-bold">Popular Products</h2>
+                            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                                Best picks from nearby restaurants
+                            </p>
+                        </div>
+
+                        {productsLoading ? (
+                            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {[...Array(4)].map((_, idx) => (
+                                    <div key={`prod-skeleton-${idx}`} className="rounded-2xl p-3 animate-pulse" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                        <div className="h-28 rounded-xl" style={{ background: 'rgba(255,255,255,0.06)' }} />
+                                        <div className="h-4 rounded mt-3" style={{ background: 'rgba(255,255,255,0.08)' }} />
+                                        <div className="h-3 rounded mt-2 w-2/3" style={{ background: 'rgba(255,255,255,0.06)' }} />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : popularProducts.length > 0 ? (
+                            <div className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory">
+                                {popularProducts.map((item) => (
+                                    <div
+                                        key={item.id}
+                                        className="text-left p-3 rounded-2xl border border-white/10 bg-white/[0.03] snap-start shrink-0 w-[230px] transition-colors hover:border-orange-400/40"
+                                    >
+                                        <div className="relative h-28 rounded-xl overflow-hidden bg-white/5 border border-white/10 mb-3">
+                                            {item.image_url ? (
+                                                <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-3xl">🍲</div>
+                                            )}
+                                            {item.discount_percentage && item.discount_percentage > 0 && (
+                                                <span className="absolute top-2 left-2 px-2 py-1 rounded-lg text-[10px] font-black text-white" style={{ background: 'rgba(255,107,53,0.95)' }}>
+                                                    {item.discount_percentage}% OFF
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <p className="text-white text-sm font-bold truncate">{item.name}</p>
+                                        <p className="text-[11px] mt-1 truncate" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                                            {item.restaurant_name}
+                                        </p>
+                                        <div className="mt-2 flex items-center gap-2 text-xs font-bold">
+                                            <span style={{ color: '#FF6B35' }}>{formatCurrency(item.price, item.currency)}</span>
+                                            {typeof item.original_price === 'number' && item.original_price > item.price && (
+                                                <span style={{ color: 'rgba(255,255,255,0.4)', textDecoration: 'line-through' }}>
+                                                    {formatCurrency(item.original_price, item.currency)}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="mt-3 flex gap-2">
+                                            <button
+                                                onClick={() => handleAddHomeItem(item)}
+                                                className="flex-1 px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wide text-white"
+                                                style={{ background: 'linear-gradient(135deg, #FF6B35, #E85A24)' }}
+                                            >
+                                                Add to Cart
+                                            </button>
+                                            <button
+                                                onClick={() => navigate(`/foodie/restaurant/${item.restaurant_id}`)}
+                                                className="px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wide"
+                                                style={{
+                                                    background: 'rgba(255,255,255,0.06)',
+                                                    border: '1px solid rgba(255,255,255,0.12)',
+                                                    color: 'rgba(255,255,255,0.8)',
+                                                }}
+                                            >
+                                                View
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div
+                                className="rounded-2xl p-5"
+                                style={{
+                                    background: 'rgba(255,255,255,0.03)',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                }}
+                            >
+                                <p className="text-sm font-bold text-white">No popular products yet</p>
+                                <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                                    {productsError || 'Products will appear here as menu items become available.'}
+                                </p>
+                            </div>
+                        )}
+                    </section>
+                )}
+
+                {(productsLoading || homeProducts.length > 0 || productsError !== null) && (
+                    <section className="mb-10">
+                        <div className="flex items-center justify-between mb-4 gap-3">
+                            <h2 className="text-white text-xl font-bold">Browse Dishes by Category</h2>
+                            <p className="text-xs whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                                {activeProductCategory === 'all'
+                                    ? `${searchableHomeProducts.length} dishes nearby`
+                                    : `${categoryProducts.length} dishes in ${formatCuisineLabel(activeProductCategory)}`}
+                            </p>
+                        </div>
+
+                        {productCategoryOptions.length > 0 && (
+                            <div className="flex gap-2 overflow-x-auto pb-3 mb-4 scrollbar-hide">
+                                <button
+                                    onClick={() => setActiveProductCategory('all')}
+                                    className="shrink-0 px-4 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all"
+                                    style={activeProductCategory === 'all' ? {
+                                        background: 'linear-gradient(135deg, #FF6B35, #E85A24)',
+                                        color: 'white',
+                                        boxShadow: '0 4px 16px rgba(255,107,53,0.35)',
+                                    } : {
+                                        background: 'rgba(255,255,255,0.06)',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        color: 'rgba(255,255,255,0.65)',
+                                    }}
+                                >
+                                    All Dishes
+                                </button>
+                                {productCategoryOptions.map((category) => (
+                                    <button
+                                        key={category}
+                                        onClick={() => setActiveProductCategory(category)}
+                                        className="shrink-0 px-4 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all"
+                                        style={activeProductCategory === category ? {
+                                            background: 'linear-gradient(135deg, #FF6B35, #E85A24)',
+                                            color: 'white',
+                                            boxShadow: '0 4px 16px rgba(255,107,53,0.35)',
+                                        } : {
+                                            background: 'rgba(255,255,255,0.06)',
+                                            border: '1px solid rgba(255,255,255,0.1)',
+                                            color: 'rgba(255,255,255,0.65)',
+                                        }}
+                                    >
+                                        {formatCuisineLabel(category)}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {productsLoading ? (
+                            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {[...Array(8)].map((_, idx) => (
+                                    <div key={`cat-skeleton-${idx}`} className="rounded-2xl p-3 animate-pulse" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                        <div className="h-28 rounded-xl" style={{ background: 'rgba(255,255,255,0.06)' }} />
+                                        <div className="h-4 rounded mt-3" style={{ background: 'rgba(255,255,255,0.08)' }} />
+                                        <div className="h-3 rounded mt-2 w-2/3" style={{ background: 'rgba(255,255,255,0.06)' }} />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : categoryPreviewProducts.length > 0 ? (
+                            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {categoryPreviewProducts.map((item) => (
+                                    <div
+                                        key={`cat-${item.id}`}
+                                        className="text-left p-3 rounded-2xl border border-white/10 bg-white/[0.03] transition-colors hover:border-orange-400/40"
+                                    >
+                                        <div className="relative h-28 rounded-xl overflow-hidden bg-white/5 border border-white/10 mb-3">
+                                            {item.image_url ? (
+                                                <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-3xl">🍲</div>
+                                            )}
+                                        </div>
+
+                                        <p className="text-white text-sm font-bold truncate">{item.name}</p>
+                                        <p className="text-[11px] mt-1 truncate" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                                            {item.category ? formatCuisineLabel(normalizeProductCategory(item.category)) : 'Chef Picks'} • {item.restaurant_name}
+                                        </p>
+                                        <div className="mt-2 flex items-center gap-2 text-xs font-bold">
+                                            <span style={{ color: '#FF6B35' }}>{formatCurrency(item.price, item.currency)}</span>
+                                            {typeof item.original_price === 'number' && item.original_price > item.price && (
+                                                <span style={{ color: 'rgba(255,255,255,0.4)', textDecoration: 'line-through' }}>
+                                                    {formatCurrency(item.original_price, item.currency)}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="mt-3 flex gap-2">
+                                            <button
+                                                onClick={() => handleAddHomeItem(item)}
+                                                className="flex-1 px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wide text-white"
+                                                style={{ background: 'linear-gradient(135deg, #FF6B35, #E85A24)' }}
+                                            >
+                                                Add to Cart
+                                            </button>
+                                            <button
+                                                onClick={() => navigate(`/foodie/restaurant/${item.restaurant_id}`)}
+                                                className="px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wide"
+                                                style={{
+                                                    background: 'rgba(255,255,255,0.06)',
+                                                    border: '1px solid rgba(255,255,255,0.12)',
+                                                    color: 'rgba(255,255,255,0.8)',
+                                                }}
+                                            >
+                                                View
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div
+                                className="rounded-2xl p-5"
+                                style={{
+                                    background: 'rgba(255,255,255,0.03)',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                }}
+                            >
+                                <p className="text-sm font-bold text-white">No dishes in this category</p>
+                                <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                                    {productsError || (normalizedDishSearch
+                                        ? `No dish match found for "${searchQuery}".`
+                                        : 'Try another category to explore more dishes.')}
+                                </p>
+                            </div>
+                        )}
+                    </section>
+                )}
+
+                {shouldShowBestSellers && (
+                    <section className="mb-10">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-white text-xl font-bold">Best Sellers</h2>
+                            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                                Top rated + fastest delivery picks
+                            </p>
+                        </div>
+
+                        <div className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory">
+                            {bestSellerRestaurants.map((restaurant) => {
+                                const savedCurrency = restaurant.currency || 'PKR';
+                                const currencyInfo = Object.values(COUNTRY_CURRENCIES).find(
+                                    c => c.code === savedCurrency
+                                ) ?? Object.values(COUNTRY_CURRENCIES).find(
+                                    c => c.code === 'PKR'
+                                );
+                                const symbol = currencyInfo?.symbol ?? 'PKR';
+
+                                return (
+                                    <button
+                                        key={`best-${restaurant.id}`}
+                                        onClick={() => navigate(`/foodie/restaurant/${restaurant.id}`)}
+                                        className="text-left p-3 rounded-2xl border border-white/10 bg-white/[0.03] snap-start shrink-0 w-[220px] transition-colors hover:border-orange-400/40"
+                                    >
+                                        <div className="h-28 rounded-xl overflow-hidden bg-white/5 border border-white/10 mb-3">
+                                            {restaurant.logo_url ? (
+                                                <img
+                                                    src={restaurant.logo_url}
+                                                    alt={restaurant.name}
+                                                    className="w-full h-full object-cover"
+                                                    loading="lazy"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-3xl">🍔</div>
+                                            )}
+                                        </div>
+
+                                        <p className="text-white text-sm font-bold truncate">{restaurant.name}</p>
+                                        <p className="text-[11px] mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                                            {restaurant.cuisine_type || 'Restaurant'}
+                                        </p>
+
+                                        <div className="mt-2 flex items-center gap-3 text-[11px]" style={{ color: 'rgba(255,255,255,0.65)' }}>
+                                            {typeof restaurant.rating === 'number' && (
+                                                <span className="flex items-center gap-1">
+                                                    <Star className="w-3 h-3 fill-orange-400 text-orange-400" />
+                                                    {restaurant.rating.toFixed(1)}
+                                                </span>
+                                            )}
+                                            {typeof restaurant.delivery_time_min === 'number' && (
+                                                <span className="flex items-center gap-1">
+                                                    <Clock className="w-3 h-3" />
+                                                    {restaurant.delivery_time_min}m
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {typeof restaurant.min_order === 'number' && (
+                                            <p className="text-[11px] mt-2" style={{ color: '#FF6B35' }}>
+                                                Min {symbol} {restaurant.min_order.toLocaleString('en', { maximumFractionDigits: 0 })}
+                                            </p>
+                                        )}
+                                    </button>
                                 );
                             })}
                         </div>
@@ -779,13 +1431,16 @@ const CustomerHome: React.FC = () => {
                                 {activeChip === 'all'
                                     ? 'Top Restaurants'
                                     : `${formatCuisineLabel(activeChip)} Restaurants`}
-                                {filteredRestaurants.length >= 0 && (
+                                {topRestaurantList.length >= 0 && (
                                     <span className="ml-2 text-sm font-normal" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                                        ({filteredRestaurants.length})
+                                        ({topRestaurantList.length})
                                     </span>
                                 )}
                             </h2>
                             <button
+                                onClick={() => {
+                                    document.getElementById('restaurant-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }}
                                 className="text-xs font-semibold flex items-center gap-1 px-3 py-1.5 rounded-lg transition-all"
                                 style={{ color: '#FF6B35', background: 'rgba(255,107,53,0.1)', border: '1px solid rgba(255,107,53,0.2)' }}
                             >
@@ -797,7 +1452,7 @@ const CustomerHome: React.FC = () => {
                             <div className="grid sm:grid-cols-2 gap-5">
                                 {[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
                             </div>
-                        ) : filteredRestaurants.length === 0 ? (
+                        ) : topRestaurantList.length === 0 ? (
                             <motion.div
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
@@ -817,7 +1472,7 @@ const CustomerHome: React.FC = () => {
                             </motion.div>
                         ) : (
                             <div className="grid sm:grid-cols-2 gap-5">
-                                {filteredRestaurants.map((r, i) => (
+                                {topRestaurantList.map((r, i) => (
                                     <RestaurantCard3D
                                         key={r.id}
                                         restaurant={r}
@@ -874,7 +1529,7 @@ const CustomerHome: React.FC = () => {
                     { icon: Flame, label: 'Home', route: '/foodie/home', active: true },
                     { icon: Search, label: 'Search', route: '/foodie/home', active: false },
                     { icon: ShoppingCart, label: 'Cart', route: '/foodie/cart', active: false },
-                    { icon: Gift, label: 'Points', route: '/foodie/profile', active: false },
+                    { icon: Receipt, label: 'History', route: '/foodie/profile', active: false },
                 ].map(({ icon: Icon, label, route, active }) => (
                     <button
                         key={label}

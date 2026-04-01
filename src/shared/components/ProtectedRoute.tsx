@@ -1,9 +1,9 @@
 ﻿// ============================================================
 // FILE: ProtectedRoute.tsx
 // SECTION: shared > components
-// PURPOSE: Auth guard — sirf logged in users dashboard access kar sakte hain.
-//          Login nahi toh /auth par redirect.
-//          requireSetup=true: setup complete karna zaruri hai.
+// PURPOSE: Auth guard - only logged-in users can access the dashboard.
+//          Redirects to /auth when the user is not logged in.
+//          requireSetup=true: setup completion is required.
 // ============================================================
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';

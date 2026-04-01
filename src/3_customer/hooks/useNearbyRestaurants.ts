@@ -7,7 +7,7 @@
 //   min_order_price, delivery_time_min (NEW), rating (NEW),
 //   city (NEW), onboarding_completed (NEW, defaults TRUE)
 // ============================================================
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import type { RestaurantCard } from '@/3_customer/types/customer';
 
@@ -36,6 +36,9 @@ const haversineKm = (lat1: number, lng1: number, lat2: number, lng2: number) => 
     return earthRadiusKm * c;
 };
 
+const normalizeCuisine = (value?: string | null) =>
+    value ? value.toLowerCase().replace(/_/g, ' ').trim() : '';
+
 export const useNearbyRestaurants = (
     searchQuery: string = '',
     activeChip: string = 'all',
@@ -44,13 +47,18 @@ export const useNearbyRestaurants = (
     const [restaurants, setRestaurants] = useState<RestaurantCard[]>([]);
     const [loading, setLoading] = useState(true);
     const filtersRef = useRef<NearbyRestaurantFilters>(filters);
+    const refreshTimeoutRef = useRef<number | null>(null);
     const filtersKey = JSON.stringify(filters);
+    filtersRef.current = filters;
 
-    const normalizeCuisine = (value?: string | null) =>
-        value ? value.toLowerCase().replace(/_/g, ' ').trim() : '';
-
-    const fetchRestaurants = async (nextFilters: NearbyRestaurantFilters = filtersRef.current) => {
-        setLoading(true);
+    const fetchRestaurants = useCallback(async (
+        nextFilters: NearbyRestaurantFilters = filtersRef.current,
+        options?: { background?: boolean }
+    ) => {
+        const isBackground = options?.background === true;
+        if (!isBackground) {
+            setLoading(true);
+        }
         try {
             let query = supabase
                 .from('restaurants')
@@ -150,34 +158,76 @@ export const useNearbyRestaurants = (
         } catch (err) {
             console.error('useNearbyRestaurants error:', err);
         } finally {
-            setLoading(false);
+            if (!isBackground) {
+                setLoading(false);
+            }
         }
-    };
+    }, []);
+
+    const scheduleBackgroundRefresh = useCallback((delayMs: number = 250) => {
+        if (refreshTimeoutRef.current !== null) {
+            window.clearTimeout(refreshTimeoutRef.current);
+        }
+
+        refreshTimeoutRef.current = window.setTimeout(() => {
+            void fetchRestaurants(filtersRef.current, { background: true });
+        }, delayMs);
+    }, [fetchRestaurants]);
 
     useEffect(() => {
-        filtersRef.current = filters;
-        fetchRestaurants(filters);
-    }, [filtersKey]);
+        void fetchRestaurants(filtersRef.current);
+    }, [filtersKey, fetchRestaurants]);
 
     useEffect(() => {
-        // Realtime — only re-fetch on restaurant open/close changes
+        const trackedFields: Array<keyof RestaurantCard | 'name' | 'cuisine_type' | 'city'> = [
+            'is_active',
+            'delivery_fee',
+            'delivery_time_min',
+            'rating',
+            'min_order',
+            'name',
+            'cuisine_type',
+            'city',
+            'latitude',
+            'longitude',
+        ];
+
         const channel = supabase
-            .channel('restaurants-open-status')
+            .channel('restaurants-live-customer-home')
             .on('postgres_changes', {
-                event: 'UPDATE',
+                event: '*',
                 schema: 'public',
                 table: 'restaurants',
-                // Only react to is_open changes, not every update
             }, (payload) => {
-                const updated = payload.new as any;
-                if ('is_open' in updated) {
-                    fetchRestaurants(filtersRef.current);
+                if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
+                    scheduleBackgroundRefresh();
+                    return;
+                }
+
+                if (payload.eventType === 'UPDATE') {
+                    const nextRow = payload.new as any;
+                    const prevRow = payload.old as any;
+
+                    const changed = trackedFields.some((field) => {
+                        const nextValue = field === 'is_active' ? nextRow?.is_open : nextRow?.[field];
+                        const prevValue = field === 'is_active' ? prevRow?.is_open : prevRow?.[field];
+                        return JSON.stringify(nextValue) !== JSON.stringify(prevValue);
+                    });
+
+                    if (changed) {
+                        scheduleBackgroundRefresh();
+                    }
                 }
             })
             .subscribe();
 
-        return () => { supabase.removeChannel(channel); };
-    }, []);
+        return () => {
+            if (refreshTimeoutRef.current !== null) {
+                window.clearTimeout(refreshTimeoutRef.current);
+            }
+            void supabase.removeChannel(channel);
+        };
+    }, [scheduleBackgroundRefresh]);
 
     // Local filtering
     const location = filters.userLocation;
@@ -187,32 +237,46 @@ export const useNearbyRestaurants = (
         Boolean(location && Number.isFinite(location.lat) && Number.isFinite(location.lng)) &&
         typeof maxDistance === 'number';
 
-    const filteredRestaurants = restaurants.filter(r => {
-        const normalizedCuisine = normalizeCuisine(r.cuisine_type);
-        const matchesSearch = !searchQuery.trim() ||
-            r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (normalizedCuisine && normalizedCuisine.includes(searchQuery.toLowerCase())) ||
-            (r.city && r.city.toLowerCase().includes(searchQuery.toLowerCase()));
+    const normalizedSearchQuery = searchQuery.toLowerCase();
 
-        const matchesChip = activeChip === 'all' ||
-            (normalizedCuisine && normalizedCuisine === activeChip);
+    const filteredRestaurants = useMemo(() => (
+        restaurants.filter((r) => {
+            const normalizedCuisine = normalizeCuisine(r.cuisine_type);
+            const matchesSearch = !searchQuery.trim() ||
+                r.name.toLowerCase().includes(normalizedSearchQuery) ||
+                (normalizedCuisine && normalizedCuisine.includes(normalizedSearchQuery)) ||
+                (r.city && r.city.toLowerCase().includes(normalizedSearchQuery));
 
-        const matchesDistance = !distanceFilterReady ||
-            (typeof r.distance_km === 'number' && maxDistanceValue !== null && r.distance_km <= maxDistanceValue);
+            const matchesChip = activeChip === 'all' ||
+                (normalizedCuisine && normalizedCuisine === activeChip);
 
-        return matchesSearch && matchesChip && matchesDistance;
-    });
+            const matchesDistance = !distanceFilterReady ||
+                (typeof r.distance_km === 'number' && maxDistanceValue !== null && r.distance_km <= maxDistanceValue);
 
-    const cuisineOptions = Array.from(
-        new Set(
-            restaurants
-                .map(r => normalizeCuisine(r.cuisine_type))
-                .filter(Boolean)
-        )
-    ).sort();
+            return matchesSearch && matchesChip && matchesDistance;
+        })
+    ), [
+        restaurants,
+        searchQuery,
+        normalizedSearchQuery,
+        activeChip,
+        distanceFilterReady,
+        maxDistanceValue,
+    ]);
+
+    const cuisineOptions = useMemo(() => (
+        Array.from(
+            new Set(
+                restaurants
+                    .map((r) => normalizeCuisine(r.cuisine_type))
+                    .filter(Boolean)
+            )
+        ).sort()
+    ), [restaurants]);
 
     return {
         restaurants: filteredRestaurants,
+        allRestaurants: restaurants,
         loading,
         refresh: fetchRestaurants,
         cuisineOptions,

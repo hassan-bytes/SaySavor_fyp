@@ -1,11 +1,11 @@
 // ============================================================
 // FILE: CustomerMenu.tsx
 // SECTION: 2_partner > customer_menu > pages
-// PURPOSE: Customer ka menu page â€” QR scan karne ke baad yeh khulta hai.
-//          Menu items dekhna, cart mein add karna, order place karna.
-//          Supabase se real-time data aata hai.
-//          Voice aur AI scanner se bhi order ho sakta hai.
-// ROUTE: /menu/:restaurantId (Public â€” koi bhi dekh sakta hai)
+// PURPOSE: Customer menu page opened after scanning a QR code.
+//          Allows browsing menu items, adding to cart, and placing orders.
+//          Receives real-time data from Supabase.
+//          Supports ordering through voice and AI scanner.
+// ROUTE: /menu/:restaurantId (Public - accessible to everyone)
 // ============================================================
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';

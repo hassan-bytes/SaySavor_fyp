@@ -1,7 +1,7 @@
 ﻿// ============================================================
 // FILE: NotFound.tsx
 // SECTION: 1_public > pages
-// PURPOSE: 404 page â€” jab koi route match na ho tab yeh dikhta hai.
+// PURPOSE: 404 page shown when no route matches.
 // ROUTE: /* (fallback)
 // ============================================================
 import { useLocation } from "react-router-dom";

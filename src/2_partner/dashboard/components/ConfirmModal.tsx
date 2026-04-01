@@ -1,7 +1,7 @@
 ﻿// ============================================================
 // FILE: ConfirmModal.tsx
 // SECTION: 2_partner > dashboard > components
-// PURPOSE: Confirm dialog box â€” delete ya koi important action confirm karna.
+// PURPOSE: Confirmation dialog for delete or other important actions.
 // ============================================================
 import React from 'react';
 import { AlertTriangle, Trash2, X } from 'lucide-react';

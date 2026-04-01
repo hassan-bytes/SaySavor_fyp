@@ -58,14 +58,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const addToCart = (newItem: CartItem) => {
         // Multi-restaurant check
         if (currentRestaurantId && newItem.menuItem.restaurant_id !== currentRestaurantId) {
-            toast.error('Ek waqt mein sirf ek restaurant se order kiya ja sakta hai.', {
-                description: 'Naya order start karne ke lye purana cart clear karna hoga.',
+            toast.error('You can only order from one restaurant at a time.', {
+                description: 'To start a new order, please clear your current cart first.',
                 action: {
                     label: 'Clear Cart',
                     onClick: () => {
                         setCartItems([newItem]);
                         setCurrentRestaurantId(newItem.menuItem.restaurant_id);
-                        toast.success('Cart clear kar ke naya item add kar dya gaya hai.');
+                        toast.success('Cart cleared and new item added.');
                     }
                 }
             });
@@ -83,11 +83,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const updated = [...cartItems];
             updated[existingIndex].quantity += newItem.quantity;
             setCartItems(updated);
-            toast.success(`${newItem.menuItem.name} ki quantity barha di gayi hai.`);
+            toast.success(`${newItem.menuItem.name} quantity has been increased.`);
         } else {
             setCartItems([...cartItems, newItem]);
             setCurrentRestaurantId(newItem.menuItem.restaurant_id);
-            toast.success(`${newItem.menuItem.name} cart mein add kar dya gaya hai.`);
+            toast.success(`${newItem.menuItem.name} has been added to your cart.`);
         }
     };
 

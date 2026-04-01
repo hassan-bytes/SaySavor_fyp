@@ -66,62 +66,125 @@ export function setupOrderRealtimeListener(config: OrderRealtimeConfig): () => v
   console.log(`[OrderRealtime] 🔌 Setting up listener for channel: ${channelName}`);
 
   let channel: RealtimeChannel | null = null;
+  let isDisposed = false;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let retryAttempt = 0;
 
-  try {
-    /**
-     * POSTGRES CHANGES LISTENER (NOT Broadcast)
-     * 
-     * Filter syntax: restaurant_id=eq.{restaurantId}
-     * - Ensures only this restaurant's orders are received
-     * - Critical for multi-tenant security
-     * - Prevents cross-restaurant data leaks
-     */
-    channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'orders',
-          filter: `restaurant_id=eq.${restaurantId}`, // 🔒 SECURITY: Multi-tenant isolation
-        },
-        (payload) => {
-          const eventType = payload.eventType;
-          const orderId = payload.new?.id || payload.old?.id;
-          
-          console.log(
-            `[OrderRealtime] 📦 ${eventType} event for order ${orderId?.slice(-4) || 'unknown'}`
-          );
+  const MAX_RETRY_ATTEMPTS = 5;
+  const BASE_RETRY_MS = 1500;
 
-          /**
-           * CONSISTENCY STRATEGY:
-           * Don't rely on payload.new - always refetch complete data
-           * - Ensures order_items are included
-           * - Prevents stale data issues
-           * - Maintains single source of truth
-           */
-          onOrderChange();
-        }
-      )
-      .subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-          console.log(`[OrderRealtime] ✅ Subscribed to ${channelName}`);
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error(`[OrderRealtime] ❌ Channel error:`, err);
-          onError?.(new Error(`Channel error: ${err?.message || 'Unknown'}`));
-        } else if (status === 'TIMED_OUT') {
-          console.error(`[OrderRealtime] ⏱️ Subscription timed out`);
-          onError?.(new Error('Subscription timed out'));
-        } else {
+  const clearRetryTimer = () => {
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  };
+
+  const removeActiveChannel = () => {
+    if (!channel) return;
+    supabase.removeChannel(channel);
+    channel = null;
+  };
+
+  const subscribe = () => {
+    if (isDisposed) return;
+
+    try {
+      /**
+       * POSTGRES CHANGES LISTENER (NOT Broadcast)
+       * 
+       * Filter syntax: restaurant_id=eq.{restaurantId}
+       * - Ensures only this restaurant's orders are received
+       * - Critical for multi-tenant security
+       * - Prevents cross-restaurant data leaks
+       */
+      channel = supabase
+        .channel(channelName)
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Listen to INSERT, UPDATE, DELETE
+            schema: 'public',
+            table: 'orders',
+            filter: `restaurant_id=eq.${restaurantId}`, // 🔒 SECURITY: Multi-tenant isolation
+          },
+          (payload) => {
+            const eventType = payload.eventType;
+            const orderId = payload.new?.id || payload.old?.id;
+
+            console.log(
+              `[OrderRealtime] 📦 ${eventType} event for order ${orderId?.slice(-4) || 'unknown'}`
+            );
+
+            /**
+             * CONSISTENCY STRATEGY:
+             * Don't rely on payload.new - always refetch complete data
+             * - Ensures order_items are included
+             * - Prevents stale data issues
+             * - Maintains single source of truth
+             */
+            onOrderChange();
+          }
+        )
+        .subscribe((status, err) => {
+          if (isDisposed) return;
+
+          const scheduleRetry = (reason: string) => {
+            if (retryTimer) return;
+            removeActiveChannel();
+
+            if (retryAttempt >= MAX_RETRY_ATTEMPTS) {
+              onError?.(new Error(`Real-time subscription failed after ${MAX_RETRY_ATTEMPTS} retries (${reason})`));
+              return;
+            }
+
+            retryAttempt += 1;
+            const retryDelay = Math.min(BASE_RETRY_MS * 2 ** (retryAttempt - 1), 15000);
+
+            console.warn(
+              `[OrderRealtime] ${reason}. Retrying in ${retryDelay}ms (attempt ${retryAttempt}/${MAX_RETRY_ATTEMPTS})`
+            );
+
+            retryTimer = setTimeout(() => {
+              retryTimer = null;
+              subscribe();
+            }, retryDelay);
+          };
+
+          if (status === 'SUBSCRIBED') {
+            clearRetryTimer();
+            retryAttempt = 0;
+            console.log(`[OrderRealtime] ✅ Subscribed to ${channelName}`);
+            return;
+          }
+
+          if (status === 'CHANNEL_ERROR') {
+            console.error(`[OrderRealtime] ❌ Channel error:`, err);
+            scheduleRetry(`Channel error: ${err?.message || 'Unknown'}`);
+            return;
+          }
+
+          if (status === 'TIMED_OUT') {
+            console.warn('[OrderRealtime] ⏱️ Subscription timed out');
+            scheduleRetry('Subscription timed out');
+            return;
+          }
+
+          if (status === 'CLOSED') {
+            scheduleRetry('Channel closed unexpectedly');
+            return;
+          }
+
           console.log(`[OrderRealtime] Status: ${status}`);
-        }
-      });
+        });
 
-  } catch (error) {
-    console.error('[OrderRealtime] Failed to setup listener:', error);
-    onError?.(error instanceof Error ? error : new Error('Unknown error'));
-  }
+    } catch (error) {
+      console.error('[OrderRealtime] Failed to setup listener:', error);
+      onError?.(error instanceof Error ? error : new Error('Unknown error'));
+    }
+  };
+
+  subscribe();
 
   /**
    * CLEANUP FUNCTION
@@ -132,11 +195,12 @@ export function setupOrderRealtimeListener(config: OrderRealtimeConfig): () => v
    * - Stop receiving events
    */
   return () => {
+    isDisposed = true;
+    clearRetryTimer();
     if (channel) {
       console.log(`[OrderRealtime] 🔌 Unsubscribing from ${channelName}`);
-      supabase.removeChannel(channel);
-      channel = null;
     }
+    removeActiveChannel();
   };
 }
 

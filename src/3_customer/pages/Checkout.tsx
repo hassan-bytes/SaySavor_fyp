@@ -6,13 +6,13 @@
 //          Full address form, Stripe PaymentElement integration.
 // ROUTE: /foodie/checkout
 // ============================================================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ArrowLeft, CreditCard, Wallet,
     CheckCircle2, Loader2, MapPin,
-    Home, Building2, Plus, ChevronDown,
+    Home, Building2, ShoppingCart, Plus, ChevronDown,
     ShieldCheck, Info, Phone
 } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
@@ -74,6 +74,104 @@ interface DeliveryAddress {
     fullAddress: string;
     phone: string;
 }
+
+interface CustomerProfileSettings {
+    defaultInstruction?: string;
+    defaultAddress?: string;
+    defaultPhone?: string;
+}
+
+interface PromotionCandidate {
+    id: string;
+    code: string;
+    discount_type: 'percent' | 'flat';
+    discount_value: number;
+    max_discount: number | null;
+    min_order: number | null;
+    starts_at: string | null;
+    ends_at: string | null;
+}
+
+const PROFILE_SETTINGS_KEY = 'ss_customer_profile_settings';
+
+const readProfileSettings = (): CustomerProfileSettings => {
+    try {
+        const raw = localStorage.getItem(PROFILE_SETTINGS_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw) as CustomerProfileSettings;
+        return {
+            defaultInstruction: typeof parsed.defaultInstruction === 'string' ? parsed.defaultInstruction : '',
+            defaultAddress: typeof parsed.defaultAddress === 'string' ? parsed.defaultAddress : '',
+            defaultPhone: typeof parsed.defaultPhone === 'string' ? parsed.defaultPhone : '',
+        };
+    } catch {
+        return {};
+    }
+};
+
+type OrderMode = 'DELIVERY' | 'PICKUP' | 'DINE_IN';
+
+interface RestaurantRules {
+    name: string;
+    minOrder: number | null;
+    isDeliveryEnabled: boolean;
+    operatingDays: string[];
+    opensAt: string | null;
+    closesAt: string | null;
+    isOpenNow: boolean;
+}
+
+const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const parseTimeToMinutes = (value?: string | null): number | null => {
+    if (!value || typeof value !== 'string') return null;
+    const raw = value.trim();
+    if (!raw) return null;
+
+    const ampm = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (ampm) {
+        let h = Number(ampm[1]);
+        const m = Number(ampm[2]);
+        const p = ampm[3].toUpperCase();
+        if (p === 'PM' && h < 12) h += 12;
+        if (p === 'AM' && h === 12) h = 0;
+        if (Number.isNaN(h) || Number.isNaN(m)) return null;
+        return h * 60 + m;
+    }
+
+    const parts = raw.split(':');
+    if (parts.length !== 2) return null;
+    const h = Number(parts[0]);
+    const m = Number(parts[1]);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    return h * 60 + m;
+};
+
+const isRestaurantOpenNow = (
+    opensAt: string | null,
+    closesAt: string | null,
+    operatingDays: string[]
+): boolean => {
+    const now = new Date();
+    const today = WEEK_DAYS[now.getDay()];
+
+    if (operatingDays.length > 0 && !operatingDays.includes(today)) {
+        return false;
+    }
+
+    const openMins = parseTimeToMinutes(opensAt);
+    const closeMins = parseTimeToMinutes(closesAt);
+    if (openMins === null || closeMins === null) {
+        return true;
+    }
+
+    const currentMins = now.getHours() * 60 + now.getMinutes();
+    if (openMins === closeMins) return true;
+    if (closeMins > openMins) {
+        return currentMins >= openMins && currentMins <= closeMins;
+    }
+    return currentMins >= openMins || currentMins <= closeMins;
+};
 
 // ── Address validation helper ────────────────────────────────
 const validateAddress = (address: DeliveryAddress): { isValid: boolean; errors: string[] } => {
@@ -154,7 +252,7 @@ const StripePaymentForm: React.FC<{
 // ── Main Checkout Component ───────────────────────────────────
 const CheckoutPage: React.FC = () => {
     const navigate = useNavigate();
-    const { cartItems, totalAmount, clearCart, currentRestaurantId, tableNumber } = useCart();
+    const { cartItems, totalAmount, clearCart, currentRestaurantId, tableNumber, setTableNumber } = useCart();
     const { customer } = useCustomerAuth();
 
     const [loading, setLoading] = useState(false);
@@ -166,16 +264,57 @@ const CheckoutPage: React.FC = () => {
     const [currency, setCurrency] = useState('PKR');
     const [deliveryFee, setDeliveryFee] = useState(0);
     const [taxPercent, setTaxPercent] = useState(0);
+    const [orderMode, setOrderMode] = useState<OrderMode>(tableNumber ? 'DINE_IN' : 'DELIVERY');
+    const [profileDefaults, setProfileDefaults] = useState<CustomerProfileSettings>(() => readProfileSettings());
+    const defaultDeliveryAddress = (profileDefaults.defaultAddress || '').trim();
+    const defaultDeliveryPhone = (profileDefaults.defaultPhone || '').trim();
+    const [tableInput, setTableInput] = useState<string>(tableNumber || '');
+    const [restaurantRules, setRestaurantRules] = useState<RestaurantRules>({
+        name: 'Restaurant',
+        minOrder: null,
+        isDeliveryEnabled: true,
+        operatingDays: [],
+        opensAt: null,
+        closesAt: null,
+        isOpenNow: true,
+    });
+    const realtimeRefreshTimeoutRef = useRef<number | null>(null);
+    const applyPromoTimeoutRef = useRef<number | null>(null);
+    const hasHydratedRulesRef = useRef(false);
+    const lastVisibleRulesSignatureRef = useRef<string>('');
 
     // Address state
     const [selectedAddressIdx, setSelectedAddressIdx] = useState(0);
     const [showAddressForm, setShowAddressForm] = useState(false);
+    const [saveAsDefault, setSaveAsDefault] = useState(false);
+    const [promoCodeInput, setPromoCodeInput] = useState('');
+    const [appliedPromotion, setAppliedPromotion] = useState<PromotionCandidate | null>(null);
+    const [applyingPromo, setApplyingPromo] = useState(false);
     const [addresses, setAddresses] = useState<DeliveryAddress[]>([
-        { type: 'home', label: 'Home', fullAddress: '', phone: customer?.phone || '' }
+        {
+            type: 'home',
+            label: 'Home',
+            fullAddress: defaultDeliveryAddress,
+            phone: defaultDeliveryPhone || customer?.phone || '',
+        }
     ]);
     const [newAddress, setNewAddress] = useState<DeliveryAddress>({
-        type: 'home', label: 'Home', fullAddress: '', phone: ''
+        type: 'home',
+        label: 'Home',
+        fullAddress: defaultDeliveryAddress,
+        phone: defaultDeliveryPhone || customer?.phone || '',
     });
+
+    const persistCheckoutDefaults = (address: string, phone: string) => {
+        const nextDefaults: CustomerProfileSettings = {
+            ...profileDefaults,
+            defaultAddress: address.trim(),
+            defaultPhone: phone.trim(),
+        };
+
+        localStorage.setItem(PROFILE_SETTINGS_KEY, JSON.stringify(nextDefaults));
+        setProfileDefaults(nextDefaults);
+    };
 
     // Sync address phone when customer loads
     useEffect(() => {
@@ -186,31 +325,273 @@ const CheckoutPage: React.FC = () => {
         }
     }, [customer]);
 
+    useEffect(() => {
+        if (tableNumber) {
+            setOrderMode('DINE_IN');
+            setTableInput(tableNumber);
+        }
+    }, [tableNumber]);
+
+    useEffect(() => {
+        setAppliedPromotion(null);
+        setPromoCodeInput('');
+    }, [currentRestaurantId]);
+
+    const effectiveDeliveryFee = orderMode === 'DELIVERY' ? deliveryFee : 0;
     const tax = Math.round(totalAmount * (taxPercent / 100));
-    const finalTotal = totalAmount + deliveryFee + tax;
+    const promotionDiscount = useMemo(() => {
+        if (!appliedPromotion) return 0;
+
+        if (typeof appliedPromotion.min_order === 'number' && totalAmount < appliedPromotion.min_order) {
+            return 0;
+        }
+
+        let discountValue = 0;
+        if (appliedPromotion.discount_type === 'percent') {
+            discountValue = Math.round((totalAmount * appliedPromotion.discount_value) / 100);
+        } else {
+            discountValue = Math.round(appliedPromotion.discount_value);
+        }
+
+        if (typeof appliedPromotion.max_discount === 'number') {
+            discountValue = Math.min(discountValue, Math.max(0, appliedPromotion.max_discount));
+        }
+
+        return Math.max(0, Math.min(discountValue, totalAmount));
+    }, [appliedPromotion, totalAmount]);
+
+    const finalTotal = Math.max(0, totalAmount + effectiveDeliveryFee + tax - promotionDiscount);
+
+    const handleApplyPromo = async () => {
+        const normalizedCode = promoCodeInput.trim().toUpperCase();
+
+        if (!currentRestaurantId) {
+            toast.error('Restaurant context missing. Please go back and try again.');
+            return;
+        }
+
+        if (!normalizedCode) {
+            toast.error('Please enter a promo code.');
+            return;
+        }
+
+        if (appliedPromotion?.code?.toUpperCase() === normalizedCode) {
+            toast.message('This promo code is already applied.');
+            return;
+        }
+
+        setApplyingPromo(true);
+        try {
+            const abortController = new AbortController();
+            if (applyPromoTimeoutRef.current !== null) {
+                window.clearTimeout(applyPromoTimeoutRef.current);
+            }
+            applyPromoTimeoutRef.current = window.setTimeout(() => {
+                abortController.abort();
+            }, 10000);
+
+            const promotionsTable = supabase.from('promotions') as any;
+            const { data, error } = await promotionsTable
+                .select('id, code, discount_type, discount_value, max_discount, min_order, starts_at, ends_at')
+                .eq('restaurant_id', currentRestaurantId)
+                .eq('is_active', true)
+                .ilike('code', normalizedCode)
+                .limit(1)
+                .abortSignal(abortController.signal)
+                .maybeSingle();
+
+            if (error) throw error;
+            if (!data) {
+                toast.error('Promo code not found for this restaurant.');
+                return;
+            }
+
+            const normalizedPromo: PromotionCandidate = {
+                ...(data as PromotionCandidate),
+                code: String(data.code || normalizedCode).toUpperCase(),
+                discount_value: Number(data.discount_value || 0),
+                max_discount: data.max_discount === null ? null : Number(data.max_discount),
+                min_order: data.min_order === null ? null : Number(data.min_order),
+            };
+
+            const nowMs = Date.now();
+            if (normalizedPromo.starts_at && nowMs < new Date(normalizedPromo.starts_at).getTime()) {
+                toast.error('This promo is not active yet.');
+                return;
+            }
+
+            if (normalizedPromo.ends_at && nowMs > new Date(normalizedPromo.ends_at).getTime()) {
+                toast.error('This promo has expired.');
+                return;
+            }
+
+            if (typeof normalizedPromo.min_order === 'number' && totalAmount < normalizedPromo.min_order) {
+                toast.error(`Minimum order for this promo is ${formatPrice(normalizedPromo.min_order)}.`);
+                return;
+            }
+
+            setAppliedPromotion(normalizedPromo);
+            setPromoCodeInput(normalizedPromo.code);
+            toast.success('Promo code applied successfully!');
+        } catch (err: any) {
+            console.error('Promo apply failed:', err);
+            if (err?.name === 'AbortError') {
+                toast.error('Promo validation timed out. Please check your connection and try again.');
+            } else {
+                toast.error(err.message || 'Could not apply promo code.');
+            }
+        } finally {
+            if (applyPromoTimeoutRef.current !== null) {
+                window.clearTimeout(applyPromoTimeoutRef.current);
+                applyPromoTimeoutRef.current = null;
+            }
+            setApplyingPromo(false);
+        }
+    };
+
+    const handleRemovePromo = () => {
+        setAppliedPromotion(null);
+        setPromoCodeInput('');
+        toast.success('Promo code removed.');
+    };
+
+    const loadRestaurantPricingAndRules = useCallback(async () => {
+        if (!currentRestaurantId) return;
+
+        const { data } = await supabase
+            .from('restaurants')
+            .select('name, currency, delivery_fee, tax_percent, min_order, min_order_price, is_delivery, operating_days, opens_at, closes_at')
+            .eq('id', currentRestaurantId)
+            .maybeSingle();
+
+        const savedCurrency = (data as any)?.currency || 'PKR';
+        const currencyInfo = Object.values(COUNTRY_CURRENCIES).find(
+            c => c.code === savedCurrency
+        ) ?? Object.values(COUNTRY_CURRENCIES).find(c => c.code === 'PKR');
+
+        setCurrencySymbol(currencyInfo?.symbol ?? 'PKR');
+        setCurrency(savedCurrency);
+        setDeliveryFee(typeof (data as any)?.delivery_fee === 'number' ? (data as any).delivery_fee : 0);
+        setTaxPercent(typeof (data as any)?.tax_percent === 'number' ? (data as any).tax_percent : 0);
+
+        const minOrderValue = typeof (data as any)?.min_order === 'number'
+            ? (data as any).min_order
+            : (typeof (data as any)?.min_order_price === 'number' ? (data as any).min_order_price : null);
+        const opDays = Array.isArray((data as any)?.operating_days)
+            ? (data as any).operating_days.filter((d: unknown) => typeof d === 'string')
+            : [];
+        const isDeliveryEnabled = typeof (data as any)?.is_delivery === 'boolean' ? (data as any).is_delivery : true;
+        const opensAt = typeof (data as any)?.opens_at === 'string' ? (data as any).opens_at : null;
+        const closesAt = typeof (data as any)?.closes_at === 'string' ? (data as any).closes_at : null;
+
+        const nextVisibleRulesSignature = JSON.stringify({
+            currency: savedCurrency,
+            deliveryFee: typeof (data as any)?.delivery_fee === 'number' ? (data as any).delivery_fee : 0,
+            taxPercent: typeof (data as any)?.tax_percent === 'number' ? (data as any).tax_percent : 0,
+            minOrder: minOrderValue,
+            isDeliveryEnabled,
+            opensAt,
+            closesAt,
+            operatingDays: opDays,
+        });
+
+        if (
+            hasHydratedRulesRef.current
+            && lastVisibleRulesSignatureRef.current
+            && lastVisibleRulesSignatureRef.current !== nextVisibleRulesSignature
+        ) {
+            toast.message('Prices or rules updated', {
+                description: 'Latest values have been applied to your checkout.',
+                duration: 2200,
+                id: 'checkout-rules-updated',
+            });
+        }
+
+        lastVisibleRulesSignatureRef.current = nextVisibleRulesSignature;
+        hasHydratedRulesRef.current = true;
+
+        setRestaurantRules({
+            name: (data as any)?.name || 'Restaurant',
+            minOrder: minOrderValue,
+            isDeliveryEnabled,
+            operatingDays: opDays,
+            opensAt,
+            closesAt,
+            isOpenNow: isRestaurantOpenNow(opensAt, closesAt, opDays),
+        });
+
+        if (!isDeliveryEnabled) {
+            setOrderMode(prev => (prev === 'DELIVERY' ? (tableNumber ? 'DINE_IN' : 'PICKUP') : prev));
+        }
+    }, [currentRestaurantId, tableNumber]);
 
     // ── Load restaurant pricing ─────────────────────────────
     useEffect(() => {
-        const loadCurrency = async () => {
-            if (!currentRestaurantId) return;
-            const { data } = await supabase
-                .from('restaurants')
-                .select('currency, delivery_fee, tax_percent')
-                .eq('id', currentRestaurantId)
-                .maybeSingle();
+        void loadRestaurantPricingAndRules();
+    }, [loadRestaurantPricingAndRules]);
 
-            const savedCurrency = (data as any)?.currency || 'PKR';
-            const currencyInfo = Object.values(COUNTRY_CURRENCIES).find(
-                c => c.code === savedCurrency
-            ) ?? Object.values(COUNTRY_CURRENCIES).find(c => c.code === 'PKR');
+    useEffect(() => {
+        const intervalId = window.setInterval(() => {
+            setRestaurantRules((prev) => ({
+                ...prev,
+                isOpenNow: isRestaurantOpenNow(prev.opensAt, prev.closesAt, prev.operatingDays),
+            }));
+        }, 60_000);
 
-            setCurrencySymbol(currencyInfo?.symbol ?? 'PKR');
-            setCurrency(savedCurrency);
-            setDeliveryFee(typeof (data as any)?.delivery_fee === 'number' ? (data as any).delivery_fee : 0);
-            setTaxPercent(typeof (data as any)?.tax_percent === 'number' ? (data as any).tax_percent : 0);
+        return () => {
+            window.clearInterval(intervalId);
         };
-        loadCurrency();
-    }, [currentRestaurantId]);
+    }, []);
+
+    useEffect(() => {
+        if (!currentRestaurantId) return;
+
+        const trackedFields = [
+            'name',
+            'currency',
+            'delivery_fee',
+            'tax_percent',
+            'min_order',
+            'min_order_price',
+            'is_delivery',
+            'operating_days',
+            'opens_at',
+            'closes_at',
+        ];
+
+        const channel = supabase
+            .channel(`checkout-restaurant-live-${currentRestaurantId}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'restaurants',
+                filter: `id=eq.${currentRestaurantId}`,
+            }, (payload) => {
+                const nextRow = payload.new as any;
+                const prevRow = payload.old as any;
+                const changed = trackedFields.some((field) => (
+                    JSON.stringify(nextRow?.[field]) !== JSON.stringify(prevRow?.[field])
+                ));
+
+                if (!changed) return;
+
+                if (realtimeRefreshTimeoutRef.current !== null) {
+                    window.clearTimeout(realtimeRefreshTimeoutRef.current);
+                }
+
+                realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
+                    void loadRestaurantPricingAndRules();
+                }, 250);
+            })
+            .subscribe();
+
+        return () => {
+            if (realtimeRefreshTimeoutRef.current !== null) {
+                window.clearTimeout(realtimeRefreshTimeoutRef.current);
+            }
+            void supabase.removeChannel(channel);
+        };
+    }, [currentRestaurantId, loadRestaurantPricingAndRules]);
 
     // ── Create PaymentIntent when ONLINE is selected ─────────
     useEffect(() => {
@@ -227,8 +608,10 @@ const CheckoutPage: React.FC = () => {
                             currency: currency.toLowerCase(),
                             restaurantId: currentRestaurantId,
                             metadata: {
-                                order_type: tableNumber ? 'DINE_IN' : 'DELIVERY',
+                                order_type: orderMode,
+                                order_mode: orderMode,
                                 source: 'checkout_page',
+                                promo_code: appliedPromotion?.code || '',
                             },
                         }
                     }
@@ -248,7 +631,7 @@ const CheckoutPage: React.FC = () => {
         };
 
         createIntent();
-    }, [paymentMethod, finalTotal, currency, currentRestaurantId]);
+    }, [paymentMethod, finalTotal, currency, currentRestaurantId, orderMode, appliedPromotion?.code]);
 
     const formatPrice = (price: number): string =>
         `${currencySymbol}\u00A0${price.toLocaleString('en', { maximumFractionDigits: 0 })}`;
@@ -257,9 +640,33 @@ const CheckoutPage: React.FC = () => {
 
     // ── Validate address ─────────────────────────────────────
     const validateBeforeOrder = (): boolean => {
-        // If it's a Dine-in order (table number exists), address is less critical but still good to have.
-        // However, the current UI requires it. I'll keep it required for now or make it optional for dine-in.
-        if (!tableNumber) {
+        if (!restaurantRules.isOpenNow) {
+            toast.error(`${restaurantRules.name} is currently closed.`);
+            return false;
+        }
+
+        if (typeof restaurantRules.minOrder === 'number' && totalAmount < restaurantRules.minOrder) {
+            toast.error(`Minimum order is ${formatPrice(restaurantRules.minOrder)}.`);
+            return false;
+        }
+
+        if (orderMode === 'DELIVERY' && !restaurantRules.isDeliveryEnabled) {
+            toast.error('Delivery is currently unavailable for this restaurant.');
+            return false;
+        }
+
+        if (orderMode === 'DINE_IN') {
+            const resolvedTable = (tableInput || tableNumber || '').trim();
+            if (!resolvedTable) {
+                toast.error('Please enter table number for dine-in order.');
+                return false;
+            }
+            setTableNumber(resolvedTable);
+        } else if (tableNumber) {
+            setTableNumber(null);
+        }
+
+        if (orderMode === 'DELIVERY') {
             if (!selectedAddress?.fullAddress?.trim()) {
                 toast.error('Please add a delivery address before placing order.');
                 setShowAddressForm(true);
@@ -298,17 +705,24 @@ const CheckoutPage: React.FC = () => {
                 customer_id: identifier,
                 restaurant_id: currentRestaurantId,
                 total_amount: finalTotal,
-                delivery_fee: deliveryFee,
+                delivery_fee: effectiveDeliveryFee,
                 tax_amount: tax,
+                discount_amount: promotionDiscount,
                 items: cartItems,
                 payment_method: 'COD',
-                delivery_address: selectedAddress.fullAddress ? `${selectedAddress.fullAddress} | ${selectedAddress.phone}` : `Dine-in Order | ${selectedAddress.phone}`,
+                delivery_address: orderMode === 'DELIVERY'
+                    ? `${selectedAddress.fullAddress} | ${selectedAddress.phone}`
+                    : orderMode === 'PICKUP'
+                        ? `Pickup Order | ${selectedAddress.phone}`
+                        : `Dine-in | Table ${(tableInput || tableNumber || '').trim()} | ${selectedAddress.phone}`,
+                delivery_phone: selectedAddress.phone,
                 is_guest: isGuest,
-                table_number: tableNumber,
+                table_number: orderMode === 'DINE_IN' ? (tableInput || tableNumber || null) : null,
+                order_type: orderMode,
             });
 
             toast.success('Order placed! 🎉', {
-                description: 'Aapka order mil gaya hai. Jald hi deliver hoga!'
+                description: 'Your order has been received and will be delivered soon!'
             });
             clearCart();
             navigate(`/foodie/track/${order.id}`);
@@ -342,14 +756,21 @@ const CheckoutPage: React.FC = () => {
                 customer_id: identifier,
                 restaurant_id: currentRestaurantId,
                 total_amount: finalTotal,
-                delivery_fee: deliveryFee,
+                delivery_fee: effectiveDeliveryFee,
                 tax_amount: tax,
+                discount_amount: promotionDiscount,
                 items: cartItems,
                 payment_method: 'ONLINE',
-                delivery_address: selectedAddress.fullAddress ? `${selectedAddress.fullAddress} | ${selectedAddress.phone}` : `Dine-in Order | ${selectedAddress.phone}`,
+                delivery_address: orderMode === 'DELIVERY'
+                    ? `${selectedAddress.fullAddress} | ${selectedAddress.phone}`
+                    : orderMode === 'PICKUP'
+                        ? `Pickup Order | ${selectedAddress.phone}`
+                        : `Dine-in | Table ${(tableInput || tableNumber || '').trim()} | ${selectedAddress.phone}`,
+                delivery_phone: selectedAddress.phone,
                 is_guest: isGuest,
                 stripe_payment_intent_id: paymentIntentId,
-                table_number: tableNumber,
+                table_number: orderMode === 'DINE_IN' ? (tableInput || tableNumber || null) : null,
+                order_type: orderMode,
             });
 
             toast.success('Payment successful! 🎉');
@@ -406,12 +827,74 @@ const CheckoutPage: React.FC = () => {
 
             <main className="max-w-2xl mx-auto p-4 space-y-6">
 
-                {/* ── 1. DELIVERY ADDRESS ──────────────────── */}
+                {/* ── 1. ORDER MODE ───────────────────────── */}
                 <section>
-                    <h2 className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-3">Delivery Address</h2>
+                    <h2 className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-3">Order Mode</h2>
+                    <div className="grid grid-cols-3 gap-2">
+                        {([
+                            { key: 'DELIVERY', label: 'Delivery', icon: MapPin, disabled: !restaurantRules.isDeliveryEnabled },
+                            { key: 'PICKUP', label: 'Pickup', icon: ShoppingCart, disabled: false },
+                            { key: 'DINE_IN', label: 'Dine-in', icon: Building2, disabled: false },
+                        ] as const).map((mode) => {
+                            const Icon = mode.icon;
+                            const active = orderMode === mode.key;
+                            return (
+                                <button
+                                    key={mode.key}
+                                    onClick={() => {
+                                        if (mode.disabled) return;
+                                        setOrderMode(mode.key);
+                                    }}
+                                    disabled={mode.disabled}
+                                    className={`p-3 rounded-2xl border transition-all ${active
+                                        ? 'bg-orange-500/10 border-orange-500 text-orange-500'
+                                        : 'bg-white/5 border-white/10 text-white/50'} disabled:opacity-40 disabled:cursor-not-allowed`}
+                                >
+                                    <div className="flex flex-col items-center gap-1.5">
+                                        <Icon className="w-5 h-5" />
+                                        <p className="text-[10px] font-black uppercase tracking-widest">{mode.label}</p>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {orderMode === 'DINE_IN' && (
+                        <div className="mt-3">
+                            <label className="text-[10px] font-black text-white/30 uppercase tracking-widest block mb-1">
+                                Table Number *
+                            </label>
+                            <input
+                                type="text"
+                                value={tableInput}
+                                onChange={(event) => setTableInput(event.target.value)}
+                                placeholder="e.g. T12"
+                                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 focus:border-orange-500/50 outline-none text-sm text-white placeholder:text-white/20"
+                            />
+                        </div>
+                    )}
+
+                    {!restaurantRules.isOpenNow && (
+                        <p className="mt-3 text-xs text-red-400 font-semibold">
+                            {restaurantRules.name} appears closed right now. Ordering may fail until it opens.
+                        </p>
+                    )}
+                </section>
+
+                {/* ── 2. ADDRESS / CONTACT ─────────────────── */}
+                <section>
+                    <h2 className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-3">
+                        {orderMode === 'DELIVERY' ? 'Delivery Address' : 'Contact Details'}
+                    </h2>
+
+                    {(defaultDeliveryAddress || defaultDeliveryPhone) && (
+                        <p className="text-[11px] mb-2 text-white/45">
+                            Default contact loaded from profile settings. You can edit it below for this order.
+                        </p>
+                    )}
 
                     {addresses.map((addr, idx) => (
-                        addr.fullAddress ? (
+                        (orderMode === 'DELIVERY' ? addr.fullAddress : addr.phone) ? (
                             <motion.div
                                 key={idx}
                                 initial={{ opacity: 0, y: 10 }}
@@ -429,7 +912,9 @@ const CheckoutPage: React.FC = () => {
                                     </div>
                                     <div className="flex-1">
                                         <p className="text-xs font-black uppercase tracking-wide text-white/60">{addr.label}</p>
-                                        <p className="text-sm font-bold text-white mt-0.5">{addr.fullAddress}</p>
+                                        {orderMode === 'DELIVERY' && (
+                                            <p className="text-sm font-bold text-white mt-0.5">{addr.fullAddress}</p>
+                                        )}
                                         {addr.phone && (
                                             <p className="text-xs text-white/40 mt-1 flex items-center gap-1">
                                                 <Phone className="w-3 h-3" /> {addr.phone}
@@ -445,7 +930,7 @@ const CheckoutPage: React.FC = () => {
                     ))}
 
                     {/* Add address prompt if no address */}
-                    {!addresses[0]?.fullAddress && (
+                    {orderMode === 'DELIVERY' && !addresses[0]?.fullAddress && (
                         <div
                             className="p-4 rounded-2xl border border-dashed border-white/20 flex items-center gap-3 text-white/40"
                         >
@@ -463,7 +948,9 @@ const CheckoutPage: React.FC = () => {
                         className="mt-2 flex items-center gap-2 text-xs font-bold text-orange-500 py-2 px-3 rounded-xl hover:bg-orange-500/10 transition-colors"
                     >
                         <Plus className="w-4 h-4" />
-                        {addresses[0]?.fullAddress ? 'Edit / Add New Address' : 'Add Delivery Address'}
+                        {orderMode === 'DELIVERY'
+                            ? (addresses[0]?.fullAddress ? 'Edit / Add New Address' : 'Add Delivery Address')
+                            : 'Edit Contact'}
                         <ChevronDown className={`w-4 h-4 transition-transform ${showAddressForm ? 'rotate-180' : ''}`} />
                     </button>
 
@@ -495,6 +982,19 @@ const CheckoutPage: React.FC = () => {
                                         ))}
                                     </div>
 
+                                    {(defaultDeliveryAddress || defaultDeliveryPhone) && (
+                                        <button
+                                            onClick={() => setNewAddress((prev) => ({
+                                                ...prev,
+                                                fullAddress: defaultDeliveryAddress,
+                                                phone: defaultDeliveryPhone || prev.phone,
+                                            }))}
+                                            className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-white/70 w-full"
+                                        >
+                                            Use Default Address
+                                        </button>
+                                    )}
+
                                     {/* Full Address */}
                                     <div>
                                         <label className="text-[10px] font-black text-white/30 uppercase tracking-widest block mb-1">
@@ -525,30 +1025,59 @@ const CheckoutPage: React.FC = () => {
 
                                     <button
                                         onClick={() => {
-                                            if (!newAddress.fullAddress.trim()) {
+                                            const normalizedAddress: DeliveryAddress = {
+                                                ...newAddress,
+                                                fullAddress: newAddress.fullAddress.trim(),
+                                                phone: newAddress.phone.trim(),
+                                            };
+
+                                            if (orderMode === 'DELIVERY' && !normalizedAddress.fullAddress) {
                                                 toast.error('Please enter full address');
                                                 return;
                                             }
-                                            if (!newAddress.phone.trim()) {
+
+                                            if (!normalizedAddress.phone) {
                                                 toast.error('Please enter phone number');
                                                 return;
                                             }
-                                            setAddresses([newAddress]);
+
+                                            setAddresses([normalizedAddress]);
                                             setSelectedAddressIdx(0);
                                             setShowAddressForm(false);
-                                            toast.success('Address saved!');
+
+                                            if (saveAsDefault) {
+                                                const defaultAddressToSave = orderMode === 'DELIVERY'
+                                                    ? normalizedAddress.fullAddress
+                                                    : (defaultDeliveryAddress || normalizedAddress.fullAddress);
+
+                                                persistCheckoutDefaults(defaultAddressToSave, normalizedAddress.phone);
+                                                setSaveAsDefault(false);
+                                                toast.success('Address saved and set as default!');
+                                            } else {
+                                                toast.success('Address saved!');
+                                            }
                                         }}
                                         className="w-full py-3 rounded-xl bg-orange-500 text-white font-black text-sm"
                                     >
                                         Save Address ✓
                                     </button>
+
+                                    <label className="flex items-center gap-2 mt-2 text-xs text-white/60 font-semibold">
+                                        <input
+                                            type="checkbox"
+                                            checked={saveAsDefault}
+                                            onChange={(event) => setSaveAsDefault(event.target.checked)}
+                                            className="w-4 h-4 rounded border border-white/20 bg-white/5"
+                                        />
+                                        Use this as default for next checkout
+                                    </label>
                                 </div>
                             </motion.div>
                         )}
                     </AnimatePresence>
                 </section>
 
-                {/* ── 2. PAYMENT METHOD ────────────────────── */}
+                {/* ── 3. PAYMENT METHOD ────────────────────── */}
                 <section>
                     <h2 className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-3">Payment Method</h2>
                     <div className={`grid gap-3 ${stripePromise ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -583,7 +1112,7 @@ const CheckoutPage: React.FC = () => {
                     </div>
                 </section>
 
-                {/* ── 3. STRIPE PAYMENT FORM ───────────────── */}
+                {/* ── 4. STRIPE PAYMENT FORM ───────────────── */}
                 <AnimatePresence>
                     {stripePromise && paymentMethod === 'ONLINE' && (
                         <motion.section
@@ -630,20 +1159,62 @@ const CheckoutPage: React.FC = () => {
                     )}
                 </AnimatePresence>
 
-                {/* ── 4. BILL SUMMARY ──────────────────────── */}
+                {/* ── 5. BILL SUMMARY ──────────────────────── */}
                 <section className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
                     <h2 className="text-white/40 text-[10px] font-black uppercase tracking-widest">Bill Summary</h2>
+
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10 space-y-2">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Promo Code</p>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={promoCodeInput}
+                                onChange={(event) => setPromoCodeInput(event.target.value.toUpperCase())}
+                                placeholder="Enter code"
+                                className="flex-1 h-10 px-3 rounded-xl bg-white/5 border border-white/10 focus:border-orange-500/50 outline-none text-sm text-white placeholder:text-white/30 uppercase"
+                            />
+                            <button
+                                onClick={handleApplyPromo}
+                                disabled={applyingPromo || !promoCodeInput.trim()}
+                                className="h-10 px-4 rounded-xl bg-orange-500 text-white text-xs font-black uppercase tracking-wider disabled:opacity-50"
+                            >
+                                {applyingPromo ? 'Applying...' : 'Apply'}
+                            </button>
+                        </div>
+
+                        {appliedPromotion && (
+                            <div className="flex items-center justify-between gap-3 text-xs text-green-400">
+                                <span className="font-bold">
+                                    Applied: {appliedPromotion.code}
+                                    {typeof appliedPromotion.min_order === 'number' && totalAmount < appliedPromotion.min_order
+                                        ? ` (Min ${formatPrice(appliedPromotion.min_order)} not met)`
+                                        : ''}
+                                </span>
+                                <button
+                                    onClick={handleRemovePromo}
+                                    className="text-red-400 font-bold hover:text-red-300"
+                                >
+                                    Remove
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
                     <div className="flex justify-between text-white/60 text-sm">
                         <span>Items Total</span>
                         <span>{formatPrice(totalAmount)}</span>
                     </div>
                     <div className="flex justify-between text-white/60 text-sm">
-                        <span>Delivery Fee</span>
-                        <span>{formatPrice(deliveryFee)}</span>
+                        <span>{orderMode === 'DELIVERY' ? 'Delivery Fee' : 'Delivery Fee (Not Applied)'}</span>
+                        <span>{formatPrice(effectiveDeliveryFee)}</span>
                     </div>
-                    <div className="flex justify-between text-white/60 text-sm pb-3 border-b border-white/5">
+                    <div className="flex justify-between text-white/60 text-sm">
                         <span>{taxPercent > 0 ? `Tax (${taxPercent}%)` : 'Tax'}</span>
                         <span>{formatPrice(tax)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm pb-3 border-b border-white/5 text-green-400">
+                        <span>Promo Discount</span>
+                        <span>-{formatPrice(promotionDiscount)}</span>
                     </div>
                     <div className="flex justify-between items-center">
                         <span className="font-black text-white">Total Payable</span>
@@ -651,7 +1222,7 @@ const CheckoutPage: React.FC = () => {
                     </div>
                 </section>
 
-                {/* ── 5. PLACE ORDER BUTTON ────────────────── */}
+                {/* ── 6. PLACE ORDER BUTTON ────────────────── */}
                 {paymentMethod === 'COD' ? (
                     <motion.button
                         whileTap={{ scale: 0.98 }}

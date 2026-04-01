@@ -31,14 +31,16 @@ CREATE POLICY "Partners can manage restaurants"
   ON public.restaurants
   FOR ALL
   USING (
-    EXISTS (
+    owner_id = auth.uid()
+    AND EXISTS (
       SELECT 1 FROM public.user_roles ur
       JOIN public.roles r ON ur.role_id = r.id
       WHERE ur.user_id = auth.uid() AND r.name = 'partner'
     )
   )
   WITH CHECK (
-    EXISTS (
+    owner_id = auth.uid()
+    AND EXISTS (
       SELECT 1 FROM public.user_roles ur
       JOIN public.roles r ON ur.role_id = r.id
       WHERE ur.user_id = auth.uid() AND r.name = 'partner'
