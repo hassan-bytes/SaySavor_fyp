@@ -1,7 +1,7 @@
 ﻿// ============================================================
 // FILE: LanguageContext.tsx
 // SECTION: shared > contexts
-// PURPOSE: Manages app-wide language state for English and Urdu.
+// PURPOSE: Manages app-wide language state for English, Urdu, Arabic, Hindi, Spanish, French, Chinese, and Turkish.
 //          Stores translation data used across the application.
 //          Components can access translations through the useLanguage() hook.
 // ============================================================
