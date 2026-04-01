@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Receipt, Calendar, Filter, Download, Search, 
@@ -9,6 +9,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { toast } from 'sonner';
 import { Order } from '@/shared/types/orderTypes';
 import { getPaymentStatusLabel, getPaymentStatusColor, isPaymentComplete, PaymentStatus } from '@/shared/types/paymentTypes';
+import type { DealItem } from '@/shared/types/menu';
 
 interface HistoryTabProps {
   orders: Order[];
@@ -21,6 +22,59 @@ const HistoryTab: React.FC<HistoryTabProps> = ({ orders, fmt, onOrdersUpdated })
   const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'all'>('today');
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [dealItemsByMenuId, setDealItemsByMenuId] = useState<Record<string, DealItem[]>>({});
+
+  const dealMenuItemIds = useMemo(() => {
+    const ids = new Set<string>();
+    orders.forEach(order => {
+      order.order_items?.forEach(item => {
+        if (item.menu_item_id) ids.add(item.menu_item_id);
+      });
+    });
+    return Array.from(ids);
+  }, [orders]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchDealItems = async () => {
+      if (dealMenuItemIds.length === 0) {
+        setDealItemsByMenuId({});
+        return;
+      }
+
+      try {
+        const chunkSize = 100;
+        const nextMap: Record<string, DealItem[]> = {};
+
+        for (let i = 0; i < dealMenuItemIds.length; i += chunkSize) {
+          const chunk = dealMenuItemIds.slice(i, i + chunkSize);
+          const { data, error } = await (supabase as any)
+            .from('menu_items')
+            .select('id, item_type, deal_items')
+            .in('id', chunk)
+            .eq('item_type', 'deal');
+
+          if (error) throw error;
+
+          (data || []).forEach((row: any) => {
+            if (row?.deal_items?.length) {
+              nextMap[row.id] = row.deal_items as DealItem[];
+            }
+          });
+        }
+
+        if (!cancelled) setDealItemsByMenuId(nextMap);
+      } catch (err: any) {
+        if (!cancelled) {
+          console.error('[HistoryTab] Failed to load deal items:', err?.message || err);
+        }
+      }
+    };
+
+    fetchDealItems();
+    return () => { cancelled = true; };
+  }, [dealMenuItemIds]);
 
   // Filter completed/delivered orders
   const completedOrders = useMemo(() => {
@@ -272,6 +326,34 @@ const HistoryTab: React.FC<HistoryTabProps> = ({ orders, fmt, onOrdersUpdated })
                               {item.item_notes && (
                                 <p className="text-slate-500 text-xs">{item.item_notes}</p>
                               )}
+                              {item.menu_item_id && dealItemsByMenuId[item.menu_item_id]?.length ? (
+                                <div className="mt-1 flex flex-wrap gap-2">
+                                  {dealItemsByMenuId[item.menu_item_id].slice(0, 4).map((dealItem, dealIdx) => {
+                                    const qty = typeof dealItem.quantity === 'number' && dealItem.quantity > 0
+                                      ? dealItem.quantity
+                                      : 1;
+                                    return (
+                                      <span
+                                        key={`${item.menu_item_id}-deal-${dealIdx}`}
+                                        className="text-[10px] text-slate-300 bg-white/5 px-2 py-1 rounded-full border border-white/10 flex items-center gap-1"
+                                      >
+                                        <span>{dealItem.item_name || 'Item'}</span>
+                                        <span className="text-slate-400">x{qty}</span>
+                                        {dealItem.is_free && (
+                                          <span className="ml-1 text-[9px] font-black uppercase tracking-widest text-emerald-300 bg-emerald-500/15 px-1.5 py-0.5 rounded-full border border-emerald-500/30">
+                                            Free
+                                          </span>
+                                        )}
+                                      </span>
+                                    );
+                                  })}
+                                  {dealItemsByMenuId[item.menu_item_id].length > 4 && (
+                                    <span className="text-[10px] text-slate-400 bg-white/5 px-2 py-1 rounded-full border border-white/10">
+                                      +{dealItemsByMenuId[item.menu_item_id].length - 4} more
+                                    </span>
+                                  )}
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                           <p className="text-slate-400 font-medium">{fmt(item.total_price)}</p>

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { toast } from 'sonner';
+import { isPaymentComplete } from '@/shared/types/paymentTypes';
 
 // ── Types ─────────────────────────────────────────────────────
 interface OrderItem {
@@ -91,13 +92,16 @@ const fmtDateTime = (d: string) =>
 const OrderCard = React.forwardRef<HTMLDivElement, {
   order: Order;
   onStatusUpdate: (id: string, status: string) => void;
+  onMarkPaid?: (id: string) => void;
   updating: string | null;
   defaultExpanded?: boolean;
-}>(({ order, onStatusUpdate, updating, defaultExpanded = false }, ref) => {
+}>(({ order, onStatusUpdate, onMarkPaid, updating, defaultExpanded = false }, ref) => {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const cfg = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
   const Icon = cfg.icon;
   const isDineIn = order.order_type === 'DINE_IN' || order.order_type === 'dine_in';
+  const paymentMethod = (order.payment_method || '').toUpperCase();
+  const canMarkPaid = ['ONLINE', 'CARD'].includes(paymentMethod) && !isPaymentComplete(order.payment_status);
 
   return (
     <motion.div
@@ -262,6 +266,15 @@ const OrderCard = React.forwardRef<HTMLDivElement, {
                         : cfg.nextLabel}
                     </button>
                   )}
+                  {canMarkPaid && onMarkPaid && (
+                    <button
+                      onClick={() => onMarkPaid(order.id)}
+                      disabled={updating === order.id}
+                      className="px-4 py-3 rounded-xl text-xs font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+                    >
+                      Mark Paid
+                    </button>
+                  )}
                   {(order.status === 'pending' || order.status === 'confirmed') && (
                     <button
                       onClick={() => { if (window.confirm('Cancel this order?')) onStatusUpdate(order.id, 'cancelled'); }}
@@ -418,6 +431,24 @@ const PartnerOrders: React.FC<{ restaurantId: string }> = ({ restaurantId }) => 
       toast.success(`Order → ${newStatus}`);
     } catch (err: any) {
       toast.error(err.message || 'Update failed');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const handleMarkPaid = async (orderId: string) => {
+    setUpdating(orderId);
+    try {
+      const { error } = await (supabase
+        .from('orders') as any)
+        .update({ payment_status: 'PAID', updated_at: new Date().toISOString() })
+        .eq('id', orderId);
+
+      if (error) throw error;
+      setAllOrders(prev => prev.map(o => o.id === orderId ? { ...o, payment_status: 'PAID' } : o));
+      toast.success(`Payment marked as PAID for #${orderId.slice(-6).toUpperCase()}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to mark paid');
     } finally {
       setUpdating(null);
     }
@@ -656,6 +687,7 @@ const PartnerOrders: React.FC<{ restaurantId: string }> = ({ restaurantId }) => 
                 key={order.id}
                 order={order}
                 onStatusUpdate={handleStatusUpdate}
+                onMarkPaid={handleMarkPaid}
                 updating={updating}
                 defaultExpanded={order.status === 'pending' && mainTab === 'live'}
               />

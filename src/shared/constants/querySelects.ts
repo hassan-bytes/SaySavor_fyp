@@ -34,7 +34,7 @@
  *   .from('orders')
  *   .select(ORDER_WITH_ITEMS_SELECT)
  *   .eq('restaurant_id', restaurantId)
- *   .in('status', ['pending', 'accepted', 'cooking', 'ready']);
+ *   .in('status', ['pending', 'confirmed', 'cooking', 'ready']);
  * 
  * // HistoryTab.tsx
  * const { data } = await supabase
@@ -122,7 +122,7 @@ export const ORDER_WITH_ITEMS_SELECT = `
  *   .from('orders')
  *   .select(ORDER_SUMMARY_SELECT)
  *   .eq('restaurant_id', restaurantId)
- *   .in('status', ['pending', 'accepted', 'cooking']);
+ *   .in('status', ['pending', 'confirmed', 'cooking']);
  * ```
  * 
  * @constant
@@ -177,13 +177,13 @@ export const ORDER_ITEMS_ONLY_SELECT = `
  */
 export const ORDER_FILTERS = {
   /** Active orders (not delivered or cancelled) */
-  ACTIVE: ['pending', 'accepted', 'cooking', 'ready'],
+  ACTIVE: ['pending', 'confirmed', 'cooking', 'ready'],
   
   /** Completed orders */
   COMPLETED: ['delivered', 'cancelled'],
   
   /** Kitchen workflow statuses */
-  KITCHEN: ['pending', 'accepted', 'cooking', 'ready'],
+  KITCHEN: ['pending', 'confirmed', 'cooking', 'ready'],
   
   /** Pending payment */
   UNPAID: (paymentStatus: string) => paymentStatus !== 'PAID',

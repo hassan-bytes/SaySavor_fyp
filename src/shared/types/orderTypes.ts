@@ -17,7 +17,7 @@
 
 export const ORDER_STATUS = {
   PENDING: 'pending',       // New order, needs acceptance
-  ACCEPTED: 'accepted',     // Accepted, waiting for cooking
+  ACCEPTED: 'confirmed',    // Confirmed (accepted), waiting for cooking
   COOKING: 'cooking',       // Currently being prepared
   READY: 'ready',           // Ready for delivery/pickup
   DELIVERED: 'delivered',   // Completed

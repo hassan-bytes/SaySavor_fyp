@@ -12,48 +12,17 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Search, MapPin, ShoppingCart, Star, Clock,
-    ChevronRight, Flame, Zap, Gift, Bell, LogOut,
-    Filter, ChevronDown, X
+    ChevronRight, Flame, Gift,
+    ChevronDown, X, SlidersHorizontal
 } from 'lucide-react';
-import { supabase } from '@/shared/lib/supabaseClient';
 import { useCustomerAuth } from '@/3_customer/context/CustomerAuthContext';
 import { useNearbyRestaurants } from '@/3_customer/hooks/useNearbyRestaurants';
+import { useCustomerLocation } from '@/3_customer/hooks/useCustomerLocation';
+import { usePromotions } from '@/3_customer/hooks/usePromotions';
 import type { RestaurantCard } from '@/3_customer/types/customer';
 import { COUNTRY_CURRENCIES } from '@/shared/lib/currencyUtils';
 import { useCart } from '@/3_customer/context/CartContext';
 
-// ── Cuisine category chips ─────────────────────────────────────
-const CUISINE_CHIPS = [
-    { id: 'all',      emoji: '🔥', label: 'All' },
-    { id: 'biryani',  emoji: '🍚', label: 'Biryani' },
-    { id: 'fast_food',emoji: '🍔', label: 'Fast Food' },
-    { id: 'bakery',   emoji: '🥐', label: 'Bakery' },
-    { id: 'desi',     emoji: '🍛', label: 'Desi' },
-    { id: 'beverages',emoji: '🧃', label: 'Beverages' },
-    { id: 'sea_food', emoji: '🦞', label: 'Sea Food' },
-    { id: 'pizza',    emoji: '🍕', label: 'Pizza' },
-    { id: 'bbq',      emoji: '🔥', label: 'BBQ' },
-];
-
-// ── Static Today's Deals (will be real later) ──────────────────
-const TODAYS_DEALS = [
-    {
-        id: 'd1',
-        badge: '50% OFF',
-        badgeColor: '#FF6B35',
-        title: 'Buy 1 Get 1 Free on Large Pizzas',
-        restaurant: 'Authentic, The Italian Kitchen',
-        imageUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=300&q=70',
-    },
-    {
-        id: 'd2',
-        badge: '20% OFF',
-        badgeColor: '#22c55e',
-        title: 'Flat 20% OFF on Weekend Family Buckets',
-        restaurant: 'Authentic, Dish Kitchen',
-        imageUrl: 'https://images.unsplash.com/photo-1562967914-608f82629710?w=300&q=70',
-    },
-];
 
 // ── Skeleton loader card ───────────────────────────────────────
 const SkeletonCard: React.FC = () => (
@@ -141,7 +110,7 @@ const RestaurantCard3D: React.FC<{
                         </div>
                     )}
                     {/* Free Delivery badge */}
-                    {(restaurant.delivery_fee === 0 || restaurant.delivery_fee === null) && (
+                    {restaurant.delivery_fee === 0 && (
                         <div
                             className="absolute top-3 left-3 px-2 py-1 rounded-lg text-white text-xs font-bold"
                             style={{ background: 'rgba(34,197,94,0.9)', backdropFilter: 'blur(4px)' }}
@@ -185,6 +154,12 @@ const RestaurantCard3D: React.FC<{
                                 {restaurant.delivery_time_min} min
                             </span>
                         )}
+                        {typeof restaurant.distance_km === 'number' && (
+                            <span className="flex items-center gap-1">
+                                <MapPin className="w-3.5 h-3.5" />
+                                {restaurant.distance_km.toFixed(1)} km
+                            </span>
+                        )}
                         {restaurant.min_order && (
                             <span>Min {formatPrice(restaurant.min_order)}</span>
                         )}
@@ -198,14 +173,108 @@ const RestaurantCard3D: React.FC<{
 // ── Main Component ─────────────────────────────────────────────
 const CustomerHome: React.FC = () => {
     const navigate = useNavigate();
-    const { customer, isGuest, logout } = useCustomerAuth();
+    const { customer, isGuest } = useCustomerAuth();
     const { totalCount } = useCart();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [activeChip, setActiveChip] = useState('all');
     const [showSearch, setShowSearch] = useState(false);
+    const [showFilters, setShowFilters] = useState(false);
+    const [sortBy, setSortBy] = useState<'recommended' | 'fastest' | 'lowest_fee' | 'top_rated'>('recommended');
+    const [maxFee, setMaxFee] = useState('');
+    const [maxEta, setMaxEta] = useState('');
+    const [maxMinOrder, setMaxMinOrder] = useState('');
+    const [maxDistanceKm, setMaxDistanceKm] = useState('10');
+    const [freeDeliveryOnly, setFreeDeliveryOnly] = useState(false);
+    const [openFilter, setOpenFilter] = useState<'open' | 'all' | 'closed'>('open');
 
-    const { restaurants: filteredRestaurants, loading } = useNearbyRestaurants(searchQuery, activeChip);
+    const {
+        location,
+        status: locationStatus,
+        error: locationError,
+        requestLocation,
+    } = useCustomerLocation();
+
+    const toNumberOrNull = (value: string): number | null => {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        const num = Number(trimmed);
+        return Number.isFinite(num) ? num : null;
+    };
+
+    const { restaurants: filteredRestaurants, loading, cuisineOptions } = useNearbyRestaurants(
+        searchQuery,
+        activeChip,
+        {
+            sortBy,
+            maxFee: toNumberOrNull(maxFee),
+            maxEta: toNumberOrNull(maxEta),
+            maxMinOrder: toNumberOrNull(maxMinOrder),
+            maxDistanceKm: toNumberOrNull(maxDistanceKm),
+            freeDeliveryOnly,
+            openFilter,
+            userLocation: location ? { lat: location.lat, lng: location.lng } : null,
+        }
+    );
+
+    const { promotions } = usePromotions(6);
+
+    const formatCuisineLabel = (value: string) =>
+        value
+            .split(' ')
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ');
+
+    useEffect(() => {
+        if (activeChip !== 'all' && !cuisineOptions.includes(activeChip)) {
+            setActiveChip('all');
+        }
+    }, [activeChip, cuisineOptions]);
+
+    useEffect(() => {
+        if (!location && locationStatus === 'idle') {
+            requestLocation();
+        }
+    }, [location, locationStatus, requestLocation]);
+
+    const hasActiveFilters = Boolean(
+        searchQuery.trim() ||
+        activeChip !== 'all' ||
+        freeDeliveryOnly ||
+        maxFee.trim() ||
+        maxEta.trim() ||
+        maxMinOrder.trim() ||
+        (maxDistanceKm.trim() && location) ||
+        openFilter !== 'open'
+    );
+
+    const locationLabel = location
+        ? 'Near You'
+        : locationStatus === 'loading'
+            ? 'Locating...'
+            : 'Enable Location';
+
+    const isLocationReady = Boolean(location && locationStatus === 'ready');
+    const locationGateMessage = locationError || 'Allow location access to see restaurants and dishes within 5-10 km.';
+
+    const handleExploreClick = () => {
+        if (!isLocationReady) {
+            requestLocation();
+            return;
+        }
+        document.getElementById('restaurant-list')?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    const formatCurrency = (value: number, currencyCode: string | null) => {
+        const savedCurrency = currencyCode || 'PKR';
+        const currencyInfo = Object.values(COUNTRY_CURRENCIES).find(
+            (c) => c.code === savedCurrency
+        ) ?? Object.values(COUNTRY_CURRENCIES).find(
+            (c) => c.code === 'PKR'
+        );
+        const symbol = currencyInfo?.symbol ?? 'PKR';
+        return `${symbol}\u00A0${value.toLocaleString('en', { maximumFractionDigits: 0 })}`;
+    };
 
 
     const greeting = () => {
@@ -289,9 +358,11 @@ const CustomerHome: React.FC = () => {
                                 border: '1px solid rgba(255,255,255,0.1)',
                                 color: 'rgba(255,255,255,0.7)',
                             }}
+                            onClick={requestLocation}
+                            title={locationError || 'Allow location to see nearby restaurants'}
                         >
                             <MapPin className="w-3.5 h-3.5" style={{ color: '#FF6B35' }} />
-                            <span>{customer?.phone ? 'Near You' : 'Pakistan'}</span>
+                            <span>{locationLabel}</span>
                             <ChevronDown className="w-3 h-3" />
                         </div>
 
@@ -369,7 +440,7 @@ const CustomerHome: React.FC = () => {
                                 Authentic flavors delivered to your doorstep with lightning-fast delivery.
                             </p>
                             <button
-                                onClick={() => document.getElementById('restaurant-list')?.scrollIntoView({ behavior: 'smooth' })}
+                                onClick={handleExploreClick}
                                 className="px-6 py-3 rounded-xl font-bold text-white transition-all hover:scale-105"
                                 style={{
                                     background: 'linear-gradient(135deg, #FF6B35, #E85A24)',
@@ -380,31 +451,310 @@ const CustomerHome: React.FC = () => {
                             </button>
                         </div>
 
-                        {/* Right badge */}
-                        <div
-                            className="shrink-0 px-8 py-6 rounded-2xl text-center"
-                            style={{
-                                background: 'rgba(255,107,53,0.12)',
-                                border: '1px solid rgba(255,107,53,0.3)',
-                            }}
-                        >
-                            <p className="text-5xl font-black" style={{ color: '#FF6B35' }}>50%</p>
-                            <p className="text-white font-bold text-sm mt-1">OFF</p>
-                            <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>on your first order</p>
-                            <p className="text-xs mt-1 font-mono" style={{ color: '#FF6B35' }}>Code: SAVOR50</p>
-                        </div>
                     </div>
                 </motion.section>
 
+                {!isLocationReady ? (
+                    <div className="mb-10">
+                        <div
+                            className="rounded-3xl border border-white/10 bg-white/[0.03]"
+                        >
+                            <div className="p-8 flex flex-col items-center text-center gap-3">
+                                <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                                    <MapPin className="w-6 h-6" style={{ color: '#FF6B35' }} />
+                                </div>
+                                <h2 className="text-xl font-bold text-white">Location required</h2>
+                                <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                                    {locationGateMessage}
+                                </p>
+                                <button
+                                    onClick={requestLocation}
+                                    disabled={locationStatus === 'loading'}
+                                    className="px-6 py-2.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-60"
+                                    style={{ background: 'linear-gradient(135deg, #FF6B35, #E85A24)' }}
+                                >
+                                    {locationStatus === 'loading' ? 'Locating...' : 'Enable Location'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                {/* ── FILTERS + SORT ────────────────────────── */}
+                <div className="mb-6 space-y-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <button
+                            onClick={() => setShowFilters((prev) => !prev)}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                            style={{
+                                background: showFilters ? 'rgba(255,107,53,0.15)' : 'rgba(255,255,255,0.05)',
+                                border: showFilters ? '1px solid rgba(255,107,53,0.35)' : '1px solid rgba(255,255,255,0.12)',
+                                color: showFilters ? '#FF6B35' : 'rgba(255,255,255,0.7)',
+                            }}
+                        >
+                            <SlidersHorizontal className="w-3.5 h-3.5" />
+                            Filters
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        <button
+                            onClick={() => setFreeDeliveryOnly((prev) => !prev)}
+                            className="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                            style={freeDeliveryOnly ? {
+                                background: 'linear-gradient(135deg, #FF6B35, #E85A24)',
+                                color: 'white',
+                                boxShadow: '0 4px 14px rgba(255,107,53,0.35)',
+                            } : {
+                                background: 'rgba(255,255,255,0.05)',
+                                border: '1px solid rgba(255,255,255,0.12)',
+                                color: 'rgba(255,255,255,0.7)',
+                            }}
+                        >
+                            Free Delivery
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                            {([
+                                { key: 'open', label: 'Open Now' },
+                                { key: 'all', label: 'All' },
+                                { key: 'closed', label: 'Closed' },
+                            ] as const).map((item) => (
+                                <button
+                                    key={item.key}
+                                    onClick={() => setOpenFilter(item.key)}
+                                    className="px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                    style={openFilter === item.key ? {
+                                        background: 'rgba(255,107,53,0.18)',
+                                        border: '1px solid rgba(255,107,53,0.35)',
+                                        color: '#FF6B35',
+                                    } : {
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid rgba(255,255,255,0.12)',
+                                        color: 'rgba(255,255,255,0.65)',
+                                    }}
+                                >
+                                    {item.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="flex items-center gap-2 ml-auto">
+                            <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                                Sort
+                            </span>
+                            <select
+                                value={sortBy}
+                                onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
+                                className="px-3 py-2 rounded-xl text-[11px] font-bold text-white outline-none"
+                                style={{
+                                    background: 'rgba(255,255,255,0.06)',
+                                    border: '1px solid rgba(255,255,255,0.14)',
+                                }}
+                            >
+                                <option value="recommended" className="bg-[#0d0500] text-white">Recommended</option>
+                                <option value="fastest" className="bg-[#0d0500] text-white">Fastest Delivery</option>
+                                <option value="lowest_fee" className="bg-[#0d0500] text-white">Lowest Delivery Fee</option>
+                                <option value="top_rated" className="bg-[#0d0500] text-white">Top Rated</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {showFilters && (
+                        <div
+                            className="p-4 rounded-2xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
+                            style={{
+                                background: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                            }}
+                        >
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                                    Max Delivery Fee
+                                </p>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={maxFee}
+                                    onChange={(event) => setMaxFee(event.target.value)}
+                                    placeholder="Any"
+                                    className="w-full px-3 py-2 rounded-xl text-sm text-white placeholder:text-white/30 outline-none"
+                                    style={{
+                                        background: 'rgba(255,255,255,0.06)',
+                                        border: '1px solid rgba(255,255,255,0.12)',
+                                    }}
+                                />
+                            </div>
+
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                                    Max ETA (minutes)
+                                </p>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={maxEta}
+                                    onChange={(event) => setMaxEta(event.target.value)}
+                                    placeholder="Any"
+                                    className="w-full px-3 py-2 rounded-xl text-sm text-white placeholder:text-white/30 outline-none"
+                                    style={{
+                                        background: 'rgba(255,255,255,0.06)',
+                                        border: '1px solid rgba(255,255,255,0.12)',
+                                    }}
+                                />
+                            </div>
+
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                                    Max Minimum Order
+                                </p>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={maxMinOrder}
+                                    onChange={(event) => setMaxMinOrder(event.target.value)}
+                                    placeholder="Any"
+                                    className="w-full px-3 py-2 rounded-xl text-sm text-white placeholder:text-white/30 outline-none"
+                                    style={{
+                                        background: 'rgba(255,255,255,0.06)',
+                                        border: '1px solid rgba(255,255,255,0.12)',
+                                    }}
+                                />
+                            </div>
+
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                                    Max Distance (km)
+                                </p>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={maxDistanceKm}
+                                    onChange={(event) => setMaxDistanceKm(event.target.value)}
+                                    placeholder="10"
+                                    className="w-full px-3 py-2 rounded-xl text-sm text-white placeholder:text-white/30 outline-none"
+                                    style={{
+                                        background: 'rgba(255,255,255,0.06)',
+                                        border: '1px solid rgba(255,255,255,0.12)',
+                                    }}
+                                />
+                            </div>
+
+                            <div className="sm:col-span-2 lg:col-span-4 flex justify-end">
+                                <button
+                                    onClick={() => {
+                                        setMaxFee('');
+                                        setMaxEta('');
+                                        setMaxMinOrder('');
+                                        setMaxDistanceKm('10');
+                                        setFreeDeliveryOnly(false);
+                                        setOpenFilter('open');
+                                    }}
+                                    className="text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl"
+                                    style={{
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid rgba(255,255,255,0.12)',
+                                        color: 'rgba(255,255,255,0.7)',
+                                    }}
+                                >
+                                    Reset Filters
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {promotions.length > 0 && (
+                    <section className="mb-10">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-white text-xl font-bold flex items-center gap-2">
+                                <Gift className="w-5 h-5" style={{ color: '#FF6B35' }} />
+                                Deals Near You
+                            </h2>
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-4">
+                            {promotions.map((promo) => {
+                                const restaurant = promo.restaurants;
+                                const currencyCode = restaurant?.currency || 'PKR';
+                                const discountLabel = promo.discount_type === 'percent'
+                                    ? `${promo.discount_value}% OFF`
+                                    : `${formatCurrency(promo.discount_value, currencyCode)} OFF`;
+                                const minOrderLabel = typeof promo.min_order === 'number'
+                                    ? `Min order ${formatCurrency(promo.min_order, currencyCode)}`
+                                    : null;
+                                const endsLabel = promo.ends_at
+                                    ? `Ends ${new Date(promo.ends_at).toLocaleDateString('en-GB')}`
+                                    : null;
+
+                                return (
+                                    <div
+                                        key={promo.id}
+                                        className="p-4 rounded-2xl border border-white/10 bg-white/[0.03] flex items-center gap-4"
+                                    >
+                                        <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/5 border border-white/10 flex items-center justify-center">
+                                            {restaurant?.logo_url ? (
+                                                <img src={restaurant.logo_url} alt={restaurant?.name || 'Deal'} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <span className="text-2xl">🍽️</span>
+                                            )}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-xs font-black uppercase tracking-widest" style={{ color: '#FF6B35' }}>
+                                                {discountLabel}
+                                            </p>
+                                            <p className="text-sm font-bold text-white mt-1">
+                                                {restaurant?.name || 'Restaurant Deal'}
+                                            </p>
+                                            <p className="text-[10px] text-white/50 mt-1">
+                                                Use code <span className="text-white">{promo.code}</span>
+                                            </p>
+                                            {(minOrderLabel || endsLabel) && (
+                                                <p className="text-[10px] text-white/40 mt-1">
+                                                    {[minOrderLabel, endsLabel].filter(Boolean).join(' • ')}
+                                                </p>
+                                            )}
+                                        </div>
+                                        {restaurant?.id && (
+                                            <button
+                                                onClick={() => navigate(`/foodie/restaurant/${restaurant.id}`)}
+                                                className="px-3 py-2 rounded-xl text-xs font-black text-white"
+                                                style={{ background: 'linear-gradient(135deg, #FF6B35, #E85A24)' }}
+                                            >
+                                                View
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </section>
+                )}
+
                 {/* ── CATEGORY CHIPS ───────────────────────────── */}
                 <div className="flex gap-2 overflow-x-auto pb-3 mb-8 scrollbar-hide">
-                    {CUISINE_CHIPS.map(chip => (
+                    <motion.button
+                        key="all"
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setActiveChip('all')}
+                        className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold transition-all"
+                        style={activeChip === 'all' ? {
+                            background: 'linear-gradient(135deg, #FF6B35, #E85A24)',
+                            color: 'white',
+                            boxShadow: '0 4px 16px rgba(255,107,53,0.35)',
+                        } : {
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            color: 'rgba(255,255,255,0.65)',
+                        }}
+                    >
+                        All
+                    </motion.button>
+                    {cuisineOptions.map((cuisine) => (
                         <motion.button
-                            key={chip.id}
+                            key={cuisine}
                             whileTap={{ scale: 0.95 }}
-                            onClick={() => setActiveChip(chip.id)}
+                            onClick={() => setActiveChip(cuisine)}
                             className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold transition-all"
-                            style={activeChip === chip.id ? {
+                            style={activeChip === cuisine ? {
                                 background: 'linear-gradient(135deg, #FF6B35, #E85A24)',
                                 color: 'white',
                                 boxShadow: '0 4px 16px rgba(255,107,53,0.35)',
@@ -414,20 +764,21 @@ const CustomerHome: React.FC = () => {
                                 color: 'rgba(255,255,255,0.65)',
                             }}
                         >
-                            <span>{chip.emoji}</span>
-                            {chip.label}
+                            {formatCuisineLabel(cuisine)}
                         </motion.button>
                     ))}
                 </div>
 
                 {/* ── RESTAURANT LIST + DEALS SIDEBAR ──────────── */}
-                <div id="restaurant-list" className="grid lg:grid-cols-3 gap-8">
+                <div id="restaurant-list" className={`grid gap-8 ${isGuest ? 'lg:grid-cols-3' : 'lg:grid-cols-1'}`}>
 
                     {/* Left: Restaurant grid (2 cols wide) */}
-                    <div className="lg:col-span-2">
+                    <div className={isGuest ? 'lg:col-span-2' : 'lg:col-span-1'}>
                         <div className="flex items-center justify-between mb-5">
                             <h2 className="text-white text-xl font-bold">
-                                {activeChip === 'all' ? 'Top Restaurants' : `${CUISINE_CHIPS.find(c => c.id === activeChip)?.label} Restaurants`}
+                                {activeChip === 'all'
+                                    ? 'Top Restaurants'
+                                    : `${formatCuisineLabel(activeChip)} Restaurants`}
                                 {filteredRestaurants.length >= 0 && (
                                     <span className="ml-2 text-sm font-normal" style={{ color: 'rgba(255,255,255,0.35)' }}>
                                         ({filteredRestaurants.length})
@@ -454,7 +805,11 @@ const CustomerHome: React.FC = () => {
                             >
                                 <p className="text-5xl mb-4">🍽️</p>
                                 <p className="text-white font-bold text-lg mb-2">
-                                    {searchQuery ? `No results for "${searchQuery}"` : 'No restaurants yet'}
+                                    {searchQuery
+                                        ? `No results for "${searchQuery}"`
+                                        : hasActiveFilters
+                                            ? 'No restaurants match your filters'
+                                            : 'No restaurants yet'}
                                 </p>
                                 <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
                                     More restaurants coming soon to your area!
@@ -474,99 +829,12 @@ const CustomerHome: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Right: Today's Deals + Points Banner */}
-                    <div className="space-y-6">
-
-                        {/* Today's Deals */}
-                        <div>
-                            <h2 className="text-white text-xl font-bold mb-5 flex items-center gap-2">
-                                <Zap className="w-5 h-5" style={{ color: '#FF6B35' }} />
-                                Today's Deals
-                            </h2>
-                            <div className="space-y-4">
-                                {TODAYS_DEALS.map((deal, i) => (
-                                    <motion.div
-                                        key={deal.id}
-                                        initial={{ opacity: 0, x: 20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: 0.2 + i * 0.1 }}
-                                        className="rounded-2xl overflow-hidden cursor-pointer group transition-all hover:-translate-y-1"
-                                        style={{
-                                            background: 'rgba(255,255,255,0.04)',
-                                            border: '1px solid rgba(255,255,255,0.08)',
-                                        }}
-                                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,107,53,0.3)'}
-                                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.08)'}
-                                    >
-                                        <div className="relative h-28 overflow-hidden">
-                                            <img
-                                                src={deal.imageUrl}
-                                                alt={deal.title}
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                            />
-                                            <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(13,5,0,0.8), transparent)' }} />
-                                            <span
-                                                className="absolute top-2 left-2 px-2 py-1 rounded-lg text-white text-xs font-black"
-                                                style={{ background: deal.badgeColor }}
-                                            >
-                                                {deal.badge}
-                                            </span>
-                                        </div>
-                                        <div className="p-3">
-                                            <p className="text-white font-bold text-sm mb-1">{deal.title}</p>
-                                            <p className="text-xs mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>{deal.restaurant}</p>
-                                            <button
-                                                className="w-full py-2 rounded-lg text-white font-bold text-xs transition-all hover:opacity-90"
-                                                style={{ background: 'linear-gradient(135deg, #FF6B35, #E85A24)' }}
-                                            >
-                                                Claim Now →
-                                            </button>
-                                        </div>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Savor Points Banner */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.5 }}
-                            className="p-5 rounded-2xl relative overflow-hidden"
-                            style={{
-                                background: 'linear-gradient(135deg, rgba(255,107,53,0.15) 0%, rgba(255,140,0,0.08) 100%)',
-                                border: '1px solid rgba(255,107,53,0.25)',
-                            }}
-                        >
-                            <div className="flex items-start gap-3">
-                                <div
-                                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                                    style={{ background: 'rgba(255,107,53,0.2)' }}
-                                >
-                                    <Gift className="w-5 h-5" style={{ color: '#FF6B35' }} />
-                                </div>
-                                <div>
-                                    <p className="text-white font-bold text-sm">Refer a friend</p>
-                                    <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                                        Get 500 SavorPoints when your friend places their first order!
-                                    </p>
-                                    <button
-                                        className="mt-3 text-xs font-bold px-4 py-2 rounded-lg text-white transition-all hover:scale-105"
-                                        style={{ background: 'rgba(255,107,53,0.3)', border: '1px solid rgba(255,107,53,0.4)' }}
-                                        onClick={() => navigate('/foodie/profile')}
-                                    >
-                                        Get Referral Link →
-                                    </button>
-                                </div>
-                            </div>
-                        </motion.div>
-
-                        {/* Guest upsell */}
-                        {isGuest && (
+                    {isGuest && (
+                        <div className="space-y-6">
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                transition={{ delay: 0.6 }}
+                                transition={{ delay: 0.2 }}
                                 className="p-5 rounded-2xl text-center"
                                 style={{
                                     background: 'rgba(255,255,255,0.04)',
@@ -574,9 +842,9 @@ const CustomerHome: React.FC = () => {
                                 }}
                             >
                                 <p className="text-2xl mb-2">🌟</p>
-                                <p className="text-white font-bold text-sm mb-1">Sign up to earn points!</p>
+                                <p className="text-white font-bold text-sm mb-1">Create an account</p>
                                 <p className="text-xs mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                                    Create a free account to track orders and earn Savor Points.
+                                    Sign up to track orders and manage your profile.
                                 </p>
                                 <button
                                     onClick={() => navigate('/foodie/auth')}
@@ -586,9 +854,11 @@ const CustomerHome: React.FC = () => {
                                     Create Account →
                                 </button>
                             </motion.div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
+                    </>
+                )}
             </main>
 
             {/* ── BOTTOM NAV (mobile) ───────────────────────── */}

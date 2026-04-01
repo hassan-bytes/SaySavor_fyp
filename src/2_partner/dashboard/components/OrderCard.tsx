@@ -31,7 +31,7 @@ export interface Order {
     items: OrderItem[];
     total_amount: number;
     discount_amount?: number;
-    status: 'pending' | 'accepted' | 'cooking' | 'ready' | 'delivered' | 'cancelled';
+    status: 'pending' | 'confirmed' | 'cooking' | 'ready' | 'delivered' | 'cancelled';
     payment_status?: string;
     payment_method?: string;
     created_at: string;
@@ -75,7 +75,7 @@ export const OrderCard = ({
             icon: Clock,
             glowClass: 'status-glow-pending text-amber-500',
         },
-        accepted: {
+        confirmed: {
             label: 'Accepted',
             icon: CheckCircle,
             glowClass: 'status-glow-pending text-blue-500 border-blue-500/50',
@@ -250,7 +250,7 @@ export const OrderCard = ({
                         </>
                     )}
 
-                    {order.status === 'accepted' && (
+                    {order.status === 'confirmed' && (
                         <button onClick={(e) => { e.stopPropagation(); onMarkCooking?.(order.id); }} className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-bold shadow-[0_0_15px_rgba(59,130,246,0.3)] transition-all flex items-center gap-2">
                             <ChefHat className="w-4 h-4" /> Start Cooking
                         </button>

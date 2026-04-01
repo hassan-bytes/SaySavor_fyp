@@ -46,6 +46,9 @@ export interface RestaurantCard {
     min_order: number | null;
     is_active: boolean;
     city: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    distance_km?: number | null;
 }
 
 // ── Order Type ────────────────────────────────────────────────

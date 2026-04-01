@@ -284,7 +284,7 @@ const RestaurantSetup = () => {
     // --- STEP 1 & 2 STATE ---
     const [formData, setFormData] = useState({
         name: '', description: '', cuisine: [] as string[], logo: null as File | null, coverImage: null as File | null,
-        phone: '', city: '', address: '', opensAt: '', closesAt: '',
+        phone: '', city: '', address: '', opensAt: '', closesAt: '', latitude: '', longitude: '',
     });
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -387,10 +387,44 @@ const RestaurantSetup = () => {
         return formatPrice(parseFloat(clean) || 0, getCurrency());
     };
 
+    const toNumberOrNull = (value: string) => {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        const num = Number(trimmed);
+        return Number.isFinite(num) ? num : null;
+    };
+
     // --- HANDLERS ---
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleUseCurrentLocation = () => {
+        if (!navigator.geolocation) {
+            toast.error('Geolocation is not supported on this device.');
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const lat = pos.coords.latitude.toFixed(6);
+                const lng = pos.coords.longitude.toFixed(6);
+                setFormData(prev => ({
+                    ...prev,
+                    latitude: lat,
+                    longitude: lng,
+                }));
+                toast.success('Location saved.');
+            },
+            () => {
+                toast.error('Unable to access location.');
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+            }
+        );
     };
 
     const toggleCuisine = (c: string) => {
@@ -629,6 +663,8 @@ const RestaurantSetup = () => {
                     description: formData.description, // Updated from bio
                     phone: formData.phone,
                     address: `${formData.address}, ${formData.city}`,
+                    latitude: toNumberOrNull(formData.latitude),
+                    longitude: toNumberOrNull(formData.longitude),
                     cuisine_type: formData.cuisine,
                     logo_url: logoUrl,
                     opens_at: formData.opensAt,
@@ -786,6 +822,8 @@ const RestaurantSetup = () => {
                 description: formData.description, // Updated from bio
                 phone: formData.phone,
                 address: `${formData.address}, ${formData.city}`,
+                latitude: toNumberOrNull(formData.latitude),
+                longitude: toNumberOrNull(formData.longitude),
                 cuisine_type: formData.cuisine,
                 opens_at: formData.opensAt,
                 closes_at: formData.closesAt,
@@ -1107,6 +1145,38 @@ const RestaurantSetup = () => {
                                             placeholder="Street..."
                                         />
                                     </div>
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div>
+                                            <Label htmlFor="setup-latitude" className="text-white mb-2 block">Latitude</Label>
+                                            <Input
+                                                id="setup-latitude"
+                                                name="latitude"
+                                                value={formData.latitude}
+                                                onChange={handleInputChange}
+                                                className="bg-white/5 border-white/10 text-white h-12"
+                                                placeholder="31.5204"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="setup-longitude" className="text-white mb-2 block">Longitude</Label>
+                                            <Input
+                                                id="setup-longitude"
+                                                name="longitude"
+                                                value={formData.longitude}
+                                                onChange={handleInputChange}
+                                                className="bg-white/5 border-white/10 text-white h-12"
+                                                placeholder="74.3587"
+                                            />
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleUseCurrentLocation}
+                                        className="text-xs font-semibold px-4 py-2 rounded-lg transition-all"
+                                        style={{ color: '#FF6B35', background: 'rgba(255,107,53,0.1)', border: '1px solid rgba(255,107,53,0.2)' }}
+                                    >
+                                        Use current location
+                                    </button>
                                     <div>
                                         <Label htmlFor="setup-phone" className="text-white mb-2 block">Phone</Label>
                                         <Input

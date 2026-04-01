@@ -93,8 +93,8 @@ begin
       return new;
     end if;
 
-    -- Skip item-added pushes for fresh orders to avoid duplicates
-    if now() - order_created_at < interval '30 seconds' then
+    -- Skip item-added pushes for fresh orders to avoid duplicates (0s disables skip)
+    if now() - order_created_at < interval '0 seconds' then
       return new;
     end if;
 

@@ -30,10 +30,8 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { COUNTRY_CURRENCIES } from '@/shared/lib/currencyUtils';
 
 // ── Stripe setup (outside component so it's not recreated) ──
-// Replace with your actual Stripe publishable test key
-const stripePromise = loadStripe(
-    import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_YOUR_KEY_HERE'
-);
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
 
 // ── Stripe appearance matching SaySavor dark theme ──────────
 const stripeAppearance = {
@@ -149,9 +147,6 @@ const StripePaymentForm: React.FC<{
                     }
                 }}
             />
-            <p className="text-[10px] text-white/20 mt-3 text-center">
-                Test cards: 4242 4242 4242 4242 | Any future date | Any CVV
-            </p>
         </form>
     );
 };
@@ -169,6 +164,8 @@ const CheckoutPage: React.FC = () => {
 
     const [currencySymbol, setCurrencySymbol] = useState('PKR');
     const [currency, setCurrency] = useState('PKR');
+    const [deliveryFee, setDeliveryFee] = useState(0);
+    const [taxPercent, setTaxPercent] = useState(0);
 
     // Address state
     const [selectedAddressIdx, setSelectedAddressIdx] = useState(0);
@@ -189,17 +186,16 @@ const CheckoutPage: React.FC = () => {
         }
     }, [customer]);
 
-    const deliveryFee = totalAmount > 0 ? 50 : 0;
-    const tax = Math.round(totalAmount * 0.05);
+    const tax = Math.round(totalAmount * (taxPercent / 100));
     const finalTotal = totalAmount + deliveryFee + tax;
 
-    // ── Load currency ────────────────────────────────────────
+    // ── Load restaurant pricing ─────────────────────────────
     useEffect(() => {
         const loadCurrency = async () => {
             if (!currentRestaurantId) return;
             const { data } = await supabase
                 .from('restaurants')
-                .select('currency')
+                .select('currency, delivery_fee, tax_percent')
                 .eq('id', currentRestaurantId)
                 .maybeSingle();
 
@@ -210,13 +206,15 @@ const CheckoutPage: React.FC = () => {
 
             setCurrencySymbol(currencyInfo?.symbol ?? 'PKR');
             setCurrency(savedCurrency);
+            setDeliveryFee(typeof (data as any)?.delivery_fee === 'number' ? (data as any).delivery_fee : 0);
+            setTaxPercent(typeof (data as any)?.tax_percent === 'number' ? (data as any).tax_percent : 0);
         };
         loadCurrency();
     }, [currentRestaurantId]);
 
     // ── Create PaymentIntent when ONLINE is selected ─────────
     useEffect(() => {
-        if (paymentMethod !== 'ONLINE' || !finalTotal) return;
+        if (!stripePromise || paymentMethod !== 'ONLINE' || !finalTotal) return;
 
         const createIntent = async () => {
             setFetchingIntent(true);
@@ -228,6 +226,10 @@ const CheckoutPage: React.FC = () => {
                             amount: finalTotal,
                             currency: currency.toLowerCase(),
                             restaurantId: currentRestaurantId,
+                            metadata: {
+                                order_type: tableNumber ? 'DINE_IN' : 'DELIVERY',
+                                source: 'checkout_page',
+                            },
                         }
                     }
                 );
@@ -363,7 +365,23 @@ const CheckoutPage: React.FC = () => {
                 restaurantId: currentRestaurantId,
                 total: finalTotal
             });
-            toast.error(`Order failed: ${err.message || 'Unknown error'}`);
+
+            const { data: recoveredOrder } = await (supabase
+                .from('orders') as any)
+                .select('id')
+                .eq('stripe_payment_intent_id', paymentIntentId)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (recoveredOrder?.id) {
+                toast.success('Payment already received. Redirecting to your order...');
+                clearCart();
+                navigate(`/foodie/track/${recoveredOrder.id}`);
+                return;
+            }
+
+            toast.error(`Payment done but order sync failed. Reference: ${paymentIntentId.slice(-8).toUpperCase()}`);
         } finally {
             setLoading(false);
         }
@@ -533,7 +551,7 @@ const CheckoutPage: React.FC = () => {
                 {/* ── 2. PAYMENT METHOD ────────────────────── */}
                 <section>
                     <h2 className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-3">Payment Method</h2>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className={`grid gap-3 ${stripePromise ? 'grid-cols-2' : 'grid-cols-1'}`}>
                         <button
                             onClick={() => setPaymentMethod('COD')}
                             className={`p-4 rounded-2xl flex flex-col items-center gap-2.5 border transition-all ${paymentMethod === 'COD'
@@ -547,25 +565,27 @@ const CheckoutPage: React.FC = () => {
                                 <p className="text-[9px] opacity-60 mt-0.5">Pay when delivered</p>
                             </div>
                         </button>
-                        <button
-                            onClick={() => setPaymentMethod('ONLINE')}
-                            className={`p-4 rounded-2xl flex flex-col items-center gap-2.5 border transition-all ${paymentMethod === 'ONLINE'
-                                ? 'bg-orange-500/10 border-orange-500 text-orange-500'
-                                : 'bg-white/5 border-white/10 text-white/40'
-                                }`}
-                        >
-                            <CreditCard className="w-6 h-6" />
-                            <div className="text-center">
-                                <p className="text-xs font-black uppercase tracking-widest">Card / Online</p>
-                                <p className="text-[9px] opacity-60 mt-0.5">Stripe secured</p>
-                            </div>
-                        </button>
+                        {stripePromise && (
+                            <button
+                                onClick={() => setPaymentMethod('ONLINE')}
+                                className={`p-4 rounded-2xl flex flex-col items-center gap-2.5 border transition-all ${paymentMethod === 'ONLINE'
+                                    ? 'bg-orange-500/10 border-orange-500 text-orange-500'
+                                    : 'bg-white/5 border-white/10 text-white/40'
+                                    }`}
+                            >
+                                <CreditCard className="w-6 h-6" />
+                                <div className="text-center">
+                                    <p className="text-xs font-black uppercase tracking-widest">Card / Online</p>
+                                    <p className="text-[9px] opacity-60 mt-0.5">Stripe secured</p>
+                                </div>
+                            </button>
+                        )}
                     </div>
                 </section>
 
                 {/* ── 3. STRIPE PAYMENT FORM ───────────────── */}
                 <AnimatePresence>
-                    {paymentMethod === 'ONLINE' && (
+                    {stripePromise && paymentMethod === 'ONLINE' && (
                         <motion.section
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
@@ -576,9 +596,6 @@ const CheckoutPage: React.FC = () => {
                                 <div className="flex items-center gap-2 mb-4">
                                     <ShieldCheck className="w-4 h-4 text-green-500" />
                                     <p className="text-xs font-bold text-green-500">Secured by Stripe</p>
-                                    <span className="ml-auto text-[9px] text-white/20 uppercase font-bold tracking-widest">
-                                        Test Mode
-                                    </span>
                                 </div>
 
                                 {fetchingIntent ? (
@@ -625,7 +642,7 @@ const CheckoutPage: React.FC = () => {
                         <span>{formatPrice(deliveryFee)}</span>
                     </div>
                     <div className="flex justify-between text-white/60 text-sm pb-3 border-b border-white/5">
-                        <span>GST (5%)</span>
+                        <span>{taxPercent > 0 ? `Tax (${taxPercent}%)` : 'Tax'}</span>
                         <span>{formatPrice(tax)}</span>
                     </div>
                     <div className="flex justify-between items-center">

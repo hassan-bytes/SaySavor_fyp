@@ -55,6 +55,14 @@ export const useStripePayment = ({
       setError(null);
 
       try {
+        const metadata: Record<string, string> = {
+          order_type: orderType,
+        };
+
+        if (orderId) {
+          metadata.order_id = orderId;
+        }
+
         const { data, error: fnError } = await supabase.functions.invoke(
           'create-payment-intent',
           {
@@ -62,8 +70,7 @@ export const useStripePayment = ({
               amount,
               currency,
               restaurantId,
-              orderId: orderId || '',
-              orderType,
+              metadata,
             },
           }
         );

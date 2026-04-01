@@ -82,7 +82,7 @@ export default function CustomerMenu() {
                     .select('*')
                     .eq('restaurant_id', restaurantId)
                     .eq('table_number', tableNo)
-                    .in('status', ['pending', 'accepted', 'cooking', 'ready'])
+                    .in('status', ['pending', 'confirmed', 'cooking', 'ready'])
                     .order('created_at', { ascending: false })
                     .limit(1);
 
@@ -132,7 +132,7 @@ export default function CustomerMenu() {
                             }
 
                             // Then check order status
-                            if (['pending', 'accepted', 'cooking', 'ready'].includes(newOrder.status)) {
+                            if (['pending', 'confirmed', 'cooking', 'ready'].includes(newOrder.status)) {
                                 return { ...prevOrder, ...newOrder };
                             } else {
                                 return null;
@@ -141,7 +141,7 @@ export default function CustomerMenu() {
 
                         // If there is NO active order, and a new one was just INSERTED for this table
                         if (!prevOrder && newOrder.table_number == tableNo) {
-                            if (newOrder.session_status !== 'closed' && ['pending', 'accepted', 'cooking', 'ready'].includes(newOrder.status)) {
+                            if (newOrder.session_status !== 'closed' && ['pending', 'confirmed', 'cooking', 'ready'].includes(newOrder.status)) {
                                 setIsSessionClosed(false);
                                 return { ...newOrder };
                             }
@@ -1209,25 +1209,25 @@ export default function CustomerMenu() {
                         <div className="bg-white border-2 border-amber-200/50 shadow-[0_10px_40px_-10px_rgba(245,158,11,0.2)] rounded-2xl p-4 transition-all">
                             <div className="flex items-center gap-4">
                                 <div className={`w-14 h-14 rounded-full flex items-center justify-center shrink-0 border-4 border-white shadow-md ${activeOrder.status === 'pending' ? 'bg-orange-100 text-orange-600' :
-                                    activeOrder.status === 'accepted' ? 'bg-blue-100 text-blue-600' :
+                                    activeOrder.status === 'confirmed' ? 'bg-blue-100 text-blue-600' :
                                         activeOrder.status === 'cooking' ? 'bg-purple-100 text-purple-600' :
                                             'bg-green-100 text-green-600'
                                     }`}>
                                     {activeOrder.status === 'pending' && <Clock className="w-7 h-7 animate-pulse" />}
-                                    {activeOrder.status === 'accepted' && <CheckCircle className="w-7 h-7" />}
+                                    {activeOrder.status === 'confirmed' && <CheckCircle className="w-7 h-7" />}
                                     {activeOrder.status === 'cooking' && <ChefHat className="w-7 h-7 animate-bounce" />}
                                     {activeOrder.status === 'ready' && <Package className="w-7 h-7" />}
                                 </div>
                                 <div className="flex-1">
                                     <h4 className="font-black text-slate-900 text-lg leading-tight mb-1">
                                         {activeOrder.status === 'pending' && 'Order Received'}
-                                        {activeOrder.status === 'accepted' && 'Order Accepted'}
+                                        {activeOrder.status === 'confirmed' && 'Order Accepted'}
                                         {activeOrder.status === 'cooking' && 'Cooking Now 🍳'}
                                         {activeOrder.status === 'ready' && 'Food is Ready! 🛎️'}
                                     </h4>
                                     <p className="text-sm font-semibold text-slate-500">
                                         {activeOrder.status === 'pending' && 'Waiting for kitchen...'}
-                                        {activeOrder.status === 'accepted' && 'Chef is reviewing...'}
+                                        {activeOrder.status === 'confirmed' && 'Chef is reviewing...'}
                                         {activeOrder.status === 'cooking' && <span className="text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md font-bold">Est: 10 - 15 mins</span>}
                                         {activeOrder.status === 'ready' && <span className="text-green-600 bg-green-50 px-2 py-0.5 rounded-md font-bold">Arriving shortly!</span>}
                                     </p>

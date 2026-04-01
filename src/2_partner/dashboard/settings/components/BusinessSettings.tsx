@@ -1,4 +1,4 @@
-import { Coins, Truck, Percent } from 'lucide-react'
+import { Coins, Truck } from 'lucide-react'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Switch } from '@/shared/ui/switch'
@@ -67,48 +67,86 @@ export function BusinessSettings({ settings, onChange, currencySymbol }: Props) 
           </div>
 
           {settings.is_delivery && (
-            <div className="mt-4">
-              <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block">
-                Delivery Areas (comma separated)
-              </Label>
-              <Input
-                value={settings.delivery_areas.join(', ')}
-                onChange={(event) =>
-                  onChange({
-                    delivery_areas: event.target.value
-                      .split(',')
-                      .map((s) => s.trim())
-                      .filter(Boolean),
-                  })
-                }
-                placeholder="e.g. DHA, Gulberg, Model Town"
-                className="h-14 input-glass rounded-2xl font-bold px-6"
-              />
+            <div className="mt-4 space-y-6">
+              <div>
+                <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block">
+                  Delivery Fee ({currencySymbol})
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={settings.delivery_fee ?? ''}
+                  onChange={(event) =>
+                    onChange({ delivery_fee: event.target.value ? Number(event.target.value) : null })
+                  }
+                  placeholder="e.g. 0 for free delivery"
+                  className="h-14 input-glass rounded-2xl font-bold px-6"
+                />
+                <p className="mt-2 text-xs text-slate-400">Shown to customers during checkout</p>
+              </div>
 
-              {settings.delivery_areas.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {settings.delivery_areas.map((area) => (
-                    <span
-                      key={area}
-                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300"
-                    >
-                      {area}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onChange({
-                            delivery_areas: settings.delivery_areas.filter((item) => item !== area),
-                          })
-                        }
-                        className="text-slate-400 hover:text-white"
-                        aria-label={`Remove ${area}`}
+              <div>
+                <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block">
+                  Estimated Delivery Time (minutes)
+                </Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={settings.delivery_time_min ?? ''}
+                  onChange={(event) =>
+                    onChange({
+                      delivery_time_min: event.target.value ? Number(event.target.value) : null,
+                    })
+                  }
+                  placeholder="e.g. 30"
+                  className="h-14 input-glass rounded-2xl font-bold px-6"
+                />
+                <p className="mt-2 text-xs text-slate-400">Used to show delivery ETA on the customer app</p>
+              </div>
+
+              <div>
+                <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block">
+                  Delivery Areas (comma separated)
+                </Label>
+                <Input
+                  value={settings.delivery_areas.join(', ')}
+                  onChange={(event) =>
+                    onChange({
+                      delivery_areas: event.target.value
+                        .split(',')
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="e.g. DHA, Gulberg, Model Town"
+                  className="h-14 input-glass rounded-2xl font-bold px-6"
+                />
+
+                {settings.delivery_areas.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {settings.delivery_areas.map((area) => (
+                      <span
+                        key={area}
+                        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300"
                       >
-                        x
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
+                        {area}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onChange({
+                              delivery_areas: settings.delivery_areas.filter((item) => item !== area),
+                            })
+                          }
+                          className="text-slate-400 hover:text-white"
+                          aria-label={`Remove ${area}`}
+                        >
+                          x
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

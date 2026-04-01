@@ -9,7 +9,7 @@
 
 import { Package, Clock, ChefHat, CheckCircle, Ban } from 'lucide-react';
 
-export type OrderStatus = 'all' | 'pending' | 'accepted' | 'cooking' | 'ready' | 'delivered' | 'cancelled';
+export type OrderStatus = 'all' | 'pending' | 'confirmed' | 'cooking' | 'ready' | 'delivered' | 'cancelled';
 
 interface OrderFiltersProps {
     selected: OrderStatus;
@@ -17,7 +17,7 @@ interface OrderFiltersProps {
     counts: {
         all: number;
         pending: number;
-        accepted: number;
+        confirmed: number;
         cooking: number;
         ready: number;
         delivered: number;

@@ -40,6 +40,62 @@ const supabase = createClient(SUPABASE_URL || '', SUPABASE_SERVICE_ROLE_KEY || '
     },
 })
 
+const updateOrderPaymentStatus = async ({
+    paymentIntentId,
+    restaurantId,
+    orderId,
+    paymentStatus,
+}: {
+    paymentIntentId: string
+    restaurantId?: string
+    orderId?: string
+    paymentStatus: 'PAID' | 'FAILED'
+}) => {
+    const updatedAt = new Date().toISOString()
+
+    if (orderId && restaurantId) {
+        const { data: byMetadata, error: byMetadataError } = await supabase
+            .from('orders')
+            .update({
+                payment_status: paymentStatus,
+                stripe_payment_intent_id: paymentIntentId,
+                updated_at: updatedAt,
+            })
+            .eq('id', orderId)
+            .eq('restaurant_id', restaurantId)
+            .select('id')
+            .limit(1)
+
+        if (byMetadataError) {
+            console.error('[Stripe Webhook] Metadata-based update failed:', byMetadataError)
+        } else if (byMetadata && byMetadata.length > 0) {
+            return { updated: true, strategy: 'metadata' as const }
+        }
+    }
+
+    const { data: byIntentId, error: byIntentIdError } = await supabase
+        .from('orders')
+        .update({
+            payment_status: paymentStatus,
+            stripe_payment_intent_id: paymentIntentId,
+            updated_at: updatedAt,
+        })
+        .eq('stripe_payment_intent_id', paymentIntentId)
+        .select('id')
+        .limit(1)
+
+    if (byIntentIdError) {
+        console.error('[Stripe Webhook] PaymentIntent-based fallback update failed:', byIntentIdError)
+        return { updated: false, strategy: 'payment_intent' as const, reason: byIntentIdError.message }
+    }
+
+    if (byIntentId && byIntentId.length > 0) {
+        return { updated: true, strategy: 'payment_intent' as const }
+    }
+
+    return { updated: false, strategy: 'none' as const, reason: 'No matching order found' }
+}
+
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, stripe-signature',
@@ -83,33 +139,30 @@ serve(async (req: Request) => {
 
             console.log(`Processing payment_intent.succeeded: PI=${paymentIntent.id}, Order=${orderId}`)
 
-            // If order_id exists in metadata, update order payment status
-            if (orderId && restaurantId) {
-                try {
-                    const { data, error } = await supabase
-                        .from('orders')
-                        .update({
-                            payment_status: 'paid',
-                            stripe_payment_intent_id: paymentIntent.id,
-                            updated_at: new Date().toISOString(),
-                        })
-                        .eq('id', orderId)
-                        .eq('restaurant_id', restaurantId)
+            const updateResult = await updateOrderPaymentStatus({
+                paymentIntentId: paymentIntent.id,
+                restaurantId,
+                orderId,
+                paymentStatus: 'PAID',
+            })
 
-                    if (error) {
-                        console.error('Error updating order:', error)
-                    } else {
-                        console.log(`Order ${orderId} payment status updated to 'paid'`)
-                    }
-                } catch (error: any) {
-                    console.error('Exception updating order:', error.message)
-                }
+            if (updateResult.updated) {
+                console.log(`[Stripe Webhook] Payment marked PAID via ${updateResult.strategy} for PI=${paymentIntent.id}`)
             } else {
-                console.warn(`[Stripe Webhook] Missing metadata for payment intent ${paymentIntent.id}:`, {
+                console.warn(`[Stripe Webhook] Could not map successful payment yet for PI=${paymentIntent.id}. Requesting retry.`, {
                     orderId: orderId || 'MISSING',
                     restaurantId: restaurantId || 'MISSING',
-                    metadata: paymentIntent.metadata
+                    reason: updateResult.reason,
+                    metadata: paymentIntent.metadata,
                 })
+
+                return new Response(
+                    JSON.stringify({ error: 'Order not found yet for payment intent. Retry webhook.' }),
+                    {
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                        status: 409,
+                    }
+                )
             }
         }
 
@@ -121,26 +174,30 @@ serve(async (req: Request) => {
 
             console.log(`Processing payment_intent.payment_failed: PI=${paymentIntent.id}, Order=${orderId}`)
 
-            if (orderId && restaurantId) {
-                try {
-                    const { data, error } = await supabase
-                        .from('orders')
-                        .update({
-                            payment_status: 'failed',
-                            stripe_payment_intent_id: paymentIntent.id,
-                            updated_at: new Date().toISOString(),
-                        })
-                        .eq('id', orderId)
-                        .eq('restaurant_id', restaurantId)
+            const updateResult = await updateOrderPaymentStatus({
+                paymentIntentId: paymentIntent.id,
+                restaurantId,
+                orderId,
+                paymentStatus: 'FAILED',
+            })
 
-                    if (error) {
-                        console.error('Error updating order on payment failure:', error)
-                    } else {
-                        console.log(`Order ${orderId} payment status updated to 'failed'`)
+            if (updateResult.updated) {
+                console.log(`[Stripe Webhook] Payment marked FAILED via ${updateResult.strategy} for PI=${paymentIntent.id}`)
+            } else {
+                console.warn(`[Stripe Webhook] Could not map failed payment yet for PI=${paymentIntent.id}. Requesting retry.`, {
+                    orderId: orderId || 'MISSING',
+                    restaurantId: restaurantId || 'MISSING',
+                    reason: updateResult.reason,
+                    metadata: paymentIntent.metadata,
+                })
+
+                return new Response(
+                    JSON.stringify({ error: 'Order not found yet for failed payment intent. Retry webhook.' }),
+                    {
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                        status: 409,
                     }
-                } catch (error: any) {
-                    console.error('Exception updating order on payment failure:', error.message)
-                }
+                )
             }
         }
 

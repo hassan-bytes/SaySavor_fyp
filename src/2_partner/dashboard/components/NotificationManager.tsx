@@ -80,7 +80,11 @@ export const useNotificationManager = (props?: NotificationManagerProps) => {
       return false;
     }
 
-    soundManager.playNewOrder();
+    const didPlay = soundManager.playNewOrder();
+    if (!didPlay) {
+      console.log('🔇 Sound skipped - audio locked or disabled');
+      return false;
+    }
     lastSoundTime.current = now;
     return true;
   }, []);
@@ -145,7 +149,7 @@ export const useNotificationManager = (props?: NotificationManagerProps) => {
     if (soundPlayed) {
       console.log('🔊 Sound played successfully');
     } else if (orders.length > 0) {
-      console.log('⏳ Sound skipped due to cooldown - but VISUAL NOTIFICATION shown ✅');
+      console.log('⏳ Sound skipped due to cooldown or locked audio - but VISUAL NOTIFICATION shown ✅');
     }
 
     props?.onOrdersReady?.(orders);

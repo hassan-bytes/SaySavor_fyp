@@ -14,6 +14,7 @@ import StripePaymentForm from '@/shared/components/StripePaymentForm';
 import { customerOrderService } from '@/3_customer/services/customerOrderService';
 import { toast } from 'sonner';
 import type { CartItem } from '@/3_customer/types/customer';
+import { supabase } from '@/shared/lib/supabaseClient';
 
 interface QRPaymentModalProps {
   isOpen: boolean;
@@ -105,7 +106,21 @@ const QRPaymentModal: React.FC<QRPaymentModalProps> = ({
       toast.success('Payment successful! 🎉 Order placed!');
       onOrderPlaced(order.id);
     } catch (err: any) {
-      toast.error('Payment done but order failed. Show receipt to staff.');
+      const { data: recoveredOrder } = await (supabase
+        .from('orders') as any)
+        .select('id')
+        .eq('stripe_payment_intent_id', paymentIntentId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (recoveredOrder?.id) {
+        toast.success('Payment already received. Opening your order...');
+        onOrderPlaced(recoveredOrder.id);
+        return;
+      }
+
+      toast.error(`Payment done but order sync failed. Ref: ${paymentIntentId.slice(-8).toUpperCase()}`);
     } finally {
       setLoading(false);
     }

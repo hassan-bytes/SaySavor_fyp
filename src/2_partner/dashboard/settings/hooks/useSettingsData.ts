@@ -33,12 +33,17 @@ interface RestaurantRow {
   phone: string | null
   whatsapp: string | null
   address: string | null
+  latitude: number | null
+  longitude: number | null
   opens_at: string | null
   closes_at: string | null
   operating_days: unknown
   currency: string | null
   min_order: number | null
+  min_order_price?: number | null
   tax_percent: number | null
+  delivery_fee?: number | null
+  delivery_time_min?: number | null
   is_delivery: boolean | null
   delivery_areas: unknown
   instagram: string | null
@@ -112,6 +117,7 @@ export function useSettingsData(): {
   hasUnsavedChanges: boolean,
   setHasUnsavedChanges: (val: boolean) => void,
   handleSave: () => Promise<boolean>,
+  handleSaveLocation: (lat: number, lng: number) => Promise<boolean>,
   handleDeleteRestaurant: () => Promise<void>,
 } {
   const { language, setLanguage, setCurrencyCode } = useLanguage()
@@ -193,6 +199,17 @@ export function useSettingsData(): {
           setCurrencyCode(COUNTRY_CURRENCIES.PK.code)
         }
         const dbLanguage = normalizeLanguage(restaurantData.dashboard_lang)
+        const minOrderValue = typeof restaurantData.min_order === 'number'
+          ? restaurantData.min_order
+          : (typeof restaurantData.min_order_price === 'number' ? restaurantData.min_order_price : null)
+        const deliveryFeeValue = typeof restaurantData.delivery_fee === 'number'
+          ? restaurantData.delivery_fee
+          : 0
+        const deliveryTimeValue = typeof restaurantData.delivery_time_min === 'number'
+          && restaurantData.delivery_time_min > 0
+          ? restaurantData.delivery_time_min
+          : null
+
         const nextSettings: RestaurantSettings = {
           id: restaurantData.id || '',
           owner_id: user.id,
@@ -202,14 +219,18 @@ export function useSettingsData(): {
           phone: restaurantData.phone || '',
           whatsapp: restaurantData.whatsapp || '',
           address: restaurantData.address || '',
+          latitude: typeof restaurantData.latitude === 'number' ? restaurantData.latitude : null,
+          longitude: typeof restaurantData.longitude === 'number' ? restaurantData.longitude : null,
           opens_at: convertTo24Hour(restaurantData.opens_at || ''),
           closes_at: convertTo24Hour(restaurantData.closes_at || ''),
           operating_days: toStringArray(restaurantData.operating_days).length > 0
             ? toStringArray(restaurantData.operating_days)
             : [...DEFAULT_SETTINGS.operating_days],
           currency: currencyValue,
-          min_order: typeof restaurantData.min_order === 'number' ? restaurantData.min_order : null,
+          min_order: minOrderValue,
           tax_percent: typeof restaurantData.tax_percent === 'number' ? restaurantData.tax_percent : 0,
+          delivery_fee: deliveryFeeValue,
+          delivery_time_min: deliveryTimeValue,
           is_delivery: typeof restaurantData.is_delivery === 'boolean' ? restaurantData.is_delivery : true,
           delivery_areas: toStringArray(restaurantData.delivery_areas),
           instagram: restaurantData.instagram || '',
@@ -269,6 +290,53 @@ export function useSettingsData(): {
     setHasUnsavedChanges(changed)
   }, [settings, logoFile, newPassword])
 
+  const handleSaveLocation = async (lat: number, lng: number): Promise<boolean> => {
+    if (!settings.id) {
+      toast.error('Restaurant record is missing. Please reload the page.')
+      return false
+    }
+
+    setSaving(true)
+    try {
+      const restaurantsTable = supabase.from('restaurants') as unknown as LooseUpdateTable
+      const { error: updateError } = await restaurantsTable
+        .update({ latitude: lat, longitude: lng })
+        .eq('id', settings.id)
+
+      if (updateError) {
+        throw updateError
+      }
+
+      setSettings((prev) => {
+        const next = { ...prev, latitude: lat, longitude: lng }
+        try {
+          const baseSnapshot = initialSnapshotRef.current
+            ? (JSON.parse(initialSnapshotRef.current) as Record<string, unknown>)
+            : {}
+          initialSnapshotRef.current = JSON.stringify({
+            ...baseSnapshot,
+            latitude: lat,
+            longitude: lng,
+          })
+        } catch {
+          initialSnapshotRef.current = JSON.stringify(next)
+        }
+        return next
+      })
+
+      toast.success('Location saved successfully!')
+      await refreshRestaurant()
+      return true
+    } catch (error) {
+      console.error('Location save failed:', error)
+      const message = error instanceof Error ? error.message : 'Could not save location.'
+      toast.error(message)
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleSave = async (): Promise<boolean> => {
     if (!settings.id) {
       toast.error('Restaurant record is missing. Please reload the page.')
@@ -304,12 +372,17 @@ export function useSettingsData(): {
         phone: settings.phone,
         whatsapp: settings.whatsapp,
         address: settings.address,
+        latitude: settings.latitude,
+        longitude: settings.longitude,
         opens_at: convertTo12Hour(settings.opens_at),
         closes_at: convertTo12Hour(settings.closes_at),
         operating_days: settings.operating_days,
         currency: settings.currency,
         min_order: settings.min_order,
+        min_order_price: settings.min_order,
         tax_percent: settings.tax_percent,
+        delivery_fee: settings.delivery_fee,
+        delivery_time_min: settings.delivery_time_min,
         is_delivery: settings.is_delivery,
         delivery_areas: settings.delivery_areas,
         instagram: settings.instagram,
@@ -443,6 +516,7 @@ export function useSettingsData(): {
     hasUnsavedChanges,
     setHasUnsavedChanges,
     handleSave,
+    handleSaveLocation,
     handleDeleteRestaurant,
   }
 }

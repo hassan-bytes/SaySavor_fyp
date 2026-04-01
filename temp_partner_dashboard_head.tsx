@@ -1,5 +1,5 @@
-// ============================================================
-// FILE: Partner_Dashboard.tsx  (UPDATED — Live Orders inline)
+﻿// ============================================================
+// FILE: Partner_Dashboard.tsx  (UPDATED ΓÇö Live Orders inline)
 // CHANGES:
 //   1. Live Orders now renders INSIDE the dashboard (sidebar visible)
 //   2. Added activeSection state ('outlet' | 'orders')
@@ -36,7 +36,7 @@ import { useNotificationManager } from '@/2_partner/dashboard/components/Notific
 import { setupOrderRealtimeListener } from '@/2_partner/dashboard/services/orderRealtimeService';
 import { ORDER_WITH_ITEMS_SELECT } from '@/shared/constants/querySelects';
 import { registerOrderPushNotifications } from '@/shared/services/pushNotifications';
-// ── NEW IMPORT ──────────────────────────────────────────────
+// ΓöÇΓöÇ NEW IMPORT ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 import PartnerOrders from '@/2_partner/pages/PartnerOrders';
 import PartnerPOS from '@/2_partner/pages/PartnerPOS';
 import LiveOrdersDashboard from '@/2_partner/dashboard/pages/LiveOrdersDashboard';
@@ -79,12 +79,11 @@ const PartnerDashboardLayout = () => {
     const notifiedOrderIdsRef = useRef<Set<string>>(new Set());
     const notificationManagerRef = useRef<any>(null);
     const pushInitRef = useRef<string | null>(null);
-    const itemEventIdsRef = useRef<Set<string>>(new Set());
 
     // Persistent Notification Manager (stays active across all dashboard routes)
     const notificationManager = useNotificationManager({
         onOrdersReady: () => {
-            console.log('[Partner_Dashboard] 📦 New orders ready for display');
+            console.log('[Partner_Dashboard] ≡ƒôª New orders ready for display');
         }
     });
     notificationManagerRef.current = notificationManager;
@@ -158,7 +157,7 @@ const PartnerDashboardLayout = () => {
         const fetchInitialTotals = async () => {
             const { data } = await supabase.from('orders').select('id, total_amount')
                 .eq('restaurant_id', restaurantId)
-                .in('status', ['pending', 'confirmed', 'cooking', 'ready', 'delivered']);
+                .in('status', ['pending', 'accepted', 'cooking', 'ready', 'delivered']);
             if (data) {
                 const map: Record<string, number> = {};
                 data.forEach((o: any) => map[o.id] = o.total_amount || 0);
@@ -172,12 +171,12 @@ const PartnerDashboardLayout = () => {
                 const { table_number, restaurant_id } = payload.payload;
                 if (restaurant_id === restaurantId) {
                     soundManager.playServiceBell();
-                    toast.error(`🛎️ Table ${table_number} requested the Bill!`, {
+                    toast.error(`≡ƒ¢Ä∩╕Å Table ${table_number} requested the Bill!`, {
                         duration: 5000,
                         style: { background: '#ef4444', color: '#fff', fontSize: '1.2rem', padding: '16px', fontWeight: 'bold' }
                     });
                     if ('Notification' in window && Notification.permission === 'granted') {
-                        new Notification('🚨 Bill Requested!', {
+                        new Notification('≡ƒÜ¿ Bill Requested!', {
                             body: `Table ${table_number} is ready to pay.`,
                             icon: profile?.logo_url || '/favicon.ico',
                             requireInteraction: true
@@ -213,11 +212,11 @@ const PartnerDashboardLayout = () => {
     useEffect(() => {
         if (!restaurantId) return;
 
-        console.log('[Partner_Dashboard] 🔔 Setting up persistent order notifications');
+        console.log('[Partner_Dashboard] ≡ƒöö Setting up persistent order notifications');
 
         const handleOrderChange = async (eventType: string, orderId: string) => {
             try {
-                console.log(`[Partner_Dashboard] 📦 ${eventType} event for order ${orderId?.slice(-4)}`);
+                console.log(`[Partner_Dashboard] ≡ƒôª ${eventType} event for order ${orderId?.slice(-4)}`);
 
                 // Fetch fresh order data with items
                 const { data: freshOrders, error } = await supabase
@@ -228,7 +227,7 @@ const PartnerDashboardLayout = () => {
                     .order('created_at', { ascending: false });
 
                 if (!error && freshOrders && freshOrders.length > 0) {
-                    console.log(`[Partner_Dashboard] 🔔 Found ${freshOrders.length} pending orders`);
+                    console.log(`[Partner_Dashboard] ≡ƒöö Found ${freshOrders.length} pending orders`);
 
                     // Update pending count badge
                     setPendingCount(freshOrders.length);
@@ -245,10 +244,10 @@ const PartnerDashboardLayout = () => {
                                     created_at: order.created_at
                                 });
                                 notifiedOrderIdsRef.current.add(order.id);
-                                console.log(`🔊 [GLOBAL SOUND] Added order #${order.id.slice(-4)} to notification queue`);
+                                console.log(`≡ƒöè [GLOBAL SOUND] Added order #${order.id.slice(-4)} to notification queue`);
                             } else {
                                 // Fallback visual notification
-                                toast.success(`🔔 NEW ORDER from ${order.customer_name || 'Guest'}!`, {
+                                toast.success(`≡ƒöö NEW ORDER from ${order.customer_name || 'Guest'}!`, {
                                     duration: 5000,
                                     description: `Order #${order.id.slice(-6).toUpperCase()}`
                                 });
@@ -278,7 +277,6 @@ const PartnerDashboardLayout = () => {
             onOrderChange: () => {
                 // Trigger on any order change (INSERT/UPDATE/DELETE)
                 handleOrderChange('CHANGE', 'multiple');
-                setRealtimeTrigger((prev) => prev + 1);
             },
             onError: (error) => {
                 console.error('[Partner_Dashboard] Real-time sync error:', error);
@@ -287,44 +285,6 @@ const PartnerDashboardLayout = () => {
         });
 
         return unsubscribe;
-    }, [restaurantId]);
-
-    useEffect(() => {
-        if (!restaurantId) return;
-
-        const channel = supabase
-            .channel(`order-item-events-${restaurantId}`)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'order_item_events',
-                filter: `restaurant_id=eq.${restaurantId}`
-            }, (payload) => {
-                const row = (payload.new || payload.old) as any;
-                if (!row?.id || itemEventIdsRef.current.has(row.id)) return;
-                itemEventIdsRef.current.add(row.id);
-
-                if (row.event_type !== 'item_added') return;
-                const meta = row.payload || {};
-                if (meta.is_initial) return;
-
-                const itemName = meta.item_name || 'Item';
-                const qty = meta.quantity || 1;
-                const orderShort = row.order_id ? row.order_id.slice(-4).toUpperCase() : '----';
-                const dndMode = notificationManagerRef.current?.dndMode || 'off';
-
-                toast.info(`Item added to order #${orderShort}`, {
-                    duration: 4000,
-                    description: `${itemName} x${qty}`
-                });
-
-                if (dndMode === 'off') {
-                    soundManager.playServiceBell();
-                }
-            })
-            .subscribe();
-
-        return () => { supabase.removeChannel(channel); };
     }, [restaurantId]);
 
     const fetchProfile = async () => {
@@ -382,12 +342,12 @@ const PartnerDashboardLayout = () => {
     };
 
     const navLinks = [
-        { name: language === 'ur' ? 'جائزہ' : 'Overview', path: '/dashboard', icon: LayoutDashboard },
-        { name: language === 'ur' ? 'آرڈرز' : 'Orders', path: '/dashboard/orders', icon: Bell, badge: pendingCount > 0 ? pendingCount.toString() : undefined },
-        { name: language === 'ur' ? 'مینو' : 'Menu', path: '/dashboard/menu', icon: UtensilsCrossed },
-        { name: language === 'ur' ? 'AI معاون' : 'AI Assistant', path: '/dashboard/ai', icon: Bot, badge: 'AI' },
-        { name: language === 'ur' ? 'QR کوڈ' : 'QR Builder', path: '/dashboard/qr', icon: QrCode },
-        { name: language === 'ur' ? 'سیٹنگز' : 'Settings', path: '/dashboard/settings', icon: Settings },
+        { name: language === 'ur' ? '╪¼╪º╪ª╪▓█ü' : 'Overview', path: '/dashboard', icon: LayoutDashboard },
+        { name: language === 'ur' ? '╪ó╪▒┌ê╪▒╪▓' : 'Orders', path: '/dashboard/orders', icon: Bell, badge: pendingCount > 0 ? pendingCount.toString() : undefined },
+        { name: language === 'ur' ? '┘à█î┘å┘ê' : 'Menu', path: '/dashboard/menu', icon: UtensilsCrossed },
+        { name: language === 'ur' ? 'AI ┘à╪╣╪º┘ê┘å' : 'AI Assistant', path: '/dashboard/ai', icon: Bot, badge: 'AI' },
+        { name: language === 'ur' ? 'QR ┌⌐┘ê┌ê' : 'QR Builder', path: '/dashboard/qr', icon: QrCode },
+        { name: language === 'ur' ? '╪│█î┘╣┘å┌»╪▓' : 'Settings', path: '/dashboard/settings', icon: Settings },
     ];
 
     const isActiveLink = (path: string) => {
@@ -506,7 +466,7 @@ const PartnerDashboardLayout = () => {
                 <div className="lg:hidden fixed inset-0 bg-black/50 z-30" onClick={() => setIsOpen(false)} />
             )}
 
-            {/* ── Main Content: Direct Outlet ── */}
+            {/* ΓöÇΓöÇ Main Content: Direct Outlet ΓöÇΓöÇ */}
             <main className={`${isRtl ? 'lg:mr-64' : 'lg:ml-64'} min-h-screen pt-16 lg:pt-0 transition-all duration-300`}>
                 <div className="p-6 lg:p-8">
                     <Outlet context={{ greeting, formattedTime, profile, realtimeTrigger, theme, dashboardLang: language, refreshProfile: fetchProfile, restaurantId, notificationManager }} />
@@ -516,10 +476,10 @@ const PartnerDashboardLayout = () => {
     );
 };
 
-// ─────────────────────────────────────────────────────────────
-// StatsCard, ActivityItem, DashboardOverview — UNCHANGED
-// (copy from your original file — not repeated here to save space)
-// ─────────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// StatsCard, ActivityItem, DashboardOverview ΓÇö UNCHANGED
+// (copy from your original file ΓÇö not repeated here to save space)
+// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 export const DashboardOverview = () => {
     const { greeting: ctxGreeting, formattedTime: ctxTime, profile, theme } = useOutletContext<any>() || {};
@@ -528,8 +488,6 @@ export const DashboardOverview = () => {
     const [isOnline, setIsOnline] = useState(true);
     const [stats, setStats] = useState({ revenue: 0, cash_revenue: 0, online_revenue: 0, totalOrders: 0, activeOrders: 0, views: 0, avgPrepTime: '0m' });
     const [activities, setActivities] = useState<any[]>([]);
-    const [recentPaidOnlineCount, setRecentPaidOnlineCount] = useState(0);
-    const [lastPaidOnlineAt, setLastPaidOnlineAt] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [isDemoMode, setIsDemoMode] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
@@ -575,10 +533,7 @@ export const DashboardOverview = () => {
 
                 if (isDemoMode) {
                     setStats({ revenue: 45200, cash_revenue: 32000, online_revenue: 13200, totalOrders: 12, activeOrders: 3, views: 142, avgPrepTime: '18m' });
-                    setRecentPaidOnlineCount(2);
-                    setLastPaidOnlineAt(new Date().toISOString());
                     setActivities([
-                        { title: "Payment received #A12F (Rs. 2,450)", time: "Just now", type: 'payment' },
                         { title: "New Order #1024 (2x Zinger)", time: "Just now", type: 'order' },
                         { title: "New Order #1023 (1x Pizza)", time: "15 mins ago", type: 'order' },
                         { title: "Menu Updated: 'Beef Burger'", time: "1 hour ago", type: 'system' }
@@ -600,54 +555,18 @@ export const DashboardOverview = () => {
                     const { data: recentOrders } = await supabase.from('orders').select('*')
                         .eq('restaurant_id', restaurantId).order('created_at', { ascending: false }).limit(5);
 
-                    const { data: recentPaidOnlineOrders } = await supabase
-                        .from('orders')
-                        .select('id, total_amount, updated_at, payment_status, payment_method')
-                        .eq('restaurant_id', restaurantId)
-                        .eq('payment_method', 'ONLINE')
-                        .in('payment_status', ['PAID', 'paid'])
-                        .order('updated_at', { ascending: false })
-                        .limit(20);
-
-                    if (recentPaidOnlineOrders) {
-                        const oneHourAgo = Date.now() - (60 * 60 * 1000);
-                        const recentlyPaid = (recentPaidOnlineOrders as any[]).filter((order) => {
-                            const updatedAtMs = new Date(order.updated_at).getTime();
-                            return Number.isFinite(updatedAtMs) && updatedAtMs >= oneHourAgo;
-                        });
-
-                        setRecentPaidOnlineCount(recentlyPaid.length);
-                        setLastPaidOnlineAt((recentPaidOnlineOrders as any[])[0]?.updated_at ?? null);
-                    } else {
-                        setRecentPaidOnlineCount(0);
-                        setLastPaidOnlineAt(null);
+                    if (recentOrders) {
+                        setActivities((recentOrders as any[]).map(o => ({
+                            title: `Order #${o.id.slice(0, 4)} (${formatWithRestaurantCurrency(o.total_amount)})`,
+                            time: new Date(o.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                            type: 'order'
+                        })));
                     }
-
-                    const orderActivities = (recentOrders as any[] || []).map((o) => ({
-                        title: `Order #${o.id.slice(0, 4)} (${formatWithRestaurantCurrency(o.total_amount)})`,
-                        time: new Date(o.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        type: 'order',
-                        ts: o.created_at,
-                    }));
-
-                    const paymentActivities = (recentPaidOnlineOrders as any[] || []).slice(0, 3).map((o) => ({
-                        title: `Payment received #${o.id.slice(-4).toUpperCase()} (${formatWithRestaurantCurrency(o.total_amount)})`,
-                        time: new Date(o.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        type: 'payment',
-                        ts: o.updated_at,
-                    }));
-
-                    const mergedActivities = [...paymentActivities, ...orderActivities]
-                        .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
-                        .slice(0, 6)
-                        .map(({ ts, ...activity }) => activity);
-
-                    setActivities(mergedActivities);
                 }
             }
         } catch (error: any) {
             if (error?.name === 'AbortError' || error?.message?.includes('AbortError')) return;
-            console.error('Dashboard Error:', error);
+            console.error("Dashboard Error:", error);
         } finally {
             setLoading(false);
         }
@@ -676,18 +595,6 @@ export const DashboardOverview = () => {
                         <span>Online Paid:</span>
                         <span className="font-bold text-indigo-600">{formatWithRestaurantCurrency(stats.online_revenue)}</span>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] text-emerald-500">
-                        <span>Recent Online Paid:</span>
-                        <span className="font-bold text-emerald-600">{recentPaidOnlineCount} (last 1h)</span>
-                    </div>
-                    {lastPaidOnlineAt && (
-                        <div className="flex items-center justify-between text-[10px] text-emerald-500/90">
-                            <span>Last Payment:</span>
-                            <span className="font-bold text-emerald-600">
-                                {new Date(lastPaidOnlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                        </div>
-                    )}
                 </div>
             ),
             icon: LayoutDashboard, trend: isDemoMode ? 12 : null
@@ -697,6 +604,7 @@ export const DashboardOverview = () => {
         { title: "Avg. Prep Time", value: stats.avgPrepTime, subtext: "Last 5 orders", icon: Bot, trend: isDemoMode ? -2 : 0 },
     ];
 
+    // StatsCard and ActivityItem components (inline to avoid re-export issues)
     const StatsCardInner = ({ title, value, subtext, icon: Icon, trend }: any) => {
         const defaultOptions = { reverse: false, max: 25, perspective: 1000, scale: 1.02, speed: 1000, transition: true, axis: null, reset: true, easing: "cubic-bezier(.03,.98,.52,.99)" };
         return (
@@ -710,7 +618,7 @@ export const DashboardOverview = () => {
                             </div>
                             {trend !== null && (
                                 <span className={`text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm border border-white/50 ${trend > 0 ? 'bg-green-100/80 text-green-700' : 'bg-red-100/80 text-red-700'}`}>
-                                    {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}%
+                                    {trend > 0 ? 'Γåæ' : 'Γåô'} {Math.abs(trend)}%
                                 </span>
                             )}
                         </div>
@@ -733,7 +641,7 @@ export const DashboardOverview = () => {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/70 backdrop-blur-lg p-6 rounded-3xl border border-white/50 shadow-lg relative overflow-hidden">
                 <div className="relative z-10 flex flex-col gap-1">
                     <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                        {greeting}, {userName} <span className="inline-block animate-bounce">👋</span>
+                        {greeting}, {userName} <span className="inline-block animate-bounce">≡ƒæï</span>
                     </h1>
                     <div className="flex items-center gap-4 text-slate-500 font-medium text-sm">
                         <span className="flex items-center gap-1.5 bg-white/50 px-3 py-1 rounded-full border border-slate-200/50 shadow-sm">
@@ -813,12 +721,8 @@ export const DashboardOverview = () => {
                             <div className="space-y-4">
                                 {activities.map((act, i) => (
                                     <div key={i} className="relative pl-8 pb-6 last:pb-0 group">
-                                        <div className={`absolute left-0 top-1 w-8 h-8 rounded-full border-2 border-white flex items-center justify-center z-10 shadow-md ${act.type === 'payment' ? 'bg-emerald-100' : 'bg-amber-100'}`}>
-                                            {act.type === 'payment' ? (
-                                                <ShoppingBag className="text-emerald-600" size={14} />
-                                            ) : (
-                                                <UtensilsCrossed className="text-amber-600" size={14} />
-                                            )}
+                                        <div className="absolute left-0 top-1 w-8 h-8 rounded-full border-2 border-white bg-amber-100 flex items-center justify-center z-10 shadow-md">
+                                            <UtensilsCrossed className="text-amber-600" size={14} />
                                         </div>
                                         <div className="flex flex-col p-3 rounded-lg hover:bg-slate-50/50 transition-colors">
                                             <p className="text-sm font-bold text-slate-800">{act.title}</p>

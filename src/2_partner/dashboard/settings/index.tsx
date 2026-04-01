@@ -5,6 +5,7 @@ import { RestaurantInfo } from './components/RestaurantInfo'
 import { OperatingHours } from './components/OperatingHours'
 import { LocalizationSection } from './components/LocalizationSection'
 import { BusinessSettings } from './components/BusinessSettings'
+import { PromotionsSection } from './components/PromotionsSection'
 import { SocialLinks } from './components/SocialLinks'
 import { SecuritySection } from './components/SecuritySection'
 import { DeleteConfirmModal } from './components/DeleteConfirmModal'
@@ -48,6 +49,7 @@ export default function SettingsPage() {
     saving,
     hasUnsavedChanges,
     handleSave,
+    handleSaveLocation,
     handleDeleteRestaurant,
     newPassword,
     setNewPassword,
@@ -180,6 +182,8 @@ export default function SettingsPage() {
                   onLogoChange={(file) => setLogoFile(file)}
                   logoPreview={settings.logo_url}
                   currentStyles={currentStyles}
+                  savingLocation={saving}
+                  onSaveLocation={handleSaveLocation}
                 />
 
                 <LocalizationSection
@@ -200,11 +204,17 @@ export default function SettingsPage() {
             )}
 
             {activeTab === 'business' && (
-              <BusinessSettings
-                settings={settings}
-                onChange={(fields) => setSettings((prev) => ({ ...prev, ...fields }))}
-                currencySymbol={currencySymbol}
-              />
+              <>
+                <BusinessSettings
+                  settings={settings}
+                  onChange={(fields) => setSettings((prev) => ({ ...prev, ...fields }))}
+                  currencySymbol={currencySymbol}
+                />
+                <PromotionsSection
+                  restaurantId={settings.id}
+                  currencySymbol={currencySymbol}
+                />
+              </>
             )}
 
             {activeTab === 'social' && (

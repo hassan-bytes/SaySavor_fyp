@@ -31,6 +31,7 @@ import KitchenTab from '../components/orders/KitchenTab';
 import TableMapTab from '../components/orders/TableMapTab';
 import POSTab from '../components/orders/POSTab';
 import HistoryTab from '../components/orders/HistoryTab';
+import EditOrderModal from '../components/orders/EditOrderModal';
 
 // ── Types ──────────────────────────────────────────────────
 // Using Order and OrderItem from @/shared/types/orderTypes
@@ -38,7 +39,7 @@ import HistoryTab from '../components/orders/HistoryTab';
 type MainTab = 'kitchen' | 'tables' | 'pos' | 'history';
 
 const UnifiedOrdersManager = () => {
-  const { restaurantId } = useOutletContext<any>();
+  const { restaurantId, realtimeTrigger = 0 } = useOutletContext<any>();
   const { currencySymbol } = useRestaurant();
   const [activeTab, setActiveTab] = useState<MainTab>('kitchen');
   
@@ -50,11 +51,14 @@ const UnifiedOrdersManager = () => {
   const [updating, setUpdating] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
   const notifiedOrderIdsRef = useRef<Set<string>>(new Set());
   const audioUnlockedRef = useRef(false);
   const notificationManagerRef = useRef<any>(null);
+  const lastRealtimeTriggerRef = useRef<number | null>(null);
 
   const [selectedTable, setSelectedTable] = useState('');
 
@@ -90,6 +94,7 @@ const UnifiedOrdersManager = () => {
 
   // Cleanup on unmount
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
       if (abortControllerRef.current) {
@@ -112,6 +117,15 @@ const UnifiedOrdersManager = () => {
   notificationManagerRef.current = notificationManager;
 
   const fmt = (n: number) => `${currencySymbol || 'Rs.'} ${(n || 0).toLocaleString('en', { maximumFractionDigits: 0 })}`;
+
+  const openEditOrder = (order: Order) => {
+    setEditingOrder(order);
+    setIsEditModalOpen(true);
+  };
+
+  const closeEditOrder = () => {
+    setIsEditModalOpen(false);
+  };
 
   const fetchTables = useCallback(async () => {
     if (!restaurantId) return;
@@ -167,7 +181,7 @@ const UnifiedOrdersManager = () => {
         .from('orders')
         .select(ORDER_WITH_ITEMS_SELECT)
         .eq('restaurant_id', restaurantId)
-        .in('status', ['pending', 'accepted', 'cooking', 'ready', 'delivered', 'cancelled'])
+        .in('status', ['pending', 'confirmed', 'cooking', 'ready', 'delivered', 'cancelled'])
         .order('created_at', { ascending: false })
         .limit(100);
       
@@ -181,12 +195,48 @@ const UnifiedOrdersManager = () => {
       }
       
       const orders = (data || []) as Order[];
+
+      const customerIds = Array.from(
+        new Set(
+          orders
+            .map((order) => order.customer_id)
+            .filter((id): id is string => Boolean(id))
+        )
+      );
+
+      let enrichedOrders = orders;
+
+      if (customerIds.length > 0) {
+        const { data: profilesData, error: profilesError } = await (supabase as any)
+          .from('profiles')
+          .select('id, email')
+          .in('id', customerIds);
+
+        if (profilesError) {
+          console.warn('[UnifiedOrdersManager] ⚠️ Could not fetch customer emails:', profilesError.message);
+        } else {
+          const emailMap = new Map<string, string | null>(
+            ((profilesData || []) as Array<{ id: string; email: string | null }>).map((profile) => [profile.id, profile.email])
+          );
+
+          enrichedOrders = orders.map((order) => {
+            const existingEmail = (order as any).customer_email as string | null | undefined;
+            if (existingEmail || !order.customer_id) return order;
+
+            return {
+              ...order,
+              customer_email: emailMap.get(order.customer_id) ?? null,
+            } as Order;
+          });
+        }
+      }
       
       console.log('[UnifiedOrdersManager] 📊 Fetched orders:', orders.length);
       console.log('[UnifiedOrdersManager] 📋 Order statuses:', orders.map(o => `${o.id.slice(-4)}: ${o.status}`));
       console.log('[UnifiedOrdersManager] 🍽️ Orders with items:', orders.filter(o => o.order_items?.length > 0).length);
       
-      setAllOrders(orders);
+      if (!isMountedRef.current) return;
+      setAllOrders(enrichedOrders);
     } catch (err: any) {
       // Silently ignore ALL abort-related errors (React Strict Mode cleanup)
       if (err?.name === 'AbortError') return;
@@ -208,6 +258,18 @@ const UnifiedOrdersManager = () => {
     fetchTables();
     fetchTableSessions();
   }, [fetchOrders, fetchTables, fetchTableSessions]);
+
+  useEffect(() => {
+    if (!restaurantId) return;
+    if (lastRealtimeTriggerRef.current === null) {
+      lastRealtimeTriggerRef.current = realtimeTrigger;
+      return;
+    }
+    if (lastRealtimeTriggerRef.current === realtimeTrigger) return;
+    lastRealtimeTriggerRef.current = realtimeTrigger;
+    fetchOrders();
+    fetchTableSessions();
+  }, [realtimeTrigger, restaurantId, fetchOrders, fetchTableSessions]);
 
   /**
    * REAL-TIME ORDER REFRESH (NO NOTIFICATION LOGIC)
@@ -493,6 +555,7 @@ const UnifiedOrdersManager = () => {
                     orders={activeOrders} 
                     onUpdate={handleStatusUpdate} 
                     onMarkPaid={handleMarkPaid}
+                    onEditOrder={openEditOrder}
                     updating={updating} 
                     fmt={fmt} 
                   />
@@ -535,6 +598,18 @@ const UnifiedOrdersManager = () => {
           </AnimatePresence>
         </main>
       </div>
+
+      <EditOrderModal
+        isOpen={isEditModalOpen}
+        order={editingOrder}
+        restaurantId={restaurantId}
+        currencySymbol={currencySymbol || 'Rs.'}
+        onClose={closeEditOrder}
+        onSaved={() => {
+          fetchOrders();
+          fetchTableSessions();
+        }}
+      />
     </div>
   );
 };

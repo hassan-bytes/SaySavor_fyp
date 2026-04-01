@@ -11,20 +11,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     ArrowLeft, Trash2, Plus, Minus,
     ShoppingBag, ChevronRight, MapPin,
-    Clock, ShieldCheck, Tag, X,
+    Clock, ShieldCheck,
     ChevronDown, MessageSquare
 } from 'lucide-react';
 import { useCart } from '@/3_customer/context/CartContext';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { COUNTRY_CURRENCIES } from '@/shared/lib/currencyUtils';
-import { toast } from 'sonner';
-
-// ── Valid promo codes (demo — real ones come from DB) ─────────
-const PROMO_CODES: Record<string, { discount: number; type: 'flat' | 'percent'; label: string }> = {
-    'SAVOR50': { discount: 50, type: 'percent', label: '50% OFF (First Order)' },
-    'FREE50': { discount: 50, type: 'flat', label: 'Rs. 50 OFF' },
-    'WELCOME': { discount: 100, type: 'flat', label: 'Rs. 100 Welcome Discount' },
-};
 
 const CartPage: React.FC = () => {
     const navigate = useNavigate();
@@ -39,20 +31,22 @@ const CartPage: React.FC = () => {
     } = useCart();
 
     const [currencySymbol, setCurrencySymbol] = useState('PKR');
-    const [promoCode, setPromoCode] = useState('');
-    const [appliedPromo, setAppliedPromo] = useState<null | typeof PROMO_CODES[string] & { code: string }>(null);
-    const [promoError, setPromoError] = useState('');
-    const [showPromo, setShowPromo] = useState(false);
+    const [deliveryFee, setDeliveryFee] = useState<number>(0);
+    const [taxPercent, setTaxPercent] = useState<number>(0);
+    const [deliveryTimeMin, setDeliveryTimeMin] = useState<number | null>(null);
     const [expandedItem, setExpandedItem] = useState<number | null>(null);
     const [itemNotes, setItemNotes] = useState<Record<number, string>>({});
 
-    // Load currency
+    // Load restaurant pricing info
     React.useEffect(() => {
-        const loadCurrency = async () => {
+        const loadRestaurantInfo = async () => {
             if (!currentRestaurantId) return;
             try {
                 const { data, error } = await supabase
-                    .from('restaurants').select('currency').eq('id', currentRestaurantId).maybeSingle();
+                    .from('restaurants')
+                    .select('currency, delivery_fee, tax_percent, delivery_time_min')
+                    .eq('id', currentRestaurantId)
+                    .maybeSingle();
                 
                 if (error) {
                     console.error('Error loading currency:', error);
@@ -64,41 +58,25 @@ const CartPage: React.FC = () => {
                 const info = Object.values(COUNTRY_CURRENCIES).find(c => c.code === savedCurrency)
                     ?? Object.values(COUNTRY_CURRENCIES).find(c => c.code === 'PKR');
                 setCurrencySymbol(info?.symbol ?? 'PKR');
+                setDeliveryFee(typeof (data as any)?.delivery_fee === 'number' ? (data as any).delivery_fee : 0);
+                setTaxPercent(typeof (data as any)?.tax_percent === 'number' ? (data as any).tax_percent : 0);
+                setDeliveryTimeMin(typeof (data as any)?.delivery_time_min === 'number' ? (data as any).delivery_time_min : null);
             } catch (err) {
                 console.error('Failed to load currency:', err);
                 setCurrencySymbol('PKR');
+                setDeliveryFee(0);
+                setTaxPercent(0);
+                setDeliveryTimeMin(null);
             }
         };
-        loadCurrency();
+        loadRestaurantInfo();
     }, [currentRestaurantId]);
 
     const formatPrice = (price: number) =>
         `${currencySymbol}\u00A0${price.toLocaleString('en', { maximumFractionDigits: 0 })}`;
 
-    // ── Promo calculation ────────────────────────────────────
-    const applyPromo = () => {
-        setPromoError('');
-        const code = promoCode.trim().toUpperCase();
-        const found = PROMO_CODES[code];
-        if (!found) {
-            setPromoError('Invalid promo code. Try SAVOR50, FREE50, or WELCOME');
-            return;
-        }
-        setAppliedPromo({ ...found, code });
-        toast.success(`✅ Promo applied: ${found.label}`);
-        setPromoCode('');
-        setShowPromo(false);
-    };
-
-    const promoDiscount = appliedPromo
-        ? appliedPromo.type === 'percent'
-            ? Math.round(totalAmount * appliedPromo.discount / 100)
-            : Math.min(appliedPromo.discount, totalAmount)
-        : 0;
-
-    const deliveryFee = totalAmount > 0 ? 50 : 0;
-    const tax = Math.round(totalAmount * 0.05);
-    const finalTotal = totalAmount + deliveryFee + tax - promoDiscount;
+    const tax = Math.round(totalAmount * (taxPercent / 100));
+    const finalTotal = totalAmount + deliveryFee + tax;
 
     // ── Empty cart state ─────────────────────────────────────
     if (totalCount === 0) {
@@ -258,57 +236,6 @@ const CartPage: React.FC = () => {
                     </AnimatePresence>
                 </div>
 
-                {/* ── PROMO CODE ──────────────────────────── */}
-                <div>
-                    <button
-                        onClick={() => setShowPromo(!showPromo)}
-                        className="flex items-center gap-2 text-sm font-bold text-orange-500 py-3 px-4 rounded-2xl bg-orange-500/5 border border-orange-500/20 w-full hover:bg-orange-500/10 transition-colors"
-                    >
-                        <Tag className="w-4 h-4" />
-                        {appliedPromo ? `✅ ${appliedPromo.code} applied` : 'Have a promo code?'}
-                        {appliedPromo && (
-                            <button
-                                onClick={e => { e.stopPropagation(); setAppliedPromo(null); toast.info('Promo removed.'); }}
-                                className="ml-auto"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        )}
-                    </button>
-
-                    <AnimatePresence>
-                        {showPromo && !appliedPromo && (
-                            <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="overflow-hidden"
-                            >
-                                <div className="mt-2 flex gap-2">
-                                    <input
-                                        type="text"
-                                        value={promoCode}
-                                        onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoError(''); }}
-                                        placeholder="Enter promo code"
-                                        onKeyDown={e => e.key === 'Enter' && applyPromo()}
-                                        className="flex-1 px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/20 outline-none focus:border-orange-500/40"
-                                    />
-                                    <button
-                                        onClick={applyPromo}
-                                        className="px-4 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-black"
-                                    >
-                                        Apply
-                                    </button>
-                                </div>
-                                {promoError && (
-                                    <p className="text-xs text-red-400 mt-1.5 px-1">{promoError}</p>
-                                )}
-                                <p className="text-[10px] text-white/20 mt-1.5 px-1">Try: SAVOR50 · FREE50 · WELCOME</p>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-
                 {/* ── DELIVERY INFO ────────────────────────── */}
                 <div className="p-4 rounded-2xl space-y-3" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
                     <div className="flex items-center gap-3">
@@ -320,16 +247,20 @@ const CartPage: React.FC = () => {
                             <p className="text-sm font-bold text-white">Add address at checkout</p>
                         </div>
                     </div>
-                    <div className="h-px bg-white/5" />
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/10">
-                            <Clock className="w-4 h-4 text-blue-400" />
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-black text-white/30 uppercase">Estimated Time</p>
-                            <p className="text-sm font-bold text-white">25 – 35 Minutes</p>
-                        </div>
-                    </div>
+                    {deliveryTimeMin !== null && (
+                        <>
+                            <div className="h-px bg-white/5" />
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/10">
+                                    <Clock className="w-4 h-4 text-blue-400" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-white/30 uppercase">Estimated Time</p>
+                                    <p className="text-sm font-bold text-white">{deliveryTimeMin} Minutes</p>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 {/* ── BILL DETAILS ─────────────────────────── */}
@@ -345,20 +276,9 @@ const CartPage: React.FC = () => {
                         <span>{formatPrice(deliveryFee)}</span>
                     </div>
                     <div className="flex justify-between text-sm text-white/60">
-                        <span>GST (5%)</span>
+                        <span>{taxPercent > 0 ? `Tax (${taxPercent}%)` : 'Tax'}</span>
                         <span>{formatPrice(tax)}</span>
                     </div>
-
-                    {appliedPromo && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="flex justify-between text-sm text-green-400 pb-2 border-b border-white/5"
-                        >
-                            <span>Promo ({appliedPromo.code})</span>
-                            <span>- {formatPrice(promoDiscount)}</span>
-                        </motion.div>
-                    )}
 
                     <div className="pt-2 flex justify-between items-center border-t border-orange-500/10">
                         <span className="text-base font-black text-white">Total Amount</span>

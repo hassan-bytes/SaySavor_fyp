@@ -12,6 +12,8 @@ export interface RestaurantSettings {
   phone: string
   whatsapp: string
   address: string
+  latitude: number | null
+  longitude: number | null
 
   // hours
   opens_at: string
@@ -24,6 +26,8 @@ export interface RestaurantSettings {
   // business rules
   min_order: number | null
   tax_percent: number
+  delivery_fee: number | null
+  delivery_time_min: number | null
   is_delivery: boolean
   delivery_areas: string[]
 
@@ -45,12 +49,16 @@ export const DEFAULT_SETTINGS: RestaurantSettings = {
   phone: '',
   whatsapp: '',
   address: '',
+  latitude: null,
+  longitude: null,
   opens_at: '',
   closes_at: '',
   operating_days: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
   currency: 'PKR',
   min_order: null,
   tax_percent: 0,
+  delivery_fee: 0,
+  delivery_time_min: null,
   is_delivery: true,
   delivery_areas: [],
   instagram: '',

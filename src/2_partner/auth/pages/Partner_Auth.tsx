@@ -18,6 +18,8 @@ import { Label } from '@/shared/ui/label';
 import { toast } from 'sonner';
 import { Eye, EyeOff, ChefHat, Loader2, ArrowLeft, ChevronDown } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { getUserRoles, checkPanelMismatch } from '@/shared/lib/roleHelpers';
+import { RoleConfirmationDialog } from '@/shared/components/RoleConfirmationDialog';
 
 // Top 10 Countries
 const TOP_COUNTRIES = [
@@ -316,6 +318,9 @@ const Partner_Auth = () => {
     const [selectedCountry, setSelectedCountry] = useState(TOP_COUNTRIES[0]);
     const [email, setEmail] = useState('');
     const [recoveryEmail, setRecoveryEmail] = useState('');
+    const [showRoleConfirmation, setShowRoleConfirmation] = useState(false);
+    const [roleWarningType, setRoleWarningType] = useState<'partner_in_customer' | 'customer_in_partner' | null>(null);
+    const [roleWarningMessage, setRoleWarningMessage] = useState('');
 
     const navigate = useNavigate();
 
@@ -377,7 +382,7 @@ const Partner_Auth = () => {
         resolver: zodResolver(newPasswordSchema),
     });
 
-    // Smart Email Check Handler
+    // Smart Email Check Handler with Role Detection
     const handleEmailCheck = async (data: { email: string }) => {
         setLoading(true);
         setEmail(data.email);
@@ -396,8 +401,25 @@ const Partner_Auth = () => {
                 setAuthView('SIGNUP');
                 setMode('signup');
                 signupForm.setValue('email', data.email);
-            } else if (userExists) {
-                // User exists -> Show LOGIN
+                setLoading(false);
+                return;
+            }
+
+            if (userExists) {
+                // User exists - check their roles
+                const userRoles = await getUserRoles(data.email);
+                const mismatch = checkPanelMismatch(userRoles, 'partner');
+
+                if (mismatch.shouldWarn && mismatch.warningType === 'customer_in_partner') {
+                    // Customer trying to use partner panel - show confirmation
+                    setRoleWarningType(mismatch.warningType);
+                    setRoleWarningMessage(mismatch.message);
+                    setShowRoleConfirmation(true);
+                    setLoading(false);
+                    return;
+                }
+
+                // User exists and has partner role (or confirmed) -> Show LOGIN
                 toast.info('Welcome back! Please login.');
                 setAuthView('LOGIN');
                 setMode('login');
@@ -416,6 +438,15 @@ const Partner_Auth = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    // Handle role confirmation (allow continue in partner panel)
+    const handleRoleConfirmation = async () => {
+        setShowRoleConfirmation(false);
+        setAuthView('LOGIN');
+        setMode('login');
+        loginForm.setValue('email', email);
+        toast.info('Continue with password to proceed in Partner panel.');
     };
 
     const handleSignup = async (data: SignupForm) => {
@@ -1138,6 +1169,19 @@ const Partner_Auth = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Role Confirmation Dialog */}
+            <RoleConfirmationDialog
+                isOpen={showRoleConfirmation}
+                onClose={() => {
+                    setShowRoleConfirmation(false);
+                    setAuthView('EMAIL_ENTRY');
+                }}
+                onConfirm={handleRoleConfirmation}
+                warningType={roleWarningType}
+                message={roleWarningMessage}
+                loading={loading}
+            />
         </div>
     );
 };

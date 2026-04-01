@@ -9,13 +9,14 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { 
-    ArrowLeft, Star, Clock, MapPin, 
-    Plus, Minus, ShoppingCart, Search,
-    Flame, Info, Share2, Heart, Filter,
-    Loader2
+    ArrowLeft, Star, Clock,
+    Plus, ShoppingCart, Search,
+    Share2, Heart,
+    Loader2, MapPin
 } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCart } from '@/3_customer/context/CartContext';
+import { useCustomerLocation } from '@/3_customer/hooks/useCustomerLocation';
 import type { MenuItem } from '@/shared/types/menu';
 import { COUNTRY_CURRENCIES } from '@/shared/lib/currencyUtils';
 
@@ -27,10 +28,11 @@ interface RestaurantInfo {
     logo_url: string | null;
     currency: string | null;
     city: string | null;
-    rating: number;
-    delivery_time_min: number;
-    min_order: number;
+    rating: number | null;
+    delivery_time_min: number | null;
+    min_order: number | null;
     cuisine_types: string[];
+    is_open: boolean | null;
 }
 
 // ── Menu Item Card ──────────────────────────────────────────
@@ -58,9 +60,11 @@ const MenuItemCard: React.FC<{
                         {item.name}
                     </h4>
                 </div>
-                <p className="text-xs text-white/50 line-clamp-2 mb-3 leading-relaxed">
-                    {item.description || 'Delicious dish made with authentic ingredients.'}
-                </p>
+                {item.description && (
+                    <p className="text-xs text-white/50 line-clamp-2 mb-3 leading-relaxed">
+                        {item.description}
+                    </p>
+                )}
                 <div className="flex items-center justify-between">
                     <span className="text-sm font-black text-orange-400">{formatPrice(item.price)}</span>
                     <button
@@ -98,6 +102,14 @@ const RestaurantDetail: React.FC = () => {
     const [activeTab, setActiveTab] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
 
+    const {
+        location,
+        status: locationStatus,
+        error: locationError,
+        requestLocation,
+    } = useCustomerLocation();
+    const isLocationReady = Boolean(location && locationStatus === 'ready');
+
     const scrollRef = useRef<HTMLDivElement>(null);
     const { scrollY } = useScroll();
     const headerBlur = useTransform(scrollY, [0, 200], [0, 20]);
@@ -114,8 +126,15 @@ const RestaurantDetail: React.FC = () => {
 
     useEffect(() => {
         if (!id) return;
+        if (!isLocationReady) return;
         fetchRestaurantData();
-    }, [id]);
+    }, [id, isLocationReady]);
+
+    useEffect(() => {
+        if (!location && locationStatus === 'idle') {
+            requestLocation();
+        }
+    }, [location, locationStatus, requestLocation]);
 
     const fetchRestaurantData = async () => {
         setLoading(true);
@@ -132,6 +151,10 @@ const RestaurantDetail: React.FC = () => {
             if (!resData) throw new Error('Restaurant not found');
             
             const r = resData as any;
+            const cuisines = Array.isArray(r.cuisine_type)
+                ? r.cuisine_type
+                : (Array.isArray(r.cuisine_types) ? r.cuisine_types : []);
+
             setRestaurant({
                 id: r.id,
                 name: r.name,
@@ -139,10 +162,11 @@ const RestaurantDetail: React.FC = () => {
                 logo_url: r.logo_url,
                 currency: r.currency || 'PKR',
                 city: r.city,
-                rating: r.rating || 4.5,
-                delivery_time_min: r.delivery_time_min || 30,
-                min_order: r.min_order || 200,
-                cuisine_types: r.cuisine_types || []
+                rating: typeof r.rating === 'number' ? r.rating : null,
+                delivery_time_min: typeof r.delivery_time_min === 'number' ? r.delivery_time_min : null,
+                min_order: typeof r.min_order === 'number' ? r.min_order : null,
+                cuisine_types: cuisines,
+                is_open: typeof r.is_open === 'boolean' ? r.is_open : null,
             });
 
             // 2. Fetch Menu Categories & Items
@@ -188,6 +212,40 @@ const RestaurantDetail: React.FC = () => {
             setLoading(false);
         }
     };
+
+    if (!isLocationReady) {
+        return (
+            <div className="min-h-screen bg-[#0d0500] flex items-center justify-center p-6 text-center">
+                <div className="max-w-md w-full rounded-3xl border border-white/10 bg-white/[0.03] p-8">
+                    <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto">
+                        <MapPin className="w-6 h-6" style={{ color: '#FF6B35' }} />
+                    </div>
+                    <h2 className="text-xl font-bold text-white mt-4">Enable location to view menu</h2>
+                    <p className="text-sm mt-2" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                        Allow location access to see dishes near you within 5-10 km.
+                    </p>
+                    <button
+                        onClick={requestLocation}
+                        disabled={locationStatus === 'loading'}
+                        className="mt-5 w-full px-6 py-2.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-60"
+                        style={{ background: 'linear-gradient(135deg, #FF6B35, #E85A24)' }}
+                    >
+                        {locationStatus === 'loading' ? 'Locating...' : 'Enable Location'}
+                    </button>
+                    {locationError && (
+                        <p className="text-[10px] mt-3" style={{ color: 'rgba(255,255,255,0.4)' }}>{locationError}</p>
+                    )}
+                    <button
+                        onClick={() => navigate('/foodie/home')}
+                        className="mt-4 text-xs font-semibold"
+                        style={{ color: '#FF6B35' }}
+                    >
+                        Back to Home
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     if (loading) {
         return (
@@ -278,36 +336,45 @@ const RestaurantDetail: React.FC = () => {
                     style={{ scale: headerScale, opacity: headerOpacity }}
                     className="absolute inset-0"
                 >
-                    <img 
-                        src={restaurant.logo_url || "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=1200&q=80"} 
-                        alt={restaurant.name} 
-                        className="w-full h-full object-cover"
-                    />
+                    {restaurant.logo_url ? (
+                        <img 
+                            src={restaurant.logo_url} 
+                            alt={restaurant.name} 
+                            className="w-full h-full object-cover"
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-500/20 via-[#0d0500] to-[#0d0500]">
+                            <span className="text-6xl">🍽️</span>
+                        </div>
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-[#0d0500] via-[#0d0500]/40 to-transparent" />
                 </motion.div>
 
                 <div className="absolute bottom-0 left-0 right-0 p-6">
                     <div className="max-w-4xl mx-auto">
-                        <div className="flex items-center gap-2 mb-2">
-                             <span className="px-2 py-0.5 rounded text-[10px] font-black bg-orange-500 text-white">OPEN NOW</span>
-                             <span className="text-white/40 text-xs font-bold uppercase tracking-wider">{cuisineLabel} • {restaurant.city}</span>
-                        </div>
+                            <div className="flex items-center gap-2 mb-2">
+                                {restaurant.is_open !== null && (
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-black ${restaurant.is_open ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+                                     {restaurant.is_open ? 'OPEN' : 'CLOSED'}
+                                  </span>
+                                )}
+                                <span className="text-white/40 text-xs font-bold uppercase tracking-wider">{cuisineLabel}{restaurant.city ? ` • ${restaurant.city}` : ''}</span>
+                            </div>
                         <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tight">{restaurant.name}</h1>
                         
                         <div className="flex flex-wrap items-center gap-4 text-sm font-bold">
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 border border-white/10">
-                                <Star className="w-4 h-4 fill-orange-400 text-orange-400" />
-                                <span>{restaurant.rating}</span>
-                                <span className="text-white/40 font-normal"> (200+)</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 border border-white/10">
-                                <Clock className="w-4 h-4 text-orange-400" />
-                                <span>{restaurant.delivery_time_min} mins</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 border border-white/10">
-                                <MapPin className="w-4 h-4 text-orange-400" />
-                                <span>Under 2km</span>
-                            </div>
+                            {restaurant.rating !== null && (
+                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 border border-white/10">
+                                    <Star className="w-4 h-4 fill-orange-400 text-orange-400" />
+                                    <span>{restaurant.rating}</span>
+                                </div>
+                            )}
+                            {restaurant.delivery_time_min !== null && (
+                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 border border-white/10">
+                                    <Clock className="w-4 h-4 text-orange-400" />
+                                    <span>{restaurant.delivery_time_min} mins</span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

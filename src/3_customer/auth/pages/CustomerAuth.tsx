@@ -17,6 +17,8 @@ import {
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCustomerAuth } from '@/3_customer/context/CustomerAuthContext';
 import type { AuthView, IdentifierType } from '@/3_customer/types/customer';
+import { getUserRoles, checkPanelMismatch } from '@/shared/lib/roleHelpers';
+import { RoleConfirmationDialog } from '@/shared/components/RoleConfirmationDialog';
 
 // ── Rate limiting helper ───────────────────────────────────────
 const createRateLimiter = (maxAttempts: number = 5, windowMs: number = 5 * 60 * 1000) => {
@@ -127,6 +129,9 @@ const CustomerAuth: React.FC = () => {
     const [showConfirm, setShowConfirm] = useState(false);
     const [loading, setLoading] = useState(false);
     const [otp, setOtp] = useState('');
+    const [showRoleConfirmation, setShowRoleConfirmation] = useState(false);
+    const [roleWarningType, setRoleWarningType] = useState<'partner_in_customer' | 'customer_in_partner' | null>(null);
+    const [roleWarningMessage, setRoleWarningMessage] = useState('');
 
     // Redirect if already logged in
     useEffect(() => {
@@ -146,7 +151,7 @@ const CustomerAuth: React.FC = () => {
         setIdentifierType(type);
     };
 
-    // Step 1: Check if user exists
+    // Step 1: Check if user exists with Role Detection
     const handleIdentifierCheck = async (e: React.FormEvent) => {
         e.preventDefault();
         const id = identifier.trim();
@@ -155,16 +160,26 @@ const CustomerAuth: React.FC = () => {
         try {
             const { data: profile } = await supabase
                 .from('profiles')
-                .select('id, role')
+                .select('id, email')
                 .or(`email.eq.${id},phone.eq.${id}`)
                 .maybeSingle();
 
             if (profile) {
-                if ((profile as any).role === 'partner') {
-                    toast.error('This account is a Partner account. Use the Partner login.');
+                // User exists - check their roles
+                const userEmail = (profile as any).email;
+                const userRoles = await getUserRoles(userEmail);
+                const mismatch = checkPanelMismatch(userRoles, 'customer');
+
+                if (mismatch.shouldWarn && mismatch.warningType === 'partner_in_customer') {
+                    // Partner trying to use customer panel - show confirmation
+                    setRoleWarningType(mismatch.warningType);
+                    setRoleWarningMessage(mismatch.message);
+                    setShowRoleConfirmation(true);
                     setLoading(false);
                     return;
                 }
+
+                // User exists and can proceed -> Show LOGIN
                 toast.info('Welcome back! Enter your password.');
                 setView('LOGIN');
             } else {
@@ -175,6 +190,13 @@ const CustomerAuth: React.FC = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    // Handle role confirmation (allow continue in customer panel)
+    const handleRoleConfirmation = async () => {
+        setShowRoleConfirmation(false);
+        setView('LOGIN');
+        toast.info('Continue with password to proceed in Customer panel.');
     };
 
     // Step 2a: Login
@@ -503,6 +525,19 @@ const CustomerAuth: React.FC = () => {
                     </p>
                 </div>
             </section>
+
+            {/* Role Confirmation Dialog */}
+            <RoleConfirmationDialog
+                isOpen={showRoleConfirmation}
+                onClose={() => {
+                    setShowRoleConfirmation(false);
+                    setView('IDENTIFIER_ENTRY');
+                }}
+                onConfirm={handleRoleConfirmation}
+                warningType={roleWarningType}
+                message={roleWarningMessage}
+                loading={loading}
+            />
         </div>
     );
 };

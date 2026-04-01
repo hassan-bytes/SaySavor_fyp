@@ -1,4 +1,4 @@
-import { Store, Upload } from 'lucide-react'
+import { CheckCircle2, MapPin, Store, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
@@ -10,6 +10,8 @@ interface Props {
   onLogoChange: (file: File) => void
   logoPreview: string | null
   currentStyles: { bg: string; text: string; glow: string; border: string }
+  savingLocation: boolean
+  onSaveLocation: (lat: number, lng: number) => Promise<boolean>
 }
 
 export function RestaurantInfo({
@@ -18,7 +20,10 @@ export function RestaurantInfo({
   onLogoChange,
   logoPreview,
   currentStyles,
+  savingLocation,
+  onSaveLocation,
 }: Props) {
+  const hasSavedLocation = typeof settings.latitude === 'number' && typeof settings.longitude === 'number'
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -29,6 +34,29 @@ export function RestaurantInfo({
     }
 
     onLogoChange(file)
+  }
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported on this device.')
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6))
+        const lng = Number(pos.coords.longitude.toFixed(6))
+        onChange({ latitude: lat, longitude: lng })
+        await onSaveLocation(lat, lng)
+      },
+      () => {
+        toast.error('Unable to access location.')
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+      },
+    )
   }
 
   return (
@@ -125,6 +153,31 @@ export function RestaurantInfo({
               placeholder="Street and city"
             />
           </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleUseCurrentLocation}
+              disabled={savingLocation}
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white disabled:opacity-60"
+            >
+              <MapPin size={14} />
+              {savingLocation
+                ? 'Saving location...'
+                : hasSavedLocation
+                ? 'Update location'
+                : 'Use current location'}
+            </button>
+            {hasSavedLocation && !savingLocation && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[10px] font-semibold text-emerald-300">
+                <CheckCircle2 size={12} />
+                Location saved
+              </span>
+            )}
+          </div>
+          <p className="text-[10px] text-slate-400">
+            Location is saved once and only needs updating if your restaurant moves.
+          </p>
         </div>
       </div>
     </section>

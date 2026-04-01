@@ -15,28 +15,30 @@ import {
 import { useCustomerAuth } from '@/3_customer/context/CustomerAuthContext';
 import { customerOrderService } from '@/3_customer/services/customerOrderService';
 import { COUNTRY_CURRENCIES } from '@/shared/lib/currencyUtils';
+import { BecomePartnerButton } from '@/3_customer/components/BecomePartnerButton';
 
 const CustomerProfile: React.FC = () => {
     const navigate = useNavigate();
-    const { customer, logout } = useCustomerAuth();
+    const { customer, logout, userId } = useCustomerAuth();
     const [orders, setOrders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [userRoles, setUserRoles] = useState<string[]>([]);
+
+    // Fetch user roles from Supabase
+    const fetchUserRoles = async () => {
+        if (!userId) return;
+        const { data, error } = await supabase
+            .from('user_roles')
+            .select('roles(name)')
+            .eq('user_id', userId);
+        if (!error && data) {
+            setUserRoles(data.map((r: any) => r.roles?.name).filter(Boolean));
+        }
+    };
 
     useEffect(() => {
-        const fetchHistory = async () => {
-            const identifier = customer?.id || localStorage.getItem('ss_guest_id');
-            if (identifier) {
-                try {
-                    const data = await customerOrderService.getCustomerOrders(identifier);
-                    setOrders(data || []);
-                } catch (err) {
-                    console.error('History Fetch Error:', err);
-                }
-            }
-            setLoading(false);
-        };
-        fetchHistory();
-    }, [customer]);
+        fetchUserRoles();
+    }, [userId]);
 
     const handleSignOut = async () => {
         await logout();
@@ -53,6 +55,11 @@ const CustomerProfile: React.FC = () => {
         const symbol = currencyInfo?.symbol ?? 'PKR';
         return `${symbol}\u00A0${amount.toLocaleString('en', { maximumFractionDigits: 0 })}`;
     };
+
+    const uniqueRestaurants = new Set(
+        orders.map((order) => order.restaurant_id).filter(Boolean)
+    );
+    const displayName = customer?.full_name || (customer ? 'Customer' : 'Guest');
 
     return (
         <div className="min-h-screen bg-[#0d0500] text-white pb-32">
@@ -79,7 +86,7 @@ const CustomerProfile: React.FC = () => {
                              <User className="w-10 h-10 text-orange-500" />
                          )}
                     </div>
-                    <h2 className="text-2xl font-black tracking-tight">{customer?.full_name || 'Shandaar Customer'}</h2>
+                    <h2 className="text-2xl font-black tracking-tight">{displayName}</h2>
                     <p className="text-white/40 text-xs font-bold uppercase tracking-widest">{customer ? (customer.phone || customer.email) : 'Guest Mode'}</p>
                     
                     {/* Abstract circle decoration */}
@@ -90,8 +97,8 @@ const CustomerProfile: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4">
                     <div className="p-4 rounded-3xl bg-white/5 border border-white/5 flex flex-col items-center gap-1">
                         <Star className="w-5 h-5 text-yellow-500 mb-1" />
-                        <span className="text-lg font-black">450</span>
-                        <span className="text-[10px] text-white/40 uppercase font-black">Savor Points</span>
+                        <span className="text-lg font-black">{uniqueRestaurants.size}</span>
+                        <span className="text-[10px] text-white/40 uppercase font-black">Restaurants Tried</span>
                     </div>
                     <div className="p-4 rounded-3xl bg-white/5 border border-white/5 flex flex-col items-center gap-1">
                         <Heart className="w-5 h-5 text-red-500 mb-1" />
@@ -121,8 +128,12 @@ const CustomerProfile: React.FC = () => {
                                     className="p-5 rounded-3xl bg-white/5 border border-white/5 flex items-center justify-between group transition-all hover:bg-white/[0.08]"
                                 >
                                     <div className="flex items-center gap-4">
-                                        <div className="w-14 h-14 rounded-2xl bg-orange-500/5 overflow-hidden border border-white/10">
-                                            <img src={o.restaurants?.logo_url || "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=100"} className="w-full h-full object-cover" alt="r" />
+                                        <div className="w-14 h-14 rounded-2xl bg-orange-500/5 overflow-hidden border border-white/10 flex items-center justify-center">
+                                            {o.restaurants?.logo_url ? (
+                                                <img src={o.restaurants.logo_url} className="w-full h-full object-cover" alt="r" />
+                                            ) : (
+                                                <Package className="w-6 h-6 text-orange-500/60" />
+                                            )}
                                         </div>
                                         <div>
                                             <h4 className="font-black text-sm">{o.restaurants?.name}</h4>
@@ -164,6 +175,14 @@ const CustomerProfile: React.FC = () => {
                     )}
                 </div>
 
+                {/* Become a Partner Button */}
+                {userId && (
+                  <BecomePartnerButton
+                    userId={userId}
+                    userRoles={userRoles}
+                    refreshUserRoles={fetchUserRoles}
+                  />
+                )}
             </main>
         </div>
     );

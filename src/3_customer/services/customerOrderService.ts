@@ -17,6 +17,8 @@
 // ============================================================
 import { supabase } from '@/shared/lib/supabaseClient';
 import type { CartItem } from '@/3_customer/types/customer';
+import { ORDER_TYPE } from '@/shared/types/orderTypes';
+import { PaymentStatus } from '@/shared/types/paymentTypes';
 
 export interface CreateOrderParams {
     restaurant_id: string;
@@ -48,8 +50,70 @@ export const customerOrderService = {
 
         const isGuest = user.is_anonymous === true;
 
-        // Determine order type
-        const orderType = params.order_type || (params.table_number ? 'DINE_IN' : 'delivery');
+        // Determine and normalize order type
+        const normalizedRequestedType = String(params.order_type || '')
+            .trim()
+            .toUpperCase()
+            .replace('-', '_');
+
+        const orderType = (
+            normalizedRequestedType === ORDER_TYPE.DINE_IN
+            || normalizedRequestedType === ORDER_TYPE.DELIVERY
+            || normalizedRequestedType === ORDER_TYPE.TAKEAWAY
+        )
+            ? normalizedRequestedType
+            : (params.table_number ? ORDER_TYPE.DINE_IN : ORDER_TYPE.DELIVERY);
+
+        const buildOrderItems = (orderId: string) => params.items.map((item, index) => ({
+            order_id: orderId,
+            menu_item_id: item.menuItem.id,
+            item_name: item.menuItem.name,
+            unit_price: item.selectedVariant?.price ?? item.menuItem.price,
+            total_price: (item.selectedVariant?.price ?? item.menuItem.price) * item.quantity,
+            quantity: item.quantity,
+            item_notes: params.item_notes?.[index] ?? null,
+            variant_details: item.selectedVariant
+                ? JSON.stringify(item.selectedVariant)
+                : null,
+            modifiers_info: item.selectedModifiers?.length
+                ? JSON.stringify(item.selectedModifiers)
+                : null,
+        }));
+
+        const stripePaymentIntentId = params.stripe_payment_intent_id?.trim();
+
+        // ONLINE orders should be idempotent per Stripe PaymentIntent to avoid duplicates on retries
+        if (params.payment_method === 'ONLINE' && stripePaymentIntentId) {
+            const { data: existingOrder, error: existingOrderError } = await (supabase
+                .from('orders') as any)
+                .select('*')
+                .eq('stripe_payment_intent_id', stripePaymentIntentId)
+                .maybeSingle();
+
+            if (existingOrderError) {
+                console.warn('[customerOrderService] Existing Stripe order lookup failed:', existingOrderError);
+            }
+
+            if (existingOrder) {
+                const { count: existingItemsCount, error: existingItemsError } = await (supabase
+                    .from('order_items') as any)
+                    .select('id', { count: 'exact', head: true })
+                    .eq('order_id', existingOrder.id);
+
+                if (!existingItemsError && (existingItemsCount ?? 0) === 0 && params.items.length > 0) {
+                    const recoveryItems = buildOrderItems(existingOrder.id);
+                    const { error: recoveryItemsError } = await (supabase
+                        .from('order_items') as any)
+                        .insert(recoveryItems);
+
+                    if (recoveryItemsError) {
+                        throw new Error(`Order items recovery failed: ${recoveryItemsError.message}`);
+                    }
+                }
+
+                return existingOrder;
+            }
+        }
 
         // 2. Insert order — using YOUR actual column names
         const { data: orderData, error: orderError } = await (supabase
@@ -67,11 +131,13 @@ export const customerOrderService = {
                 delivery_fee: params.delivery_fee,      // NEW column we added
                 tax_amount: params.tax_amount,        // NEW column we added
                 payment_method: params.payment_method,
-                payment_status: 'pending', // ALWAYS pending initially; webhook updates to 'paid' or 'failed'
+                payment_status: params.payment_method === 'ONLINE' && stripePaymentIntentId
+                    ? PaymentStatus.PAID
+                    : PaymentStatus.PENDING,
                 status: 'pending',
                 session_status: 'active',
                 is_guest: isGuest,          // NEW column we added
-                stripe_payment_intent_id: params.stripe_payment_intent_id ?? null,
+                stripe_payment_intent_id: stripePaymentIntentId ?? null,
             })
             .select()
             .single();
@@ -91,21 +157,7 @@ export const customerOrderService = {
         // 3. Insert order items — using YOUR actual column names
         // YOUR columns: unit_price (not item_price), total_price (not subtotal),
         //               variant_details (not variants_info)
-        const orderItems = params.items.map((item, index) => ({
-            order_id: orderData.id,
-            menu_item_id: item.menuItem.id,
-            item_name: item.menuItem.name,
-            unit_price: item.selectedVariant?.price ?? item.menuItem.price,  // your column
-            total_price: (item.selectedVariant?.price ?? item.menuItem.price) * item.quantity, // your column
-            quantity: item.quantity,
-            item_notes: params.item_notes?.[index] ?? null,     // NEW column we added
-            variant_details: item.selectedVariant
-                ? JSON.stringify(item.selectedVariant)
-                : null,                               // your column name
-            modifiers_info: item.selectedModifiers?.length
-                ? JSON.stringify(item.selectedModifiers)
-                : null,                               // NEW column we added
-        }));
+        const orderItems = buildOrderItems(orderData.id);
 
         const { error: itemsError } = await (supabase
             .from('order_items') as any)

@@ -41,36 +41,49 @@ class OrderSoundManager {
         return this.ctx;
     }
 
+    private isUserActivationActive(): boolean {
+        if (typeof navigator === 'undefined') return false;
+        const activation = (navigator as any)?.userActivation;
+        if (!activation) return true;
+        return activation.isActive;
+    }
+
+    private primeContext(ctx: AudioContext) {
+        if (this.isUnlocked) return;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.value = 0;
+        osc.start();
+        osc.stop(ctx.currentTime + 0.01);
+        this.isUnlocked = true;
+    }
+
     /**
      * Initializes audio context to bypass Autoplay Policies
      */
     public unlockAudio() {
-        if (this.isUnlocked) return;
         const ctx = this.getContext();
         if (!ctx) return;
+        if (!this.isUserActivationActive()) return;
 
         try {
             if (ctx.state === 'suspended') {
-                ctx.resume();
+                void ctx.resume().then(() => this.primeContext(ctx)).catch(() => {});
+                return;
             }
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            gain.gain.value = 0;
-            osc.start();
-            osc.stop(ctx.currentTime + 0.01);
-            this.isUnlocked = true;
+            this.primeContext(ctx);
         } catch (e) { }
     }
 
     /**
      * Play notification for new order (Aggressive Dual-Tone Alarm)
      */
-    playNewOrder() {
-        if (!this.enabled) return;
+    playNewOrder(): boolean {
+        if (!this.enabled) return false;
         const ctx = this.getContext();
-        if (!ctx || ctx.state === 'suspended') return;
+        if (!ctx || ctx.state !== 'running') return false;
 
         try {
             // Play a ringing bell pattern (5 fast rings)
@@ -94,16 +107,18 @@ class OrderSoundManager {
                 osc1.start(startTime);
                 osc1.stop(startTime + 0.2);
             }
+            return true;
         } catch (e) { }
+        return false;
     }
 
     /**
      * Play service bell (Polite Double-Ding for Waiter Call)
      */
-    playServiceBell() {
-        if (!this.enabled) return;
+    playServiceBell(): boolean {
+        if (!this.enabled) return false;
         const ctx = this.getContext();
-        if (!ctx || ctx.state === 'suspended') return;
+        if (!ctx || ctx.state !== 'running') return false;
 
         try {
             const playDing = (delay: number) => {
@@ -128,7 +143,9 @@ class OrderSoundManager {
 
             playDing(0);
             playDing(0.15); // Second ding follows closely
+            return true;
         } catch (e) { }
+        return false;
     }
 
     /**
