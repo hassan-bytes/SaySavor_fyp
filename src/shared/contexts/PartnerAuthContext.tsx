@@ -84,6 +84,7 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [loadingInitial, setLoadingInitial] = useState(true);
   const profileRef = useRef<PartnerProfile | null>(null);
   const mountedRef = useRef(true);
+  const initializedRef = useRef(false);
 
   /**
    * Initialize authentication on mount
@@ -95,12 +96,6 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
    */
   useEffect(() => {
     mountedRef.current = true;
-
-    // Prevent duplicate initialization in React Strict Mode
-    if (!mountedRef.current) {
-      console.log('[PartnerAuth] Component unmounted, skipping initialization');
-      return;
-    }
 
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
@@ -213,11 +208,15 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
     );
 
-    void initAuth();
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      void initAuth();
+    }
 
     // Cleanup on unmount
     return () => {
       mountedRef.current = false;
+      initializedRef.current = false;
       if (timeoutId) clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
@@ -254,8 +253,8 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
 
       if (data) {
-        console.log('[PartnerAuth] ✅ Profile loaded:', data.email);
         const nextProfile = data as PartnerProfile;
+        console.log('[PartnerAuth] ✅ Profile loaded:', nextProfile.email);
         profileRef.current = nextProfile;
         setProfile(nextProfile);
       }

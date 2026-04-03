@@ -45,7 +45,7 @@ export function ProtectedRoute({ children, requireSetup = false }: ProtectedRout
     useEffect(() => {
         if (loadingInitial) return; // Wait for initial session restoration
         checkAccessAndRedirect();
-    }, [user, loadingInitial, location.pathname]);
+    }, [user, loadingInitial, location.pathname, location.search, requireSetup]);
 
     const checkAccessAndRedirect = async () => {
         // RULE 1: Not authenticated -> Redirect to /auth
