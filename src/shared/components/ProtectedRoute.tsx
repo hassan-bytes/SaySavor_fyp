@@ -31,7 +31,7 @@ interface ProtectedRouteProps {
  * └─────────────────┴──────────────────┴─────────────────────────┴──────────────────────────┘
  */
 export function ProtectedRoute({ children, requireSetup = false }: ProtectedRouteProps) {
-    const { user, profile, loading } = usePartnerAuth();
+    const { user, loadingInitial } = usePartnerAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const mountedRef = useRef(true);
@@ -43,9 +43,9 @@ export function ProtectedRoute({ children, requireSetup = false }: ProtectedRout
     }, []);
 
     useEffect(() => {
-        if (loading) return; // Wait for auth to initialize
+        if (loadingInitial) return; // Wait for initial session restoration
         checkAccessAndRedirect();
-    }, [user, loading, location.pathname]);
+    }, [user, loadingInitial, location.pathname]);
 
     const checkAccessAndRedirect = async () => {
         // RULE 1: Not authenticated -> Redirect to /auth
@@ -113,7 +113,7 @@ export function ProtectedRoute({ children, requireSetup = false }: ProtectedRout
     };
 
     // Show loading while auth initializes
-    if (loading) {
+    if (loadingInitial) {
         return (
             <div className="flex items-center justify-center h-screen bg-obsidian">
                 <div className="flex flex-col items-center gap-4">

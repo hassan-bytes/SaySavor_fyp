@@ -83,7 +83,7 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [loading, setLoading] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const profileRef = useRef<PartnerProfile | null>(null);
-  let mounted = true;
+  const mountedRef = useRef(true);
 
   /**
    * Initialize authentication on mount
@@ -94,13 +94,15 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
    * - Sets loadingInitial to false when complete
    */
   useEffect(() => {
+    mountedRef.current = true;
+
     // Prevent duplicate initialization in React Strict Mode
-    if (!mounted) {
+    if (!mountedRef.current) {
       console.log('[PartnerAuth] Component unmounted, skipping initialization');
       return;
     }
-    
-    let timeoutId: NodeJS.Timeout;
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     const initAuth = async () => {
       try {
@@ -108,7 +110,7 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
         
         // Shorter timeout - 3 seconds max
         timeoutId = setTimeout(() => {
-          if (mounted) {
+          if (mountedRef.current) {
             console.warn('[PartnerAuth] ⚠️ Session restoration timeout - proceeding anyway');
             setLoadingInitial(false);
           }
@@ -129,7 +131,7 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
           console.error('[PartnerAuth] Session restoration error:', error);
         }
 
-        if (!mounted) return;
+        if (!mountedRef.current) return;
 
         if (existingSession?.user) {
           console.log('[PartnerAuth] ✅ Session restored for user:', existingSession.user.email);
@@ -146,18 +148,12 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
       } catch (error: any) {
         console.error('[PartnerAuth] Init error:', error?.message || error);
       } finally {
-        clearTimeout(timeoutId);
-        if (mounted) {
+        if (timeoutId) clearTimeout(timeoutId);
+        if (mountedRef.current) {
           setLoadingInitial(false);
           console.log('[PartnerAuth] ✅ Initial load complete');
         }
       }
-    };
-
-    initAuth();
-
-    return () => {
-      mounted = false;
     };
 
     /**
@@ -173,7 +169,7 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
       async (event, newSession) => {
         console.log('[PartnerAuth] Auth event:', event);
 
-        if (!mounted) return;
+        if (!mountedRef.current) return;
 
         // Handle SIGNED_IN event - this means user just logged in
         if (event === 'SIGNED_IN' && newSession?.user) {
@@ -192,6 +188,7 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
         if (event === 'SIGNED_OUT') {
           setUser(null);
           setProfile(null);
+          profileRef.current = null;
           setSession(null);
           return;
         }
@@ -216,9 +213,12 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
     );
 
+    void initAuth();
+
     // Cleanup on unmount
     return () => {
-      mounted = false;
+      mountedRef.current = false;
+      if (timeoutId) clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, []);
@@ -255,7 +255,9 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       if (data) {
         console.log('[PartnerAuth] ✅ Profile loaded:', data.email);
-        setProfile(data as PartnerProfile);
+        const nextProfile = data as PartnerProfile;
+        profileRef.current = nextProfile;
+        setProfile(nextProfile);
       }
     } catch (error: any) {
       // Ignore abort errors

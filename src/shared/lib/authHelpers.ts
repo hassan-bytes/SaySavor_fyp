@@ -32,14 +32,25 @@ export async function getUserStatus(): Promise<UserStatus> {
             };
         }
 
-        // Check setup status from profiles table
+        // Setup completion is determined by restaurant ownership (same rule as ProtectedRoute)
+        const { data: restaurant, error: restaurantError } = await supabase
+            .from('restaurants')
+            .select('id')
+            .eq('owner_id', session.user.id)
+            .maybeSingle();
+
+        if (restaurantError) {
+            console.warn('Restaurant setup check warning:', restaurantError.message);
+        }
+
+        // Fallback to legacy profile flag for compatibility
         const { data: profile } = await supabase
             .from('profiles')
             .select('setup_complete')
             .eq('id', session.user.id)
             .maybeSingle<ProfileSetupData>();
 
-        const setupComplete = profile?.setup_complete ?? false;
+        const setupComplete = Boolean(restaurant) || (profile?.setup_complete ?? false);
 
         return {
             isAuthenticated: true,
@@ -76,6 +87,20 @@ export async function isUserAuthenticated(): Promise<boolean> {
  */
 export async function hasCompletedSetup(userId: string): Promise<boolean> {
     try {
+        const { data: restaurant, error: restaurantError } = await supabase
+            .from('restaurants')
+            .select('id')
+            .eq('owner_id', userId)
+            .maybeSingle();
+
+        if (restaurantError) {
+            console.warn('Restaurant setup check warning:', restaurantError.message);
+        }
+
+        if (restaurant) {
+            return true;
+        }
+
         const { data: profile } = await supabase
             .from('profiles')
             .select('setup_complete')
