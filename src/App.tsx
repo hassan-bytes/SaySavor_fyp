@@ -55,7 +55,7 @@ import CartPage from "@/3_customer/pages/Cart";
 import CheckoutPage from "@/3_customer/pages/Checkout";
 import OrderTracker from "@/3_customer/pages/OrderTracker";
 import CustomerProfile from "@/3_customer/pages/CustomerProfile";
-import { CustomerAuthProvider } from "@/3_customer/context/CustomerAuthContext";
+import { CustomerAuthProvider, useCustomerAuth } from "@/3_customer/context/CustomerAuthContext";
 import { CartProvider } from "@/3_customer/context/CartContext";
 import PaymentSuccess from '@/3_customer/pages/PaymentSuccess';
 import PartnerOrders from '@/2_partner/pages/PartnerOrders';
@@ -80,6 +80,20 @@ const PartnerOrdersWithId = () => (
     <PartnerOrdersInner />
   </RestaurantProvider>
 );
+
+const RequireCustomerSession: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { userId, isLoading } = useCustomerAuth();
+
+  if (isLoading) {
+    return <LoadingSpinner message="Restoring foodie session..." />;
+  }
+
+  if (!userId) {
+    return <Navigate to="/foodie/auth" replace />;
+  }
+
+  return <>{children}</>;
+};
 
 /**
  * AppContent - Inner component that uses auth context
@@ -147,13 +161,13 @@ const AppContent = () => {
                   <CartProvider>
                     <Routes>
                       <Route path="auth" element={<CustomerAuth />} />
-                      <Route path="home" element={<CustomerHome />} />
-                      <Route path="restaurant/:id" element={<RestaurantDetail />} />
-                      <Route path="cart" element={<CartPage />} />
-                      <Route path="checkout" element={<CheckoutPage />} />
-                      <Route path="track/:id" element={<OrderTracker />} />
-                      <Route path="profile" element={<CustomerProfile />} />
-                      <Route path="payment-success" element={<PaymentSuccess />} />
+                      <Route path="home" element={<RequireCustomerSession><CustomerHome /></RequireCustomerSession>} />
+                      <Route path="restaurant/:id" element={<RequireCustomerSession><RestaurantDetail /></RequireCustomerSession>} />
+                      <Route path="cart" element={<RequireCustomerSession><CartPage /></RequireCustomerSession>} />
+                      <Route path="checkout" element={<RequireCustomerSession><CheckoutPage /></RequireCustomerSession>} />
+                      <Route path="track/:id" element={<RequireCustomerSession><OrderTracker /></RequireCustomerSession>} />
+                      <Route path="profile" element={<RequireCustomerSession><CustomerProfile /></RequireCustomerSession>} />
+                      <Route path="payment-success" element={<RequireCustomerSession><PaymentSuccess /></RequireCustomerSession>} />
                       {/* Phase 6+ routes will be added here */}
                     </Routes>
                   </CartProvider>

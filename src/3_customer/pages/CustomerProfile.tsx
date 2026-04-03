@@ -4,7 +4,7 @@
 // PURPOSE: User profile & Order History.
 // ROUTE: /foodie/profile
 // ============================================================
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -63,18 +63,19 @@ const DEFAULT_SETTINGS: ProfileSettings = {
 
 const CustomerProfile: React.FC = () => {
     const navigate = useNavigate();
-    const { customer, logout, userId, isGuest } = useCustomerAuth();
+    const { customer, logout, userId, isGuest, isLoading: authLoading } = useCustomerAuth();
     const [orders, setOrders] = useState<ProfileOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [userRoles, setUserRoles] = useState<string[]>([]);
     const [showSettings, setShowSettings] = useState(false);
     const [showAddresses, setShowAddresses] = useState(false);
     const [savingSettings, setSavingSettings] = useState(false);
+    const [signingOut, setSigningOut] = useState(false);
     const [profileName, setProfileName] = useState('');
     const [profileSettings, setProfileSettings] = useState<ProfileSettings>(DEFAULT_SETTINGS);
 
     // Fetch user roles from Supabase
-    const fetchUserRoles = async () => {
+    const fetchUserRoles = useCallback(async () => {
         if (!userId) return;
         const { data, error } = await supabase
             .from('user_roles')
@@ -83,38 +84,70 @@ const CustomerProfile: React.FC = () => {
         if (!error && data) {
             setUserRoles(data.map((r: any) => r.roles?.name).filter(Boolean));
         }
-    };
+    }, [userId]);
+
+    const loadProfileData = useCallback(async (options?: { silent?: boolean }) => {
+        if (!options?.silent) {
+            setLoading(true);
+        }
+
+        try {
+            const [ordersData] = await Promise.all([
+                customerOrderService.getMyOrders(),
+                fetchUserRoles(),
+            ]);
+
+            setOrders(Array.isArray(ordersData) ? (ordersData as ProfileOrder[]) : []);
+        } catch (error) {
+            console.error('Customer profile data load failed:', error);
+            setOrders([]);
+        } finally {
+            if (!options?.silent) {
+                setLoading(false);
+            }
+        }
+    }, [fetchUserRoles]);
 
     useEffect(() => {
-        let active = true;
-
-        const loadProfileData = async () => {
-            setLoading(true);
-            try {
-                const [ordersData] = await Promise.all([
-                    customerOrderService.getMyOrders(),
-                    fetchUserRoles(),
-                ]);
-
-                if (!active) return;
-                setOrders(Array.isArray(ordersData) ? (ordersData as ProfileOrder[]) : []);
-            } catch (error) {
-                if (!active) return;
-                console.error('Customer profile data load failed:', error);
-                setOrders([]);
-            } finally {
-                if (active) {
-                    setLoading(false);
-                }
-            }
-        };
-
+        if (authLoading) return;
+        if (!userId) return;
         void loadProfileData();
+    }, [authLoading, userId, loadProfileData]);
+
+    useEffect(() => {
+        if (authLoading) return;
+        if (!userId) {
+            navigate('/foodie/auth', { replace: true });
+        }
+    }, [authLoading, userId, navigate]);
+
+    useEffect(() => {
+        if (!userId) return;
+
+        const channel = supabase
+            .channel(`customer-profile-live-${userId}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'orders',
+                filter: `customer_id=eq.${userId}`,
+            }, () => {
+                void loadProfileData({ silent: true });
+            })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'user_roles',
+                filter: `user_id=eq.${userId}`,
+            }, () => {
+                void fetchUserRoles();
+            })
+            .subscribe();
 
         return () => {
-            active = false;
+            void supabase.removeChannel(channel);
         };
-    }, [userId]);
+    }, [userId, loadProfileData, fetchUserRoles]);
 
     useEffect(() => {
         setProfileName(customer?.full_name || '');
@@ -151,8 +184,15 @@ const CustomerProfile: React.FC = () => {
     }, [customer?.phone, profileSettings.defaultPhone]);
 
     const handleSignOut = async () => {
-        await logout();
-        navigate('/foodie/home');
+        if (signingOut) return;
+
+        setSigningOut(true);
+        try {
+            await logout();
+            navigate('/foodie/auth', { replace: true });
+        } finally {
+            setSigningOut(false);
+        }
     };
 
     const persistProfileSettings = (nextSettings: ProfileSettings) => {
@@ -302,7 +342,13 @@ const CustomerProfile: React.FC = () => {
             
             {/* Header */}
             <header className="p-6 flex items-center justify-between sticky top-0 z-50 bg-[#0d0500]/80 backdrop-blur-xl">
-                 <button onClick={() => navigate(-1)} className="p-2 bg-white/5 rounded-xl">
+                 <button
+                    onClick={() => {
+                        if (!signingOut) navigate(-1);
+                    }}
+                    disabled={signingOut}
+                    className="p-2 bg-white/5 rounded-xl disabled:opacity-50"
+                >
                     <ArrowLeft className="w-5 h-5" />
                 </button>
                 <h1 className="text-xl font-black uppercase tracking-tight">Profile</h1>
@@ -562,10 +608,11 @@ const CustomerProfile: React.FC = () => {
                     {customer && (
                         <button 
                             onClick={handleSignOut}
+                            disabled={signingOut}
                             className="w-full p-5 rounded-3xl bg-red-500/5 border border-red-500/20 flex items-center gap-4 text-red-500 hover:bg-red-500/10 transition-colors"
                         >
                             <LogOut className="w-5 h-5" />
-                            <span className="text-sm font-black uppercase tracking-widest">Sign Out</span>
+                            <span className="text-sm font-black uppercase tracking-widest">{signingOut ? 'Signing Out...' : 'Sign Out'}</span>
                         </button>
                     )}
                 </div>
