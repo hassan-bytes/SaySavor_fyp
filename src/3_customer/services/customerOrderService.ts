@@ -17,7 +17,7 @@
 // ============================================================
 import { supabase } from '@/shared/lib/supabaseClient';
 import type { CartItem } from '@/3_customer/types/customer';
-import { ORDER_TYPE } from '@/shared/types/orderTypes';
+import { ORDER_TYPE, type OrderType } from '@/shared/types/orderTypes';
 import { PaymentStatus } from '@/shared/types/paymentTypes';
 
 export interface CreateOrderParams {
@@ -36,7 +36,7 @@ export interface CreateOrderParams {
     is_guest?: boolean;         // → is_guest in DB
     stripe_payment_intent_id?: string;
     table_number?: string | null;
-    order_type?: string;
+    order_type?: OrderType;
 }
 
 export const customerOrderService = {

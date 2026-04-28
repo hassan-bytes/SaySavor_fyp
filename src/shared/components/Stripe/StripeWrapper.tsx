@@ -11,6 +11,7 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 interface StripeWrapperProps {
     amount: number;
     restaurantId: string;
+    currency?: string;
     currencyCode?: string;
     currencySymbol?: string;
     metadata?: any;
@@ -18,7 +19,7 @@ interface StripeWrapperProps {
     onCancel: () => void;
 }
 
-export default function StripeWrapper({ amount, restaurantId, currencyCode = 'PKR', currencySymbol = DEFAULT_CURRENCY.symbol, metadata, onSuccess, onCancel }: StripeWrapperProps) {
+export default function StripeWrapper({ amount, restaurantId, currency = 'USD', currencyCode, currencySymbol = DEFAULT_CURRENCY.symbol, metadata, onSuccess, onCancel }: StripeWrapperProps) {
     const [clientSecret, setClientSecret] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -27,17 +28,19 @@ export default function StripeWrapper({ amount, restaurantId, currencyCode = 'PK
         setLoading(true);
         setError(null);
         try {
+            const effectiveCurrency = String(currency || currencyCode || 'USD').toLowerCase();
+
             // Log safe, non-PII fields only
             console.log("[StripeWrapper] Creating Payment Intent:", {
                 amount,
-                currencyCode: 'usd', // Force USD for testing Stripe
+                currencyCode: effectiveCurrency,
                 restaurantId,
                 // Note: metadata may contain PII, not logged in production
             });
             const { data, error: functionError } = await supabase.functions.invoke('create-payment-intent', {
                 body: {
                     amount: amount,
-                    currency: 'usd', // Use USD instead of PKR for Stripe compatibility
+                    currency: effectiveCurrency,
                     restaurantId: restaurantId,
                     metadata: {
                         ...metadata,
@@ -64,7 +67,7 @@ export default function StripeWrapper({ amount, restaurantId, currencyCode = 'PK
 
     useEffect(() => {
         createPaymentIntent();
-    }, [amount, restaurantId, JSON.stringify(metadata)]);
+    }, [amount, restaurantId, currency, currencyCode, JSON.stringify(metadata)]);
 
     if (loading) {
         return (

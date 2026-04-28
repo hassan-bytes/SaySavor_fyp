@@ -52,6 +52,8 @@ import { useMenuOffers } from '@/2_partner/dashboard/menu/hooks/useMenuOffers';
 import { useMenuExport } from '@/2_partner/dashboard/menu/hooks/useMenuExport';
 import { useMenuScan } from '@/2_partner/dashboard/menu/hooks/useMenuScan';
 import OfferModal from '@/2_partner/dashboard/components/OfferModal';
+import { usePartnerJarvis } from '@/2_partner/components/ai_agent/usePartnerJarvis';
+import { usePartnerActionHandler } from '@/2_partner/components/ai_agent/PartnerActionHandler';
 
 const translations = {
     en: { menuManager: "Menu Manager" },
@@ -133,6 +135,68 @@ const CloudPulseIcon = ({ status }: { status: 'idle' | 'saving' | 'saved' }) => 
     );
 };
 
+// ── Jarvis floating mic for the Menu page ────────────────────────────────────
+const MenuJarvisMic = ({ restaurantId }: { restaurantId: string }) => {
+    const { isRecording, isProcessing, isAutoMode, error, lastData, startRecording, stopRecording, toggleAutoMode } =
+        usePartnerJarvis({ restaurantId });
+    const { executeAction } = usePartnerActionHandler();
+    const handledRef = React.useRef<string | null>(null);
+
+    React.useEffect(() => {
+        if (!lastData) return;
+        const key = `${lastData.action}:${lastData.target}:${Date.now()}`;
+        if (handledRef.current === key) return;
+        handledRef.current = key;
+        executeAction(lastData.action, lastData.target, lastData.tool_result);
+    }, [lastData, executeAction]);
+
+    React.useEffect(() => { if (error) toast.error(error); }, [error]);
+
+    const handleClick = async () => {
+        if (isProcessing || isAutoMode) return;
+        if (isRecording) { stopRecording(); return; }
+        await startRecording();
+    };
+
+    return (
+        <div className="fixed bottom-24 right-6 md:bottom-10 md:right-10 z-50 flex flex-col items-end gap-2">
+            {/* Auto-mode pill */}
+            <button
+                type="button"
+                onClick={toggleAutoMode}
+                className={`text-[10px] font-bold px-2.5 py-1 rounded-full border transition ${
+                    isAutoMode
+                        ? 'border-green-400/50 bg-green-500/20 text-green-300 animate-pulse'
+                        : 'border-white/20 bg-black/60 text-slate-400 hover:text-slate-200'
+                }`}
+            >
+                {isAutoMode ? 'AUTO ON' : 'AUTO'}
+            </button>
+
+            {/* Main mic button */}
+            <button
+                type="button"
+                onClick={handleClick}
+                disabled={isProcessing}
+                title={isRecording ? 'Stop' : 'Jarvis ko bolo...'}
+                className={`w-14 h-14 rounded-full flex items-center justify-center border-2 shadow-lg transition-all hover:scale-110 disabled:opacity-60 ${
+                    isRecording
+                        ? 'border-red-400/70 bg-red-500/30 text-red-200 animate-pulse shadow-red-500/30'
+                        : isProcessing
+                        ? 'border-amber-400/50 bg-amber-500/20 text-amber-200 shadow-amber-500/30'
+                        : 'border-amber-400/40 bg-black/70 text-amber-300 shadow-amber-500/20 hover:bg-amber-500/20'
+                }`}
+            >
+                {isProcessing
+                    ? <Loader2 className="w-6 h-6 animate-spin" />
+                    : isRecording
+                    ? <Square className="w-5 h-5 text-red-400" />
+                    : <Mic className="w-6 h-6" />}
+            </button>
+        </div>
+    );
+};
+
 const MenuManager = () => {
     const {
         items,
@@ -146,6 +210,22 @@ const MenuManager = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showLowStockOnly, setShowLowStockOnly] = useState(false);
     const navigate = useNavigate();
+
+    // ── Jarvis voice bridge — listens for window events dispatched by PartnerActionHandler ──
+    useEffect(() => {
+        const onSearch = (e: Event) => {
+            const query = (e as CustomEvent<{ query: string }>).detail?.query || '';
+            setSearchTerm(query);
+            if (query) toast.info(`Jarvis: "${query}" search ho raha hai...`);
+        };
+        const onRefresh = () => { void fetchItems(); };
+        window.addEventListener('jarvis:menu:search', onSearch);
+        window.addEventListener('jarvis:menu:refresh', onRefresh);
+        return () => {
+            window.removeEventListener('jarvis:menu:search', onSearch);
+            window.removeEventListener('jarvis:menu:refresh', onRefresh);
+        };
+    }, [fetchItems]);
 
     // Tab State
     const [activeItemTab, setActiveItemTab] = useState('all');
@@ -2093,14 +2173,8 @@ const MenuManager = () => {
             </Dialog>
 
             {/* Floating Jarvis Assistant (Bubble) */}
-            <div className="fixed bottom-24 right-6 md:bottom-10 md:right-10 z-50">
-                <Button
-                    onClick={handleAIGenerate}
-                    className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-[0_10px_40px_rgba(59,130,246,0.5)] hover:scale-110 transition-all flex items-center justify-center group border-2 border-white/20 p-0"
-                >
-                    <Sparkles className="w-6 h-6 group-hover:animate-pulse" />
-                </Button>
-            </div>
+            {/* Jarvis Voice Button — single mic for menu page */}
+            <MenuJarvisMic restaurantId={restId || ''} />
 
             {/* Bottom Mobile Navigation */}
             <MobileNav />

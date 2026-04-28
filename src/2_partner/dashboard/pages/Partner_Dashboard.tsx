@@ -36,6 +36,7 @@ import { useNotificationManager } from '@/2_partner/dashboard/components/Notific
 import { setupOrderRealtimeListener } from '@/2_partner/dashboard/services/orderRealtimeService';
 import { ORDER_WITH_ITEMS_SELECT } from '@/shared/constants/querySelects';
 import { registerOrderPushNotifications } from '@/shared/services/pushNotifications';
+import JarvisButton from '@/2_partner/components/ai_agent/JarvisButton';
 // ── NEW IMPORT ──────────────────────────────────────────────
 import PartnerOrders from '@/2_partner/pages/PartnerOrders';
 import PartnerPOS from '@/2_partner/pages/PartnerPOS';
@@ -512,6 +513,9 @@ const PartnerDashboardLayout = () => {
                     <Outlet context={{ greeting, formattedTime, profile, realtimeTrigger, theme, dashboardLang: language, refreshProfile: fetchProfile, restaurantId, notificationManager }} />
                 </div>
             </main>
+
+            {/* Hide global Jarvis button on menu page — MenuManager has its own */}
+            {!location.pathname.includes('/menu') && <JarvisButton />}
         </div>
     );
 };

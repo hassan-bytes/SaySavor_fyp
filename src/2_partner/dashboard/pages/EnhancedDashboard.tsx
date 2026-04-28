@@ -76,6 +76,37 @@ export const EnhancedDashboardOverview = () => {
     const [isDemoMode, setIsDemoMode] = useState(false);
     const [isNewRestaurant, setIsNewRestaurant] = useState(false);
 
+    // Online/Offline status
+    const [isOnline, setIsOnline] = useState<boolean | null>(null);
+
+    const toggleStatus = useCallback(async (forceTo?: 'online' | 'offline') => {
+        const newStatus = forceTo ? forceTo === 'online' : !isOnline;
+        setIsOnline(newStatus);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            await (supabase as any).from('restaurants').update({ is_open: newStatus }).eq('owner_id', user.id);
+        }
+    }, [isOnline]);
+
+    // Fetch initial online status
+    useEffect(() => {
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            if (!user) return;
+            supabase.from('restaurants').select('is_open').eq('owner_id', user.id).single()
+                .then(({ data }) => { if (data) setIsOnline((data as any).is_open ?? false); });
+        });
+    }, []);
+
+    // Jarvis: listen for toggle-status event dispatched from PartnerActionHandler
+    useEffect(() => {
+        const onToggle = (e: Event) => {
+            const target = (e as CustomEvent<{ target: string }>).detail?.target;
+            void toggleStatus(target as 'online' | 'offline' | undefined);
+        };
+        window.addEventListener('jarvis:dashboard:toggle-status', onToggle);
+        return () => window.removeEventListener('jarvis:dashboard:toggle-status', onToggle);
+    }, [toggleStatus]);
+
     // Time & Greeting
     const [currentTime, setCurrentTime] = useState(new Date());
     const [greeting, setGreeting] = useState('');

@@ -19,6 +19,7 @@ import { useCart } from '@/3_customer/context/CartContext';
 import { useCustomerLocation } from '@/3_customer/hooks/useCustomerLocation';
 import type { MenuItem } from '@/shared/types/menu';
 import { COUNTRY_CURRENCIES } from '@/shared/lib/currencyUtils';
+import CustomerJarvisButton from '@/3_customer/components/ai_agent/CustomerJarvisButton';
 
 // ── Types ─────────────────────────────────────────────────────
 interface RestaurantInfo {
@@ -100,8 +101,24 @@ const RestaurantDetail: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState('');
-    const [searchQuery, setSearchQuery] = useState('');
+    const searchParamQuery = searchParams.get('search');
+    const [searchQuery, setSearchQuery] = useState(searchParamQuery || '');
     const refreshTimeoutRef = useRef<number | null>(null);
+
+    // Sync ?search= URL param into the search bar (set by Jarvis SEARCH_MENU navigation)
+    useEffect(() => {
+        if (searchParamQuery) setSearchQuery(searchParamQuery);
+    }, [searchParamQuery]);
+
+    // Listen for Jarvis live search event — updates search bar without page navigation
+    useEffect(() => {
+        const handler = (e: CustomEvent) => {
+            const q = e.detail?.query as string | undefined;
+            if (q) setSearchQuery(q);
+        };
+        window.addEventListener('jarvis:customer:search', handler as EventListener);
+        return () => window.removeEventListener('jarvis:customer:search', handler as EventListener);
+    }, []);
 
     const allMenuItems = useMemo(
         () => menuCategories.flatMap((cat) => cat.items),
@@ -589,6 +606,8 @@ const RestaurantDetail: React.FC = () => {
                 )}
             </AnimatePresence>
 
+            {/* Jarvis voice assistant — floating button with this restaurant's context */}
+            <CustomerJarvisButton restaurantId={restaurant?.id || ''} />
         </div>
     );
 };

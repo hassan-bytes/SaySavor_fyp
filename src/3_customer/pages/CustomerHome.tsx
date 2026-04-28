@@ -24,6 +24,7 @@ import type { MenuItem } from '@/shared/types/menu';
 import { COUNTRY_CURRENCIES } from '@/shared/lib/currencyUtils';
 import { useCart } from '@/3_customer/context/CartContext';
 import { supabase } from '@/shared/lib/supabaseClient';
+import CustomerJarvisButton from '@/3_customer/components/ai_agent/CustomerJarvisButton';
 
 interface HomeFeaturedProduct {
     id: string;
@@ -1545,6 +1546,9 @@ const CustomerHome: React.FC = () => {
 
             {/* bottom padding for mobile nav */}
             <div className="h-20 md:hidden" />
+
+            {/* Jarvis voice assistant — floating button */}
+            <CustomerJarvisButton />
         </div>
     );
 };

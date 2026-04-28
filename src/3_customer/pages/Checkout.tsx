@@ -16,56 +16,17 @@ import {
     ShieldCheck, Info, Phone
 } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
-import {
-    Elements,
-    PaymentElement,
-    useStripe,
-    useElements,
-} from '@stripe/react-stripe-js';
 import { useCart } from '@/3_customer/context/CartContext';
 import { useCustomerAuth } from '@/3_customer/context/CustomerAuthContext';
 import { customerOrderService } from '@/3_customer/services/customerOrderService';
 import { toast } from 'sonner';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { COUNTRY_CURRENCIES } from '@/shared/lib/currencyUtils';
+import StripePaymentForm from '@/shared/components/StripePaymentForm';
 
 // ── Stripe setup (outside component so it's not recreated) ──
 const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
-
-// ── Stripe appearance matching SaySavor dark theme ──────────
-const stripeAppearance = {
-    theme: 'night' as const,
-    variables: {
-        colorPrimary: '#FF6B35',
-        colorBackground: '#1a0800',
-        colorText: '#ffffff',
-        colorDanger: '#ef4444',
-        fontFamily: 'system-ui, sans-serif',
-        borderRadius: '12px',
-        colorInputBackground: 'rgba(255,255,255,0.05)',
-        colorInputBorder: 'rgba(255,255,255,0.1)',
-        colorInputText: '#ffffff',
-        colorInputPlaceholder: 'rgba(255,255,255,0.3)',
-    },
-    rules: {
-        '.Input': {
-            border: '1px solid rgba(255,255,255,0.1)',
-            backgroundColor: 'rgba(255,255,255,0.05)',
-        },
-        '.Input:focus': {
-            border: '1px solid rgba(255,107,53,0.5)',
-            boxShadow: '0 0 0 3px rgba(255,107,53,0.1)',
-        },
-        '.Label': {
-            color: 'rgba(255,255,255,0.5)',
-            fontSize: '10px',
-            fontWeight: '700',
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-        },
-    },
-};
 
 // ── Address type ─────────────────────────────────────────────
 interface DeliveryAddress {
@@ -109,7 +70,7 @@ const readProfileSettings = (): CustomerProfileSettings => {
     }
 };
 
-type OrderMode = 'DELIVERY' | 'PICKUP' | 'DINE_IN';
+type OrderMode = 'DELIVERY' | 'TAKEAWAY' | 'DINE_IN';
 
 interface RestaurantRules {
     name: string;
@@ -196,57 +157,6 @@ const validateAddress = (address: DeliveryAddress): { isValid: boolean; errors: 
         isValid: errors.length === 0,
         errors
     };
-};
-
-// ── Inner Stripe Form Component ──────────────────────────────
-const StripePaymentForm: React.FC<{
-    onSuccess: (paymentIntentId: string) => void;
-    onError: (msg: string) => void;
-    amount: string;
-    loading: boolean;
-    setLoading: (v: boolean) => void;
-}> = ({ onSuccess, onError, amount, loading, setLoading }) => {
-    const stripe = useStripe();
-    const elements = useElements();
-
-    const handleStripeSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!stripe || !elements) return;
-
-        setLoading(true);
-        try {
-            const { error, paymentIntent } = await stripe.confirmPayment({
-                elements,
-                redirect: 'if_required',
-                confirmParams: {
-                    return_url: `${window.location.origin}/foodie/payment-success`,
-                },
-            });
-
-            if (error) {
-                onError(error.message || 'Payment failed');
-            } else if (paymentIntent && paymentIntent.status === 'succeeded') {
-                onSuccess(paymentIntent.id);
-            }
-        } catch (err: any) {
-            onError(err.message || 'Payment failed');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <form onSubmit={handleStripeSubmit} id="stripe-form">
-            <PaymentElement
-                options={{
-                    layout: 'tabs',
-                    defaultValues: {
-                        billingDetails: { address: { country: 'PK' } }
-                    }
-                }}
-            />
-        </form>
-    );
 };
 
 // ── Main Checkout Component ───────────────────────────────────
@@ -521,7 +431,7 @@ const CheckoutPage: React.FC = () => {
         });
 
         if (!isDeliveryEnabled) {
-            setOrderMode(prev => (prev === 'DELIVERY' ? (tableNumber ? 'DINE_IN' : 'PICKUP') : prev));
+            setOrderMode(prev => (prev === 'DELIVERY' ? (tableNumber ? 'DINE_IN' : 'TAKEAWAY') : prev));
         }
     }, [currentRestaurantId, tableNumber]);
 
@@ -712,7 +622,7 @@ const CheckoutPage: React.FC = () => {
                 payment_method: 'COD',
                 delivery_address: orderMode === 'DELIVERY'
                     ? `${selectedAddress.fullAddress} | ${selectedAddress.phone}`
-                    : orderMode === 'PICKUP'
+                    : orderMode === 'TAKEAWAY'
                         ? `Pickup Order | ${selectedAddress.phone}`
                         : `Dine-in | Table ${(tableInput || tableNumber || '').trim()} | ${selectedAddress.phone}`,
                 delivery_phone: selectedAddress.phone,
@@ -763,7 +673,7 @@ const CheckoutPage: React.FC = () => {
                 payment_method: 'ONLINE',
                 delivery_address: orderMode === 'DELIVERY'
                     ? `${selectedAddress.fullAddress} | ${selectedAddress.phone}`
-                    : orderMode === 'PICKUP'
+                    : orderMode === 'TAKEAWAY'
                         ? `Pickup Order | ${selectedAddress.phone}`
                         : `Dine-in | Table ${(tableInput || tableNumber || '').trim()} | ${selectedAddress.phone}`,
                 delivery_phone: selectedAddress.phone,
@@ -833,7 +743,7 @@ const CheckoutPage: React.FC = () => {
                     <div className="grid grid-cols-3 gap-2">
                         {([
                             { key: 'DELIVERY', label: 'Delivery', icon: MapPin, disabled: !restaurantRules.isDeliveryEnabled },
-                            { key: 'PICKUP', label: 'Pickup', icon: ShoppingCart, disabled: false },
+                            { key: 'TAKEAWAY', label: 'Pickup', icon: ShoppingCart, disabled: false },
                             { key: 'DINE_IN', label: 'Dine-in', icon: Building2, disabled: false },
                         ] as const).map((mode) => {
                             const Icon = mode.icon;
@@ -1133,21 +1043,21 @@ const CheckoutPage: React.FC = () => {
                                         <p className="text-xs text-white/40">Initializing payment...</p>
                                     </div>
                                 ) : clientSecret ? (
-                                    <Elements
-                                        stripe={stripePromise}
-                                        options={{
-                                            clientSecret,
-                                            appearance: stripeAppearance,
-                                        }}
-                                    >
-                                        <StripePaymentForm
-                                            onSuccess={handleStripeSuccess}
-                                            onError={handleStripeError}
-                                            amount={formatPrice(finalTotal)}
-                                            loading={loading}
-                                            setLoading={setLoading}
-                                        />
-                                    </Elements>
+                                    <StripePaymentForm
+                                        amount={finalTotal}
+                                        formattedAmount={formatPrice(finalTotal)}
+                                        restaurantId={currentRestaurantId || ''}
+                                        orderType="delivery"
+                                        onSuccess={handleStripeSuccess}
+                                        onError={handleStripeError}
+                                        disabled={loading}
+                                        submitLabel="Pay"
+                                        clientSecret={clientSecret}
+                                        loadingExternal={fetchingIntent}
+                                        errorExternal={null}
+                                        formId="stripe-form"
+                                        hideSubmitButton
+                                    />
                                 ) : (
                                     <div className="py-6 text-center">
                                         <Info className="w-5 h-5 text-white/20 mx-auto mb-2" />

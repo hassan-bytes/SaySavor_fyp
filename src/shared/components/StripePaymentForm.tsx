@@ -70,6 +70,8 @@ interface InnerFormProps {
   submitLabel?: string;
   amount: string;        // formatted price string for display
   disabled?: boolean;
+  formId?: string;
+  hideSubmitButton?: boolean;
 }
 
 export const StripeInnerForm: React.FC<InnerFormProps> = ({
@@ -78,6 +80,8 @@ export const StripeInnerForm: React.FC<InnerFormProps> = ({
   submitLabel = 'Pay Now',
   amount,
   disabled = false,
+  formId,
+  hideSubmitButton = false,
 }) => {
   const stripe = useStripe();
   const elements = useElements();
@@ -128,7 +132,7 @@ export const StripeInnerForm: React.FC<InnerFormProps> = ({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form id={formId} onSubmit={handleSubmit} className="space-y-4">
       <PaymentElement
         options={{
           layout: 'tabs',
@@ -155,26 +159,28 @@ export const StripeInnerForm: React.FC<InnerFormProps> = ({
         , any future date, any CVV
       </p>
 
-      <button
-        type="submit"
-        disabled={!stripe || !elements || submitting || disabled}
-        className="w-full h-14 rounded-2xl bg-orange-500 text-white font-black text-base
-          shadow-xl shadow-orange-500/25 flex items-center justify-center gap-3
-          disabled:opacity-50 disabled:cursor-not-allowed
-          active:scale-[0.98] transition-all"
-      >
-        {submitting ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Processing...
-          </>
-        ) : (
-          <>
-            <CreditCard className="w-5 h-5" />
-            {submitLabel} · {amount}
-          </>
-        )}
-      </button>
+      {!hideSubmitButton && (
+        <button
+          type="submit"
+          disabled={!stripe || !elements || submitting || disabled}
+          className="w-full h-14 rounded-2xl bg-orange-500 text-white font-black text-base
+            shadow-xl shadow-orange-500/25 flex items-center justify-center gap-3
+            disabled:opacity-50 disabled:cursor-not-allowed
+            active:scale-[0.98] transition-all"
+        >
+          {submitting ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            <>
+              <CreditCard className="w-5 h-5" />
+              {submitLabel} · {amount}
+            </>
+          )}
+        </button>
+      )}
     </form>
   );
 };
@@ -190,6 +196,11 @@ interface StripePaymentFormProps {
   onError: (message: string) => void;
   submitLabel?: string;
   disabled?: boolean;
+  clientSecret?: string | null;
+  loadingExternal?: boolean;
+  errorExternal?: string | null;
+  formId?: string;
+  hideSubmitButton?: boolean;
 }
 
 const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
@@ -202,17 +213,33 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
   onError,
   submitLabel,
   disabled = false,
+  clientSecret,
+  loadingExternal,
+  errorExternal,
+  formId,
+  hideSubmitButton = false,
 }) => {
-  const { clientSecret, stripePromise, loading, error } = useStripePayment({
+  const useInternalIntent = clientSecret === undefined;
+
+  const {
+    clientSecret: internalClientSecret,
+    stripePromise,
+    loading,
+    error,
+  } = useStripePayment({
     amount,
     currency: 'pkr',
     restaurantId,
     orderId,
     orderType,
-    enabled: true,
+    enabled: useInternalIntent,
   });
 
-  if (loading) {
+  const resolvedClientSecret = useInternalIntent ? internalClientSecret : clientSecret;
+  const resolvedLoading = useInternalIntent ? loading : (loadingExternal ?? false);
+  const resolvedError = useInternalIntent ? error : errorExternal;
+
+  if (resolvedLoading) {
     return (
       <div className="py-8 flex flex-col items-center gap-3">
         <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
@@ -221,24 +248,24 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
     );
   }
 
-  if (error) {
+  if (resolvedError) {
     return (
       <div className="py-6 text-center space-y-3">
         <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
-          ⚠️ {error}
+          ⚠️ {resolvedError}
         </p>
         <p className="text-[10px] text-white/30">Please use Cash on Delivery instead</p>
       </div>
     );
   }
 
-  if (!clientSecret) return null;
+  if (!resolvedClientSecret) return null;
 
   return (
     <Elements
       stripe={stripePromise}
       options={{
-        clientSecret,
+        clientSecret: resolvedClientSecret,
         appearance: STRIPE_APPEARANCE,
       }}
     >
@@ -248,6 +275,8 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
         submitLabel={submitLabel}
         amount={formattedAmount}
         disabled={disabled}
+        formId={formId}
+        hideSubmitButton={hideSubmitButton}
       />
     </Elements>
   );

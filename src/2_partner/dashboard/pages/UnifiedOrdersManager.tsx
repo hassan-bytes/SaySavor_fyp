@@ -12,7 +12,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { toast } from 'sonner';
 import { soundManager } from '@/shared/services/soundManager';
 import { useRestaurant } from '@/shared/contexts/RestaurantContext';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { useNotificationManager } from '../components/NotificationManager';
 import { setupOrderRealtimeListener } from '../services/orderRealtimeService';
 import { getTableSessions, type TableSession } from '../services/tableSessionService';
@@ -41,6 +41,7 @@ type MainTab = 'kitchen' | 'tables' | 'pos' | 'history';
 const UnifiedOrdersManager = () => {
   const { restaurantId, realtimeTrigger = 0 } = useOutletContext<any>();
   const { currencySymbol } = useRestaurant();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<MainTab>('kitchen');
   
   // Orders State
@@ -261,6 +262,16 @@ const UnifiedOrdersManager = () => {
     fetchTables();
     fetchTableSessions();
   }, [fetchOrders, fetchTables, fetchTableSessions]);
+
+  useEffect(() => {
+    const requestedTab = searchParams.get('tab');
+    if (!requestedTab) return;
+
+    const validTabs: MainTab[] = ['kitchen', 'tables', 'pos', 'history'];
+    if (validTabs.includes(requestedTab as MainTab)) {
+      setActiveTab(requestedTab as MainTab);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!restaurantId) return;

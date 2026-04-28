@@ -185,6 +185,31 @@ const QRBuilder = () => {
         toast.success(`Table ${tableNo} QR Downloaded!`);
     };
 
+    // ── Jarvis voice bridge — listens for window events from PartnerActionHandler ──
+    useEffect(() => {
+        const onAddTable = (e: Event) => {
+            const tableNo = (e as CustomEvent<{ tableNo: number }>).detail?.tableNo;
+            if (!tableNo || isNaN(tableNo)) { toast.error('Table number invalid'); return; }
+            if (tables.length >= MAX_TABLES) { toast.error(`Maximum ${MAX_TABLES} tables allowed`); return; }
+            if (tables.includes(tableNo)) { toast.error(`Table ${tableNo} already exists`); return; }
+            const updated = [...tables, tableNo].sort((a, b) => a - b);
+            setTables(updated);
+            void saveTablesToDB(updated);
+            toast.success(`Jarvis: Table ${tableNo} add ho gaya!`);
+        };
+        const onDeleteTable = (e: Event) => {
+            const tableNo = (e as CustomEvent<{ tableNo: number }>).detail?.tableNo;
+            if (!tableNo || !tables.includes(tableNo)) { toast.error(`Table ${tableNo} exist nahi karta`); return; }
+            void handleDeleteTable(tableNo);
+        };
+        window.addEventListener('jarvis:qr:add-table', onAddTable);
+        window.addEventListener('jarvis:qr:delete-table', onDeleteTable);
+        return () => {
+            window.removeEventListener('jarvis:qr:add-table', onAddTable);
+            window.removeEventListener('jarvis:qr:delete-table', onDeleteTable);
+        };
+    }, [tables, restaurantId]);
+
     if (loading) {
         return <div className="p-8 text-center text-slate-500">Loading Configuration...</div>;
     }
