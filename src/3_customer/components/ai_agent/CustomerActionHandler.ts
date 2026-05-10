@@ -123,15 +123,25 @@ export const useCustomerActionHandler = () => {
 
       if (act === 'nearby' || act === 'search') {
         const q = (tgt || '').trim();
-        navigate(q ? `/foodie/home?q=${encodeURIComponent(q)}` : '/foodie/home');
+        const sort = data?.sort as string | undefined;
+        const freeDelivery = data?.free_delivery as boolean | undefined;
+        const params = new URLSearchParams();
+        if (q) params.set('q', q);
+        if (sort) params.set('sort', sort);
+        if (freeDelivery) params.set('delivery', 'free');
+        const qs = params.toString();
+        navigate(qs ? `/foodie/home?${qs}` : '/foodie/home');
         return;
       }
 
-      // ── SEARCH_MENU: update search bar + navigate if needed ──────────────────
+      // ── SEARCH_MENU: update search bar + navigate with optional filters ────
       if (act === 'search_menu') {
         const q = (data?.query as string) || tgt;
         const rid = (data?.restaurant_id as string) || '';
-        // Always dispatch event so RestaurantDetail updates its search bar live
+        const maxPrice = data?.max_price as number | undefined;
+        const sort = data?.sort as string | undefined;
+        const freeDelivery = data?.free_delivery as boolean | undefined;
+
         if (q) {
           window.dispatchEvent(
             new CustomEvent('jarvis:customer:search', { detail: { query: q, restaurant_id: rid } })
@@ -140,11 +150,15 @@ export const useCustomerActionHandler = () => {
         if (navigateTo) {
           navigate(navigateTo);
         } else if (rid) {
-          // Has restaurant context — stay on restaurant page with ?search= param
           navigate(`/foodie/restaurant/${rid}?search=${encodeURIComponent(q || '')}`);
         } else {
-          // No restaurant context — go to home with query
-          navigate(q ? `/foodie/home?q=${encodeURIComponent(q)}` : '/foodie/home');
+          const params = new URLSearchParams();
+          if (q) params.set('q', q);
+          if (maxPrice) params.set('maxprice', String(maxPrice));
+          if (sort) params.set('sort', sort);
+          if (freeDelivery) params.set('delivery', 'free');
+          const qs = params.toString();
+          navigate(qs ? `/foodie/home?${qs}` : '/foodie/home');
         }
         return;
       }
@@ -157,10 +171,18 @@ export const useCustomerActionHandler = () => {
         return;
       }
 
-      // ── BUDGET_SUGGEST: show suggestions as toast ─────────────────────────
+      // ── BUDGET_SUGGEST: show suggestions + filter home page ──────────────
       if (act === 'budget_suggest') {
         const summary = (toolResult as Record<string, unknown>)?.summary as string | undefined;
         if (summary) toast.message('Budget Suggestions', { description: summary });
+        const budget = data?.budget as number | undefined;
+        const budgetQuery = data?.query as string | undefined;
+        if (budget) {
+          const params = new URLSearchParams();
+          if (budgetQuery) params.set('q', budgetQuery);
+          params.set('maxprice', String(budget));
+          navigate(`/foodie/home?${params.toString()}`);
+        }
         return;
       }
 

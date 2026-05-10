@@ -8,7 +8,7 @@
 // ROUTE: /foodie/home (or /foodie after auth)
 // ============================================================
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Search, MapPin, ShoppingCart, Star, Clock,
@@ -210,12 +210,18 @@ const RestaurantCard3D: React.FC<{
 // ── Main Component ─────────────────────────────────────────────
 const CustomerHome: React.FC = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { customer, isGuest } = useCustomerAuth();
     const { totalCount, addToCart } = useCart();
 
-    const [searchQuery, setSearchQuery] = useState('');
+    const urlQuery    = searchParams.get('q') || '';
+    const urlMaxPrice = searchParams.get('maxprice') || '';
+    const urlSort     = searchParams.get('sort') || '';
+    const urlDelivery = searchParams.get('delivery') || '';
+
+    const [searchQuery, setSearchQuery] = useState(urlQuery);
     const [activeChip, setActiveChip] = useState('all');
-    const [showSearch, setShowSearch] = useState(false);
+    const [showSearch, setShowSearch] = useState(!!urlQuery);
     const [showFilters, setShowFilters] = useState(false);
     const [sortBy, setSortBy] = useState<'recommended' | 'fastest' | 'lowest_fee' | 'top_rated'>('recommended');
     const [maxFee, setMaxFee] = useState('');
@@ -224,6 +230,17 @@ const CustomerHome: React.FC = () => {
     const [maxDistanceKm, setMaxDistanceKm] = useState('10');
     const [freeDeliveryOnly, setFreeDeliveryOnly] = useState(false);
     const [openFilter, setOpenFilter] = useState<'open' | 'all' | 'closed'>('open');
+
+    // Sync search + filters when Jarvis navigates with URL params
+    useEffect(() => {
+        setSearchQuery(urlQuery);
+        if (urlQuery) setShowSearch(true);
+        if (urlMaxPrice) setMaxMinOrder(urlMaxPrice);
+        const validSorts = ['recommended', 'fastest', 'lowest_fee', 'top_rated'];
+        if (urlSort && validSorts.includes(urlSort))
+            setSortBy(urlSort as typeof sortBy);
+        setFreeDeliveryOnly(urlDelivery === 'free');
+    }, [urlQuery, urlMaxPrice, urlSort, urlDelivery]);
 
     const {
         location,
@@ -242,7 +259,7 @@ const CustomerHome: React.FC = () => {
         return Number.isFinite(num) ? num : null;
     };
 
-    const { restaurants: filteredRestaurants, allRestaurants, loading, cuisineOptions } = useNearbyRestaurants(
+    const { restaurants: filteredRestaurants, allRestaurants, loading, cuisineOptions, locationRequired } = useNearbyRestaurants(
         searchQuery,
         activeChip,
         {
@@ -1459,17 +1476,31 @@ const CustomerHome: React.FC = () => {
                                 animate={{ opacity: 1 }}
                                 className="text-center py-20"
                             >
-                                <p className="text-5xl mb-4">🍽️</p>
+                                <p className="text-5xl mb-4">{locationRequired ? '📍' : '🍽️'}</p>
                                 <p className="text-white font-bold text-lg mb-2">
-                                    {searchQuery
-                                        ? `No results for "${searchQuery}"`
-                                        : hasActiveFilters
-                                            ? 'No restaurants match your filters'
-                                            : 'No restaurants yet'}
+                                    {locationRequired
+                                        ? 'Location required'
+                                        : searchQuery
+                                            ? `No results for "${searchQuery}"`
+                                            : hasActiveFilters
+                                                ? 'No restaurants match your filters'
+                                                : 'No restaurants yet'}
                                 </p>
-                                <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                                    More restaurants coming soon to your area!
+                                <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                                    {locationRequired
+                                        ? `Enable location to see restaurants within ${maxDistanceKm} km`
+                                        : 'More restaurants coming soon to your area!'}
                                 </p>
+                                {locationRequired && (
+                                    <button
+                                        onClick={requestLocation}
+                                        disabled={locationStatus === 'loading'}
+                                        className="px-6 py-2.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-60"
+                                        style={{ background: 'linear-gradient(135deg, #FF6B35, #E85A24)' }}
+                                    >
+                                        {locationStatus === 'loading' ? 'Locating...' : 'Enable Location'}
+                                    </button>
+                                )}
                             </motion.div>
                         ) : (
                             <div className="grid sm:grid-cols-2 gap-5">

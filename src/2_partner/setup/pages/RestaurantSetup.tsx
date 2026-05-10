@@ -288,6 +288,7 @@ const RestaurantSetup = () => {
     });
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [detectingLocation, setDetectingLocation] = useState(false);
 
     // --- STEP 3 MENU STATE ---
     // Make MENU_PRESETS stateful to allow editing
@@ -406,6 +407,7 @@ const RestaurantSetup = () => {
             return;
         }
 
+        setDetectingLocation(true);
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 const lat = pos.coords.latitude.toFixed(6);
@@ -415,10 +417,12 @@ const RestaurantSetup = () => {
                     latitude: lat,
                     longitude: lng,
                 }));
-                toast.success('Location saved.');
+                setDetectingLocation(false);
+                toast.success('Location detected.');
             },
             () => {
-                toast.error('Unable to access location.');
+                setDetectingLocation(false);
+                toast.error('Unable to access location. Please allow location permission.');
             },
             {
                 enableHighAccuracy: true,
@@ -1172,10 +1176,11 @@ const RestaurantSetup = () => {
                                     <button
                                         type="button"
                                         onClick={handleUseCurrentLocation}
-                                        className="text-xs font-semibold px-4 py-2 rounded-lg transition-all"
+                                        disabled={detectingLocation}
+                                        className="text-xs font-semibold px-4 py-2 rounded-lg transition-all disabled:opacity-60"
                                         style={{ color: '#FF6B35', background: 'rgba(255,107,53,0.1)', border: '1px solid rgba(255,107,53,0.2)' }}
                                     >
-                                        Use current location
+                                        {detectingLocation ? 'Detecting...' : 'Use current location'}
                                     </button>
                                     <div>
                                         <Label htmlFor="setup-phone" className="text-white mb-2 block">Phone</Label>
@@ -1718,3 +1723,4 @@ const RestaurantSetup = () => {
 };
 
 export default RestaurantSetup;
+

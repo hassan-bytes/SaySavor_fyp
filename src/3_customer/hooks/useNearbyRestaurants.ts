@@ -231,11 +231,10 @@ export const useNearbyRestaurants = (
 
     // Local filtering
     const location = filters.userLocation;
-    const maxDistance = typeof filters.maxDistanceKm === 'number' ? filters.maxDistanceKm : null;
-    const maxDistanceValue = typeof maxDistance === 'number' ? maxDistance : null;
-    const distanceFilterReady =
-        Boolean(location && Number.isFinite(location.lat) && Number.isFinite(location.lng)) &&
-        typeof maxDistance === 'number';
+    const maxDistanceValue = typeof filters.maxDistanceKm === 'number' ? filters.maxDistanceKm : null;
+    const locationAvailable = Boolean(location && Number.isFinite(location.lat) && Number.isFinite(location.lng));
+    // True when user wants distance filtering but hasn't granted location permission yet
+    const locationRequired = maxDistanceValue !== null && !locationAvailable;
 
     const normalizedSearchQuery = searchQuery.toLowerCase();
 
@@ -250,8 +249,15 @@ export const useNearbyRestaurants = (
             const matchesChip = activeChip === 'all' ||
                 (normalizedCuisine && normalizedCuisine === activeChip);
 
-            const matchesDistance = !distanceFilterReady ||
-                (typeof r.distance_km === 'number' && maxDistanceValue !== null && r.distance_km <= maxDistanceValue);
+            let matchesDistance = true;
+            if (maxDistanceValue !== null) {
+                if (!locationAvailable) {
+                    // Distance filter is set but no location — hide everything until location is granted
+                    matchesDistance = false;
+                } else {
+                    matchesDistance = typeof r.distance_km === 'number' && r.distance_km <= maxDistanceValue;
+                }
+            }
 
             return matchesSearch && matchesChip && matchesDistance;
         })
@@ -260,7 +266,7 @@ export const useNearbyRestaurants = (
         searchQuery,
         normalizedSearchQuery,
         activeChip,
-        distanceFilterReady,
+        locationAvailable,
         maxDistanceValue,
     ]);
 
@@ -280,5 +286,6 @@ export const useNearbyRestaurants = (
         loading,
         refresh: fetchRestaurants,
         cuisineOptions,
+        locationRequired,
     };
 };

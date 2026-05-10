@@ -175,6 +175,11 @@ export function RestaurantInfo({
               </span>
             )}
           </div>
+          {hasSavedLocation && (
+            <p className="text-[10px] text-slate-500 font-mono">
+              {settings.latitude?.toFixed(6)}, {settings.longitude?.toFixed(6)}
+            </p>
+          )}
           <p className="text-[10px] text-slate-400">
             Location is saved once and only needs updating if your restaurant moves.
           </p>

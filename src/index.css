@@ -2,6 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+ * FLUID RESPONSIVE SCALING — works on ANY screen size
+ * Mobile, tablet, laptop, LED, 4K, ultrawide — auto-detects
+ * viewport width and smoothly scales the root font-size.
+ * Every Tailwind rem-based size (max-w-*, p-*, gap-*, text-*)
+ * scales proportionally. No breakpoints, no jumps.
+ * ----------------------------------------------------------------
+ *   < 1280px : stays 16px (mobile + laptop — existing layout)
+ *   1280px   : 16px
+ *   1920px   : ~19px (Full HD LED)
+ *   2560px   : 22px  (2K monitor)
+ *   > 2560px : capped at 22px (no more growth)
+ * ============================================================ */
+html {
+  font-size: clamp(16px, calc(16px + (100vw - 1280px) * 0.0047), 22px);
+}
+
+/* Allow images / 3D canvases / videos to fluidly fill containers */
+img, video, canvas {
+  max-width: 100%;
+  height: auto;
+}
+
 .remove-arrow {
   -moz-appearance: textfield;
 }

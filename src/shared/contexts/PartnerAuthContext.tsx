@@ -85,6 +85,8 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const profileRef = useRef<PartnerProfile | null>(null);
   const mountedRef = useRef(true);
   const initializedRef = useRef(false);
+  const lastSessionIdRef = useRef<string | null>(null);
+  const fetchingProfileRef = useRef(false);
 
   /**
    * Initialize authentication on mount
@@ -102,25 +104,18 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const initAuth = async () => {
       try {
         console.log('[PartnerAuth] 🔄 Restoring session...');
-        
-        // Shorter timeout - 3 seconds max
+
+        // Fallback timeout — only fires if getSession hangs completely (rare)
         timeoutId = setTimeout(() => {
           if (mountedRef.current) {
             console.warn('[PartnerAuth] ⚠️ Session restoration timeout - proceeding anyway');
             setLoadingInitial(false);
           }
-        }, 3000);
-        
-        // Get existing session from Supabase storage with timeout
-        const sessionPromise = supabase.auth.getSession();
-        const result = await Promise.race([
-          sessionPromise,
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Session fetch timeout')), 2500)
-          )
-        ]) as any;
-        
-        const { data: { session: existingSession } = {}, error } = result || {};
+        }, 10000);
+
+        // getSession() reads localStorage + may trigger a token refresh network call.
+        // Do NOT add a short race timeout — token refresh can take 3-8s on slow networks.
+        const { data: { session: existingSession } = {}, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('[PartnerAuth] Session restoration error:', error);
@@ -166,14 +161,18 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         if (!mountedRef.current) return;
 
-        // Handle SIGNED_IN event - this means user just logged in
+        // Handle SIGNED_IN event - deduplicate by access token to avoid Supabase
+        // firing multiple SIGNED_IN events during token refresh cycles
         if (event === 'SIGNED_IN' && newSession?.user) {
+          const tokenId = newSession.access_token;
+          if (lastSessionIdRef.current === tokenId) return; // duplicate event, skip
+          lastSessionIdRef.current = tokenId;
+
           console.log('[PartnerAuth] ✅ User signed in:', newSession.user.email);
           setSession(newSession);
           setUser(newSession.user);
-          setLoadingInitial(false); // Stop loading immediately on sign in
-          
-          // Fetch profile in background
+          setLoadingInitial(false);
+
           fetchPartnerProfile(newSession.user.id).catch(err => {
             console.error('[PartnerAuth] Profile fetch failed after sign in:', err);
           });
@@ -217,6 +216,7 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return () => {
       mountedRef.current = false;
       initializedRef.current = false;
+      lastSessionIdRef.current = null;
       if (timeoutId) clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
@@ -228,8 +228,9 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
    * @param userId - Supabase Auth user ID
    */
   const fetchPartnerProfile = async (userId: string) => {
+    if (fetchingProfileRef.current) return;
+    fetchingProfileRef.current = true;
     try {
-      // Add timeout to prevent hanging
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
 
@@ -259,20 +260,18 @@ export const PartnerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setProfile(nextProfile);
       }
     } catch (error: any) {
-      // Ignore abort errors
       if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
         console.warn('[PartnerAuth] Profile fetch aborted');
-        return;
+      } else {
+        console.error('[PartnerAuth] Profile fetch exception:', error);
       }
-      console.error('[PartnerAuth] Profile fetch exception:', error);
+    } finally {
+      fetchingProfileRef.current = false;
     }
   };
 
-  /**
-   * Refresh profile data
-   * Useful after profile updates
-   */
   const refreshProfile = async () => {
+    fetchingProfileRef.current = false; // allow forced refresh
     if (!user?.id) return;
     await fetchPartnerProfile(user.id);
   };
